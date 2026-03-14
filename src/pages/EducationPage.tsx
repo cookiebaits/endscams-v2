@@ -220,10 +220,10 @@ const EMERGENCY_RESOURCES = [
 
 const GIFT_CARD_GALLERY = [
   { src: '/images/Gift_Card_Rack.jpg', label: 'Gift Card Display Rack', caption: 'A full gift card display rack in a store — scammers send victims here to buy untraceable payment. If anyone tells you to go buy gift cards, stop and call a trusted person first.' },
-  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10–$500) — scammers love these for their wide availability and instant redemption.' },
   { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', caption: 'Apple Gift Cards — frequently demanded by tech support scammers impersonating Apple, the IRS, or Social Security.' },
   { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex / Mastercard', caption: 'Credit card-branded gift cards (Visa, American Express, Mastercard) — accepted everywhere and completely untraceable once used. Often sold at pharmacy and grocery checkout lanes.' },
   { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', caption: 'Google Play Gift Cards — commonly used in prize scams, utility shutoff threats, and tech support fraud.' },
+  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10–$500) — scammers love these for their wide availability and instant redemption.' },
   { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards — often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
   { src: '/images/GreenDot_Front.jpg', label: 'Green Dot MoneyPak', caption: 'Green Dot MoneyPak — the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
   { src: '/images/IMG_6606.jpg', label: 'Walmart', caption: 'Walmart Gift Cards — widely available at thousands of locations, no ID required. Scammers frequently request these because of how easy they are to obtain.' },
@@ -409,75 +409,69 @@ export default function EducationPage() {
 
 function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
-    { name: 'Apple Gift Card', note: 'Used in tech support & IRS impersonation scams' },
-    { name: 'Amazon Gift Card', note: 'Requested in prize, lottery, and imposter scams' },
-    { name: 'Visa / Mastercard / Amex Gift Cards', note: 'Untraceable like cash — no buyer protection' },
-    { name: 'Google Play Gift Card', note: 'Common in utility shutoff and prize scams' },
-    { name: 'Green Dot MoneyPak', note: 'Reload-and-send cards used in government impersonation scams' },
-    { name: 'Steam Gift Card', note: 'Targeted at younger victims; easy to resell' },
-    { name: 'Walmart Gift Card', note: 'Widely available nationwide; no ID required to purchase' },
-    { name: 'Target Gift Card', note: 'Broad retail availability makes them a frequent scammer request' },
+    { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
+    { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash — accepted everywhere' },
+    { name: 'Green Dot MoneyPak', note: 'Government impersonation scams' },
+    { name: 'Steam / Walmart / Target', note: 'Broad availability, no ID required to buy' },
   ];
 
   return (
-    <div className="card p-6 border-l-4 border-brand-500 h-full flex flex-col">
-      <div className="flex items-start gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-5 h-5 text-brand-500" />
+    <div className="card p-5 h-full flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+          <AlertTriangle className="w-4 h-4 text-red-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Gift Cards: A Scammer's Favorite Payment Method</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            No legitimate government agency, business, or service will ever ask you to pay with gift cards. Scammers prefer them because they are instant, irreversible, and virtually untraceable.
-          </p>
+          <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight">Gift Cards</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Instant, irreversible, untraceable</p>
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-6 items-stretch flex-1">
+      <div className="grid grid-cols-2 gap-4 flex-1">
         <div
-          className="relative group cursor-pointer rounded-xl overflow-hidden border-2 border-brand-500/40 hover:border-brand-500 bg-gray-100 dark:bg-gray-800 transition-all duration-200 flex flex-col"
+          className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-800 transition-all duration-200"
+          style={{ minHeight: '180px' }}
           onClick={() => onGallery(0)}
         >
-          <div className="relative flex-1 overflow-hidden">
-            <img
-              src="/images/Gift_Card_Rack.jpg"
-              alt="Gift card rack in store"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              style={{ minHeight: '200px' }}
-            />
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-all duration-300" />
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-4">
-            <div className="flex items-center gap-2 text-white">
-              <ZoomIn className="w-5 h-5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold leading-tight">View All {GIFT_CARD_GALLERY.length} Gift Card Types</p>
-                <p className="text-xs text-white/70">Click to open photo gallery</p>
-              </div>
+          <img
+            src="/images/Gift_Card_Rack.jpg"
+            alt="Gift card rack in store"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
+          />
+          <div className="absolute inset-0 bg-black/25 group-hover:bg-black/45 transition-all duration-300" />
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
+            <div className="flex items-center gap-1.5 text-white">
+              <ZoomIn className="w-3.5 h-3.5 flex-shrink-0" />
+              <p className="text-xs font-bold leading-tight">View {GIFT_CARD_GALLERY.length} types</p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-col justify-between">
-          <div className="space-y-1 mb-3">
-            <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-2">Most Commonly Requested by Scammers</h3>
-            {COMMON_CARDS.map((card, i) => (
-              <div key={i} className="flex items-start gap-2 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2 flex-shrink-0" />
-                <div>
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">— {card.note}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg p-3">
-            <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-1">The Golden Rule</p>
-            <p className="text-xs text-red-600 dark:text-red-400">
-              If anyone asks you to buy gift cards and read them the numbers over the phone, it is a scam. Always. No exceptions.
+          <div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.
             </p>
+            <div className="space-y-1.5">
+              {COMMON_CARDS.map((card, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
+                    {' '}— {card.note}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg p-3">
+        <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-0.5">The Golden Rule</p>
+        <p className="text-xs text-red-600 dark:text-red-400">
+          Anyone asking you to buy gift cards and read the numbers over the phone is scamming you. Always.
+        </p>
       </div>
     </div>
   );
@@ -485,63 +479,64 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
 
 function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) => void }) {
   const points = [
-    'Bitcoin and cryptocurrency payments are irreversible — once sent, funds are gone permanently',
-    'Scammers accept Bitcoin, Ethereum, USDT, and other cryptocurrencies — not just ATM transactions',
-    'Sending crypto directly from your wallet or exchange account is just as dangerous as using an ATM',
-    'Legitimate government agencies and businesses never request any form of crypto payment',
-    'Bitcoin ATMs charge high fees (5–20%) on top of you losing the money itself',
-    'Scammers provide a QR code or wallet address to scan — at an ATM or through your own wallet app',
-    'Commonly used in: IRS scams, utility shutoff threats, grandparent scams, and bail bond fraud',
-    'Anyone you only know online directing you toward any crypto payment is always a scam',
+    'Payments are irreversible — once sent, gone permanently',
+    'ATMs charge 5–20% fees on top of the loss itself',
+    'Found in liquor stores and gas stations, not banks',
+    'Sending from a wallet app is equally dangerous',
+    'Scammers provide a QR code or wallet address to scan',
   ];
   return (
-    <div className="card p-6 border-l-4 border-yellow-500 h-full flex flex-col">
-      <div className="flex items-start gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-          <Bitcoin className="w-5 h-5 text-yellow-500" />
+    <div className="card p-5 h-full flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-9 h-9 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+          <Bitcoin className="w-4 h-4 text-yellow-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Bitcoin ATMs & Cryptocurrency Payments</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Scammers direct victims to Bitcoin ATMs or ask them to send crypto directly. ATMs are found in <strong className="text-gray-700 dark:text-gray-300">liquor stores, gas stations, and pharmacies</strong> — not banks. Sending crypto from any wallet app is equally dangerous.
-          </p>
+          <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight">Bitcoin ATMs &amp; Cryptocurrency</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Found in gas stations and liquor stores</p>
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-6 items-stretch flex-1">
+      <div className="grid grid-cols-2 gap-4 flex-1">
         <ClickableImage
           src="/images/Bitcoin_ATM.jpeg"
-          caption="Bitcoin ATM machine — commonly found in liquor stores and gas stations. Scammers direct victims here to send untraceable crypto payments."
+          caption="Bitcoin ATM"
           onZoom={onZoom}
           fill
+          label="Bitcoin ATM"
         />
         <div className="flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-3">What You Need to Know</h3>
-            <ul className="space-y-2 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.
+            </p>
+            <ul className="space-y-1.5">
               {points.map((p, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-2 flex-shrink-0" />{p}
+                <li key={i} className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{p}</p>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-3">
-            <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400 mb-1">If directed to a Bitcoin ATM</p>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400">
-              Stop. Walk away. Call a trusted family member or the FTC at 1-877-382-4357 before proceeding.
-            </p>
-          </div>
         </div>
+      </div>
+
+      <div className="mt-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-3">
+        <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400 mb-0.5">If directed to a Bitcoin ATM</p>
+        <p className="text-xs text-yellow-700 dark:text-yellow-400">
+          Stop. Walk away. Call a trusted family member or the FTC at 1-877-382-4357 before doing anything.
+        </p>
       </div>
     </div>
   );
 }
 
-function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover' }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain' }) {
+function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
+  const displayLabel = label ?? caption.split(' — ')[0];
   return (
     <div
-      className={`relative group cursor-pointer rounded-xl overflow-hidden border-2 border-gray-200/80 dark:border-gray-700/80 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}
+      className={`relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}
       onClick={() => onZoom(src, caption)}
     >
       <div className={`relative overflow-hidden ${fill ? 'flex-1 min-h-0' : 'h-52'}`}>
@@ -551,9 +546,8 @@ function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/40 to-transparent p-3">
         <div className="flex items-center gap-1.5 text-white">
           <ZoomIn className="w-4 h-4 flex-shrink-0" />
-          <p className="text-xs font-semibold leading-tight line-clamp-2">{caption.split(' — ')[0]}</p>
+          <p className="text-xs font-semibold leading-tight line-clamp-1">{displayLabel}</p>
         </div>
-        <p className="text-xs text-white/60 mt-0.5">Click to enlarge</p>
       </div>
     </div>
   );
