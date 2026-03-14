@@ -124,16 +124,8 @@ export default function ReportScamPage() {
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const formatPhone = (val: string) => {
-    const d = val.replace(/\D/g, '').slice(0, 10);
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-  };
-
   const update = (field: keyof FormData, value: string) => {
-    const v = field === 'phoneNumber' ? formatPhone(value) : value;
-    setForm(f => ({ ...f, [field]: v }));
+    setForm(f => ({ ...f, [field]: value }));
     if (errors[field]) setErrors(e => ({ ...e, [field]: undefined }));
   };
 
@@ -165,7 +157,7 @@ export default function ReportScamPage() {
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormData | 'file', string>> = {};
     const digits = normalizePhone(form.phoneNumber);
-    if (digits.length !== 10) e.phoneNumber = 'Please enter a valid 10-digit phone number.';
+    if (digits.length < 7 || digits.length > 15) e.phoneNumber = 'Please enter a valid phone number (7–15 digits, with country code for international numbers).';
     else if (isTollFree(digits)) e.phoneNumber = 'Toll-free numbers (800, 833, 844, etc.) are not accepted.';
     if (!form.category) e.category = 'Please select a scam category.';
     if (form.description.trim().length < 20) e.description = 'Please provide more detail (at least 20 characters).';
@@ -407,11 +399,11 @@ export default function ReportScamPage() {
                 type="text"
                 value={form.phoneNumber}
                 onChange={e => update('phoneNumber', e.target.value)}
-                placeholder="(555) 123-4567"
-                maxLength={14}
+                placeholder="e.g. +44 7911 123456 or 555-123-4567"
+                maxLength={20}
                 className={`input-field ${errors.phoneNumber ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888)</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Include country code for international numbers (e.g. +44, +234). Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888).</p>
             </Field>
 
             <Field label="Scam Category" icon={AlertTriangle} required error={errors.category}>

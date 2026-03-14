@@ -11,8 +11,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  if (digits.length > 10) return digits;
-  return digits.slice(0, 10);
+  return digits;
 }
 
 export function formatPhoneDisplay(digits: string): string {
@@ -38,8 +37,8 @@ export function isTollFree(digits: string): boolean {
 }
 
 export function isFakeNumber(digits: string): boolean {
-  if (digits.length === 10) {
-    return digits.startsWith('555') || digits === '0000000000' || digits === '1111111111';
-  }
-  return digits.length < 7;
+  if (digits.length < 7 || digits.length > 15) return true;
+  if (/^0+$/.test(digits) || /^1+$/.test(digits)) return true;
+  if (digits.length === 10 && digits.startsWith('555')) return true;
+  return false;
 }
