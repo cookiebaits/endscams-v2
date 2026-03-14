@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: endscams-web
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.endscams.rule=Host(`endscams.org`) || Host(`www.endscams.org`)"
+      - "traefik.http.routers.endscams.entrypoints=websecure"
+      - "traefik.http.routers.endscams.tls=true"
+      - "traefik.http.routers.endscams.tls.certresolver=letsencrypt"
+      - "traefik.http.services.endscams.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.endscams-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.endscams-http.rule=Host(`endscams.org`) || Host(`www.endscams.org`)"
+      - "traefik.http.routers.endscams-http.entrypoints=web"
+      - "traefik.http.routers.endscams-http.middlewares=endscams-redirect"
+      - "traefik.docker.network=dokploy-network"
+
+networks:
+  dokploy-network:
+    external: true
