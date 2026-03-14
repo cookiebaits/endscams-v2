@@ -97,13 +97,54 @@ const CATEGORIES = [
   'Number Down',
 ];
 
+function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): CombinedEntry[] {
+  const seen = new Map<string, CombinedEntry>();
+  for (const e of existing) seen.set(e.id, e);
+  for (const e of incoming) seen.set(e.id, e);
+  return Array.from(seen.values())
+    .filter(e => !isFakeNumber(e.digits))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
 export default function TrackerPage() {
   const [entries, setEntries] = useState<CombinedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
+  const [newCount, setNewCount] = useState(0);
   const [category, setCategory] = useState('All');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const buildEntries = (trackerData: Entry[], reportData: UserReport[]): CombinedEntry[] => {
+    const trackerItems: CombinedEntry[] = trackerData.map((e: Entry) => ({
+      id: e.id,
+      phone: formatPhoneDisplay(e.phone_digits),
+      digits: e.phone_digits,
+      sourceName: e.source_name,
+      sourceUrl: e.source_url,
+      date: e.report_date,
+      category: e.category || 'Unknown',
+      description: e.description || '',
+      type: 'tracker',
+      reportedDown: e.reported_down ?? false,
+    }));
+
+    const userItems: CombinedEntry[] = reportData.map((e: UserReport) => ({
+      id: e.id,
+      phone: formatPhoneDisplay(e.phone_digits),
+      digits: e.phone_digits,
+      sourceName: 'User Report — EndScams.org',
+      sourceUrl: e.source_url,
+      fileUrl: e.file_url,
+      date: e.incident_date,
+      category: e.category,
+      description: e.description,
+      type: 'user',
+      reportedDown: false,
+    }));
+
+    return [...trackerItems, ...userItems];
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -122,41 +163,13 @@ export default function TrackerPage() {
           .limit(200),
       ]);
 
-      const trackerItems: CombinedEntry[] = (trackerRes.data || []).map((e: Entry) => ({
-        id: e.id,
-        phone: formatPhoneDisplay(e.phone_digits),
-        digits: e.phone_digits,
-        sourceName: e.source_name,
-        sourceUrl: e.source_url,
-        date: e.report_date,
-        category: e.category || 'Unknown',
-        description: e.description || '',
-        type: 'tracker',
-        reportedDown: e.reported_down ?? false,
-      }));
-
-      const userItems: CombinedEntry[] = (reportsRes.data || []).map((e: UserReport) => ({
-        id: e.id,
-        phone: formatPhoneDisplay(e.phone_digits),
-        digits: e.phone_digits,
-        sourceName: 'User Report — EndScams.org',
-        sourceUrl: e.source_url,
-        fileUrl: e.file_url,
-        date: e.incident_date,
-        category: e.category,
-        description: e.description,
-        type: 'user',
-        reportedDown: false,
-      }));
-
-      const all = [...trackerItems, ...userItems]
-        .filter(e => !isFakeNumber(e.digits))
-        .sort((a, b) => (a.date < b.date ? 1 : -1));
-      setEntries(all);
+      const incoming = buildEntries(trackerRes.data || [], reportsRes.data || []);
+      setEntries(prev => mergeAndSort(prev, incoming));
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
       setReloading(false);
+      setNewCount(0);
     }
   }, []);
 
@@ -166,15 +179,20 @@ export default function TrackerPage() {
 
   const handleReload = async () => {
     setReloading(true);
+    setNewCount(0);
     try {
       const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-scam-data`;
-      await fetch(fnUrl, {
+      const res = await fetch(fnUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
       });
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (json.inserted) setNewCount(json.inserted);
+      }
     } catch {}
     await fetchData();
   };
@@ -214,14 +232,26 @@ export default function TrackerPage() {
                 {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
               </p>
             </div>
-            <button
-              onClick={handleReload}
-              disabled={reloading}
-              className="btn-primary flex items-center gap-2 self-start md:self-auto"
-            >
-              <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
-              {reloading ? 'Reloading...' : 'Reload Data'}
-            </button>
+            <div className="flex flex-col items-end gap-1.5 self-start md:self-auto">
+              <button
+                onClick={handleReload}
+                disabled={reloading}
+                className="btn-primary flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
+                {reloading ? 'Checking for new numbers...' : 'Check for New Numbers'}
+              </button>
+              {reloading && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+                  Existing numbers stay visible while we search...
+                </p>
+              )}
+              {!reloading && newCount > 0 && (
+                <p className="text-xs text-green-500 font-semibold text-right">
+                  {newCount} new number{newCount !== 1 ? 's' : ''} added
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-6">
