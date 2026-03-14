@@ -118,8 +118,21 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const allDigits = CURATED_ENTRIES.map(e => e.phone_digits);
+    const { data: existing } = await supabase
+      .from("tracker_entries")
+      .select("phone_digits, source_name")
+      .in("phone_digits", allDigits);
+
+    const existingKeys = new Set(
+      (existing || []).map((r: { phone_digits: string; source_name: string }) => `${r.phone_digits}::${r.source_name}`)
+    );
+
+    const newEntries = CURATED_ENTRIES.filter(
+      e => !existingKeys.has(`${e.phone_digits}::${e.source_name}`)
+    );
+
     const inserted: string[] = [];
-    const skipped: string[] = [];
     const errors: string[] = [];
 
     for (const entry of CURATED_ENTRIES) {
@@ -144,7 +157,7 @@ Deno.serve(async (req: Request) => {
 
       if (error) {
         errors.push(`${entry.phone_digits}: ${error.message}`);
-      } else {
+      } else if (!existingKeys.has(`${entry.phone_digits}::${entry.source_name}`)) {
         inserted.push(entry.phone_digits);
       }
     }
@@ -154,7 +167,7 @@ Deno.serve(async (req: Request) => {
         success: true,
         total: CURATED_ENTRIES.length,
         inserted: inserted.length,
-        skipped: skipped.length,
+        newEntries: newEntries.length,
         errors: errors.length,
         errorDetails: errors,
       }),
