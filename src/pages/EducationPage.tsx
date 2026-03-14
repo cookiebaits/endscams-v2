@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp } from 'lucide-react';
+import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search } from 'lucide-react';
 
 const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
@@ -381,6 +381,47 @@ export default function EducationPage() {
           </div>
         </div>
 
+        <div className="card p-8 mb-12 border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/10">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+              <PhoneCall className="w-6 h-6 text-blue-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
+              </p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4 mb-5">
+            {[
+              { step: '1', title: 'Don\'t hang up or delete anything', desc: 'Save texts, emails, and voicemails as evidence before reporting.' },
+              { step: '2', title: 'Call the non-emergency line', desc: 'Not 911 — use the non-emergency number for your county sheriff or local police.' },
+              { step: '3', title: 'Report to the FTC too', desc: 'Filing at ReportFraud.ftc.gov creates a federal record and helps investigators track patterns.' },
+            ].map(item => (
+              <div key={item.step} className="bg-white dark:bg-gray-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
+                <div className="w-7 h-7 rounded-full bg-blue-500/15 flex items-center justify-center mb-3">
+                  <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">{item.step}</span>
+                </div>
+                <p className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{item.title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <a
+            href="https://search.brave.com/search?q=local+sheriff+non-emergency+phone+number+near+me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2.5 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+          >
+            <Search className="w-4 h-4" />
+            Find Your Local Sheriff Non-Emergency Number
+          </a>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+            Opens a Brave Search for your local sheriff non-emergency contact information.
+          </p>
+        </div>
+
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <ExternalLink className="w-6 h-6 text-brand-500" />
@@ -407,6 +448,12 @@ export default function EducationPage() {
   );
 }
 
+const GIFT_CARD_THUMBNAILS = [
+  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', idx: 1 },
+  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex', idx: 2 },
+  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', idx: 3 },
+];
+
 function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
     { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
@@ -428,22 +475,39 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
       </div>
 
       <div className="grid grid-cols-2 gap-4 flex-1">
-        <div
-          className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-800 transition-all duration-200"
-          style={{ minHeight: '180px' }}
-          onClick={() => onGallery(0)}
-        >
-          <img
-            src="/images/Gift_Card_Rack.jpg"
-            alt="Gift card rack in store"
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
-          />
-          <div className="absolute inset-0 bg-black/25 group-hover:bg-black/45 transition-all duration-300" />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
-            <div className="flex items-center gap-1.5 text-white">
-              <ZoomIn className="w-3.5 h-3.5 flex-shrink-0" />
-              <p className="text-xs font-bold leading-tight">View {GIFT_CARD_GALLERY.length} types</p>
+        <div className="flex flex-col gap-3">
+          <div
+            className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-800 transition-all duration-200 flex-1"
+            style={{ minHeight: '160px' }}
+            onClick={() => onGallery(0)}
+          >
+            <img
+              src="/images/Gift_Card_Rack.jpg"
+              alt="Gift card rack in store"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
+            />
+            <div className="absolute inset-0 bg-black/25 group-hover:bg-black/45 transition-all duration-300" />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
+              <div className="flex items-center gap-1.5 text-white">
+                <ZoomIn className="w-3.5 h-3.5 flex-shrink-0" />
+                <p className="text-xs font-bold leading-tight">View {GIFT_CARD_GALLERY.length} types</p>
+              </div>
             </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {GIFT_CARD_THUMBNAILS.map(thumb => (
+              <button
+                key={thumb.src}
+                onClick={() => onGallery(thumb.idx)}
+                className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 transition-all duration-200 bg-gray-100 dark:bg-gray-800"
+              >
+                <img src={thumb.src} alt={thumb.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/30 transition-all duration-200" />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1">
+                  <p className="text-white text-[9px] font-semibold leading-tight truncate">{thumb.label}</p>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
