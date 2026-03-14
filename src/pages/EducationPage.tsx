@@ -220,14 +220,12 @@ const EMERGENCY_RESOURCES = [
 
 const GIFT_CARD_GALLERY = [
   { src: '/images/Gift_Card_Rack.jpg', label: 'Gift Card Display Rack', caption: 'A full gift card display rack in a store — scammers send victims here to buy untraceable payment. If anyone tells you to go buy gift cards, stop and call a trusted person first.' },
+  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10–$500) — scammers love these for their wide availability and instant redemption.' },
+  { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards — often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
+  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot / MoneyPak', caption: 'Green Dot reloadable cards and MoneyPak — the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
   { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', caption: 'Apple Gift Cards — frequently demanded by tech support scammers impersonating Apple, the IRS, or Social Security.' },
   { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex / Mastercard', caption: 'Credit card-branded gift cards (Visa, American Express, Mastercard) — accepted everywhere and completely untraceable once used. Often sold at pharmacy and grocery checkout lanes.' },
   { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', caption: 'Google Play Gift Cards — commonly used in prize scams, utility shutoff threats, and tech support fraud.' },
-  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10–$500) — scammers love these for their wide availability and instant redemption.' },
-  { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards — often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
-  { src: '/images/GreenDot_Front.jpg', label: 'Green Dot MoneyPak', caption: 'Green Dot MoneyPak — the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
-  { src: '/images/IMG_6606.jpg', label: 'Walmart', caption: 'Walmart Gift Cards — widely available at thousands of locations, no ID required. Scammers frequently request these because of how easy they are to obtain.' },
-  { src: '/images/IMG_20250201_205743947_HDR.jpg', label: 'Target', caption: 'Target Gift Cards — used across a wide range of scams due to their broad availability in retail stores nationwide.' },
 ];
 
 export default function EducationPage() {
@@ -449,9 +447,9 @@ export default function EducationPage() {
 }
 
 const GIFT_CARD_THUMBNAILS = [
-  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', idx: 1 },
-  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex', idx: 2 },
-  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', idx: 3 },
+  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', idx: 1 },
+  { src: '/images/steam-gc.png', label: 'Steam', idx: 2 },
+  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot', idx: 3 },
 ];
 
 function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
