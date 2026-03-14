@@ -682,12 +682,10 @@ function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; 
             {hasImages && (
               <div className="flex flex-col gap-3 h-full">
                 <h4 className="font-bold text-gray-700 dark:text-gray-300 text-sm">Real Examples</h4>
-                <div className={`flex flex-col gap-3 flex-1 ${scam.images!.length > 1 ? '' : 'h-full'}`}>
-                  {scam.images!.map((img, i) => (
-                    <div key={i} className={scam.images!.length > 1 ? '' : 'h-full'}>
-                      <ClickableImage src={img.src} caption={img.caption} onZoom={onZoom} fill={scam.images!.length === 1} objectFit={img.objectFit} />
-                    </div>
-                  ))}
+                <div className="flex flex-col gap-3 flex-1 h-full">
+                  <div className="h-full">
+                    <ClickableImage src={scam.images![0].src} caption={scam.images![0].caption} onZoom={onZoom} fill objectFit={scam.images![0].objectFit} />
+                  </div>
                 </div>
               </div>
             )}
