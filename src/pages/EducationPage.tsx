@@ -54,6 +54,7 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Imposter Scams', url: 'https://consumer.ftc.gov/features/scam-alerts' },
     images: [
+      { src: '/images/Invoice.png', caption: 'Fake PayPal billing invoice — note the fraudulent order ID, bitcoin purchase, and auto-debit threat. The toll-free number is a scammer line. Never call numbers listed in unsolicited invoices.' },
       { src: '/images/fake_invoice.png', caption: 'Example of a fake PayPal invoice scam email. Note the fake phone number and auto-debit threat designed to create panic.' },
     ],
   },
@@ -80,7 +81,7 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Tech Support Scams', url: 'https://consumer.ftc.gov/articles/tech-support-scams' },
     images: [
-      { src: '/images/Tech_Text_scams.png', caption: 'Tech support scam texts — fake store order confirmations with phone numbers and links. The websites these texts link to are designed to farm your personal data. Never click them.', objectFit: 'contain' as const },
+      { src: '/images/Fake_Text.jpg', caption: 'Tech support scam texts — fake order confirmations from Norton, Apple Pay, and Amazon with callback numbers. Never call these numbers. Delete the messages immediately.', objectFit: 'contain' as const },
     ],
   },
   {
@@ -156,7 +157,7 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Psychic & Fortune Teller Scams', url: 'https://consumer.ftc.gov/articles/psychics-astrologers-and-crystal-ball-readers' },
     images: [
-      { src: '/images/Stupid_Spell_Stuff_2.jpeg', caption: 'Staged spiritual altar imagery used in spellcaster ads — photos like these are specifically curated to appear authentic and build false trust with victims.' },
+      { src: '/images/Fake_Money_With_Candles.jpeg', caption: 'Staged ritual imagery with fake money and candles used in spellcaster ads — photos like these are specifically curated to appear authentic and build false trust with victims.' },
     ],
   },
   {
