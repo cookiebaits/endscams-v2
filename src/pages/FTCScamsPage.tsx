@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, DollarSign, TrendingUp, Users, Shield, ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
+import { useFtcStats } from '../hooks/useFtcStats';
 
-const FTC_TOTAL_LOSS = '$12.5 billion';
-const FTC_TOTAL_REPORTS = '2.8 million';
 const FTC_SOURCE = 'https://www.ftc.gov/reports/consumer-sentinel-network';
 const FTC_REPORT_URL = 'https://reportfraud.ftc.gov/';
 
@@ -151,6 +150,7 @@ const TOP_SCAMS = [
 
 export default function FTCScamsPage() {
   const [expanded, setExpanded] = useState<number | null>(null);
+  const { stats } = useFtcStats();
 
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
@@ -161,7 +161,7 @@ export default function FTCScamsPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Top Scams 2026</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Top Scams {stats.report_year}</h1>
           <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories. Data from the Consumer Sentinel Network.
           </p>
@@ -177,10 +177,10 @@ export default function FTCScamsPage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <StatCard icon={DollarSign} label="Total Consumer Losses" value={FTC_TOTAL_LOSS} color="text-red-500" />
-          <StatCard icon={Users} label="Total Reports Filed" value={FTC_TOTAL_REPORTS} color="text-blue-500" />
-          <StatCard icon={TrendingUp} label="YoY Increase" value="+14%" color="text-yellow-500" />
-          <StatCard icon={Shield} label="Median Loss/Victim" value="$500" color="text-green-500" />
+          <StatCard icon={DollarSign} label="Total Consumer Losses" value={stats.total_loss} color="text-red-500" />
+          <StatCard icon={Users} label="Total Reports Filed" value={stats.total_reports} color="text-blue-500" />
+          <StatCard icon={TrendingUp} label="YoY Increase" value={stats.yoy_increase} color="text-yellow-500" />
+          <StatCard icon={Shield} label="Median Loss/Victim" value={stats.median_loss} color="text-green-500" />
         </div>
 
         <div className="card p-4 mb-8 flex items-start gap-3">

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Navigation from './components/Navigation';
+import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import TrackerPage from './pages/TrackerPage';
 import ReportScamPage from './pages/ReportScamPage';
@@ -37,15 +38,20 @@ function App() {
             path="/*"
             element={
               <ProtectedRoute>
-                <Navigation />
-                <Routes>
-                  <Route path="/" element={<Navigate to="/home" replace />} />
-                  <Route path="/home" element={<HomePage />} />
-                  <Route path="/tracker" element={<TrackerPage />} />
-                  <Route path="/report" element={<ReportScamPage />} />
-                  <Route path="/education" element={<EducationPage />} />
-                  <Route path="/ftc-scams" element={<FTCScamsPage />} />
-                </Routes>
+                <div className="flex flex-col min-h-screen">
+                  <Navigation />
+                  <div className="flex-1">
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/home" replace />} />
+                      <Route path="/home" element={<HomePage />} />
+                      <Route path="/tracker" element={<TrackerPage />} />
+                      <Route path="/report" element={<ReportScamPage />} />
+                      <Route path="/education" element={<EducationPage />} />
+                      <Route path="/ftc-scams" element={<FTCScamsPage />} />
+                    </Routes>
+                  </div>
+                  <Footer />
+                </div>
               </ProtectedRoute>
             }
           />

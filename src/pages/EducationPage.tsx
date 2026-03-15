@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search } from 'lucide-react';
+import { useFtcStats } from '../hooks/useFtcStats';
 
 const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
@@ -233,6 +234,7 @@ export default function EducationPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(ALL_IDS));
   const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
   const [gallery, setGallery] = useState<number | null>(null);
+  const { stats } = useFtcStats();
 
   const toggle = (id: string) => setExpanded(prev => {
     const next = new Set(prev);
@@ -323,9 +325,9 @@ export default function EducationPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-4 mb-12">
-          <QuickStatCard icon={Shield} label="Americans lost to fraud in 2025" value="$12.5B" color="text-red-500" />
-          <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value="2.8M+" color="text-yellow-500" />
-          <QuickStatCard icon={UserX} label="Identity theft victims" value="1.1M" color="text-blue-500" />
+          <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
+          <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value={stats.total_reports_short} color="text-yellow-500" />
+          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_victims} color="text-blue-500" />
         </div>
 
         <div className="mb-10">
