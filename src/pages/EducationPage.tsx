@@ -324,10 +324,33 @@ export default function EducationPage() {
           </p>
         </div>
 
+        <div className="mb-10 rounded-2xl border-2 border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
+          <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700">
+            <Phone className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-gray-900 dark:text-amber-100 font-semibold text-base leading-snug mb-1">
+              If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
+            </p>
+            <p className="text-gray-600 dark:text-amber-300/80 text-sm">
+              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.
+            </p>
+          </div>
+          <a
+            href="https://search.brave.com/search?q=local+sheriff+non-emergency+line+near+me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold transition-colors shadow-sm whitespace-nowrap"
+          >
+            <Search className="w-4 h-4" />
+            Find the number
+          </a>
+        </div>
+
         <div className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
           <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value={stats.total_reports_short} color="text-yellow-500" />
-          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_victims} color="text-blue-500" />
+          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_visits} color="text-blue-500" />
         </div>
 
         <div className="mb-10">
