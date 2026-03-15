@@ -116,7 +116,7 @@ const TOP_SCAMS = [
       'Use unique, strong passwords and enable two-factor authentication.',
       'Report identity theft at IdentityTheft.gov for a personalized recovery plan.',
     ],
-    source: 'https://www.identitytheft.gov/',
+    source: 'https://consumer.ftc.gov/articles/identity-theft',
   },
   {
     rank: 9,
