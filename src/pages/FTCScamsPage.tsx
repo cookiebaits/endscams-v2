@@ -19,6 +19,11 @@ const TOP_SCAMS = [
       'Do not share Social Security numbers over unsolicited calls.',
     ],
     source: 'https://www.ftc.gov/news-events/data-visualizations/data-spotlight/2024/01/imposter-scams-top-2023-reports-ftc',
+    govResources: [
+      { label: 'SSA Office of Inspector General — Report Impersonation', url: 'https://oig.ssa.gov/report/' },
+      { label: 'IRS — Report IRS Impersonation Scams', url: 'https://www.irs.gov/newsroom/irs-impersonation-scam-reporting' },
+      { label: 'USA.gov — Government Impersonator Scams', url: 'https://www.usa.gov/government-impersonator' },
+    ],
   },
   {
     rank: 2,
@@ -33,6 +38,11 @@ const TOP_SCAMS = [
       'Be skeptical of romantic partners pushing investment opportunities.',
     ],
     source: 'https://www.ftc.gov/reports/investment-scams',
+    govResources: [
+      { label: 'SEC — Report Investment Fraud', url: 'https://www.sec.gov/tcr' },
+      { label: 'CFTC — Report Crypto Fraud', url: 'https://www.cftc.gov/complaint' },
+      { label: 'FBI IC3 — Internet Crime Complaint Center', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+    ],
   },
   {
     rank: 3,
@@ -47,6 +57,11 @@ const TOP_SCAMS = [
       'Verify website security (HTTPS) and physical address.',
     ],
     source: 'https://www.ftc.gov/news-events/news/press-releases/2024/02/ftc-releases-2023-consumer-sentinel-network-data-book',
+    govResources: [
+      { label: 'USA.gov — Online Shopping Safety', url: 'https://www.usa.gov/online-shopping' },
+      { label: 'FBI IC3 — Report Online Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+      { label: 'USPS OIG — Report Mail/Package Fraud', url: 'https://www.uspsoig.gov/form/mail-fraud-complaint-form' },
+    ],
   },
   {
     rank: 4,
@@ -61,6 +76,11 @@ const TOP_SCAMS = [
       'Never pay for tech support with gift cards or wire transfers.',
     ],
     source: 'https://www.ftc.gov/news-events/data-visualizations/data-spotlight/2022/10/tech-support-scams',
+    govResources: [
+      { label: 'CISA — Tech Support Scam Awareness', url: 'https://www.cisa.gov/news-events/news/avoiding-social-engineering-and-phishing-attacks' },
+      { label: 'FBI IC3 — Report Tech Support Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+      { label: 'USA.gov — Tech Support Scams', url: 'https://www.usa.gov/tech-support-scams' },
+    ],
   },
   {
     rank: 5,
@@ -75,6 +95,11 @@ const TOP_SCAMS = [
       'Foreign lottery winnings that require fees are always scams.',
     ],
     source: 'https://consumer.ftc.gov/articles/prize-sweepstakes-lottery-scams',
+    govResources: [
+      { label: 'USPS OIG — Report Lottery Mail Fraud', url: 'https://www.uspsoig.gov/form/mail-fraud-complaint-form' },
+      { label: 'FBI IC3 — Report Prize/Sweepstakes Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+      { label: 'USA.gov — Lottery and Sweepstakes Scams', url: 'https://www.usa.gov/lottery-scams' },
+    ],
   },
   {
     rank: 6,
@@ -89,6 +114,11 @@ const TOP_SCAMS = [
       'Report suspicious profiles to the platform immediately.',
     ],
     source: 'https://consumer.ftc.gov/articles/what-you-need-know-about-romance-scams',
+    govResources: [
+      { label: 'FBI — Romance Scam Awareness', url: 'https://www.fbi.gov/scams-and-safety/common-scams-and-crimes/romance-scams' },
+      { label: 'FBI IC3 — Report Romance Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+      { label: 'CFTC — Romance Investment Scam Warning', url: 'https://www.cftc.gov/LearnAndProtect/AdvisoriesAndArticles/romance_scams.html' },
+    ],
   },
   {
     rank: 7,
@@ -103,6 +133,11 @@ const TOP_SCAMS = [
       'Reshipping or check cashing jobs are almost always money laundering schemes.',
     ],
     source: 'https://consumer.ftc.gov/articles/job-scams',
+    govResources: [
+      { label: 'DOL — Report Wage & Employment Fraud', url: 'https://www.dol.gov/agencies/whd/contact/complaints' },
+      { label: 'FBI IC3 — Report Employment Scams', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+      { label: 'USA.gov — Job Scams', url: 'https://www.usa.gov/job-scams' },
+    ],
   },
   {
     rank: 8,
@@ -117,6 +152,12 @@ const TOP_SCAMS = [
       'Report identity theft at IdentityTheft.gov for a personalized recovery plan.',
     ],
     source: 'https://consumer.ftc.gov/articles/identity-theft',
+    govResources: [
+      { label: 'IdentityTheft.gov — Personalized Recovery Plan', url: 'https://www.identitytheft.gov/' },
+      { label: 'SSA — Report Social Security Number Misuse', url: 'https://oig.ssa.gov/report/' },
+      { label: 'IRS — Report Tax Identity Theft', url: 'https://www.irs.gov/identity-theft-central' },
+      { label: 'CFPB — Report Credit Fraud', url: 'https://www.consumerfinance.gov/complaint/' },
+    ],
   },
   {
     rank: 9,
@@ -131,6 +172,11 @@ const TOP_SCAMS = [
       'Never pay debts via wire transfer, prepaid cards, or cryptocurrency.',
     ],
     source: 'https://consumer.ftc.gov/articles/debt-collection',
+    govResources: [
+      { label: 'CFPB — Submit a Debt Collection Complaint', url: 'https://www.consumerfinance.gov/complaint/' },
+      { label: 'CFPB — Know Your Rights: Debt Collection', url: 'https://www.consumerfinance.gov/consumer-tools/debt-collection/' },
+      { label: 'FBI IC3 — Report Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
+    ],
   },
   {
     rank: 10,
@@ -145,6 +191,11 @@ const TOP_SCAMS = [
       'Report Medicare fraud at 1-800-MEDICARE or HHS OIG hotline.',
     ],
     source: 'https://consumer.ftc.gov/features/fighting-back-against-scams',
+    govResources: [
+      { label: 'HHS OIG — Report Medicare/Medicaid Fraud', url: 'https://oig.hhs.gov/fraud/report-fraud/' },
+      { label: 'CMS — Medicare Fraud & Abuse', url: 'https://www.cms.gov/priorities/innovation/key-concept/fraud-and-abuse' },
+      { label: 'FDA — Report Health Fraud Products', url: 'https://www.fda.gov/safety/report-problem-fda/reporting-unlawful-sales-medical-products-internet' },
+    ],
   },
 ];
 
@@ -280,16 +331,18 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
             </div>
             <div>
               <h4 className="font-bold text-gray-900 dark:text-white mb-3 text-sm">Resources & Sources</h4>
-              <div className="space-y-3">
-                <a href={scam.source} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline">
-                  <ExternalLink className="w-4 h-4" />FTC Source: {scam.title}
+              <div className="space-y-2">
+                <a href={scam.source} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline font-medium">
+                  <ExternalLink className="w-4 h-4 flex-shrink-0" />FTC — {scam.title}
                 </a>
                 <a href={FTC_REPORT_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline">
-                  <ExternalLink className="w-4 h-4" />Report This Scam to the FTC
+                  <ExternalLink className="w-4 h-4 flex-shrink-0" />ReportFraud.ftc.gov
                 </a>
-                <a href="https://www.bbb.org/scamtracker" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline">
-                  <ExternalLink className="w-4 h-4" />BBB Scam Tracker
-                </a>
+                {scam.govResources.map((r, i) => (
+                  <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors">
+                    <ExternalLink className="w-4 h-4 flex-shrink-0 mt-0.5" />{r.label}
+                  </a>
+                ))}
               </div>
             </div>
           </div>
