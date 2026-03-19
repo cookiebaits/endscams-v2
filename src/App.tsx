@@ -47,7 +47,6 @@ function App() {
                       <Route path="/tracker" element={<TrackerPage />} />
                       <Route path="/report" element={<ReportScamPage />} />
                       <Route path="/education" element={<EducationPage />} />
-                      <Route path="/ftc-scams" element={<TriagePage />} />
                     </Routes>
                   </div>
                   <Footer />
