@@ -21,7 +21,7 @@ const DEFAULTS: FtcStats = {
   yoy_increase: '+14%',
   median_loss: '$500',
   identity_theft_victims: '1.1M',
-  report_year: '2026',
+  report_year: '2024',
   last_updated: null,
 };
 
