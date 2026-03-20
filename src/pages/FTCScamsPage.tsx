@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, DollarSign, TrendingUp, Users, Shield, ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 
-const FTC_SOURCE = 'https://www.ftc.gov/reports/consumer-sentinel-network';
+const FTC_SOURCE = 'https://www.ftc.gov/reports/consumer-sentinel-network-data-book-2024';
 const FTC_REPORT_URL = 'https://reportfraud.ftc.gov/';
 
 const TOP_SCAMS = [
