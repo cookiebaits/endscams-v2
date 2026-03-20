@@ -39,6 +39,7 @@ export default function Navigation() {
     { to: '/ftc-scams', label: 'Top Scams' },
     { to: '/education', label: 'Education' },
     { to: '/report', label: 'Report Scam' },
+    { to: '/images/triage.html', label: 'Scam Checker' },
   ];
 
   const isActive = (path: string) => location.pathname === path;
