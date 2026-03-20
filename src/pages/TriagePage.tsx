@@ -490,7 +490,7 @@ export default function TriagePage() {
           <div className="card p-6 md:p-8 animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">4</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">How much money are they asking for?</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">How much money are they asking for? (Include Dollar and Cents)</h2>
             </div>
             <div className="mt-6">
               <input
