@@ -46,6 +46,7 @@ function App() {
                       <Route path="/" element={<Navigate to="/home" replace />} />
                       <Route path="/home" element={<HomePage />} />
                       <Route path="/tracker" element={<TrackerPage />} />
+                      <Route path="/ftc-scams" element={<FTCScamsPage />} />
                       <Route path="/report" element={<ReportScamPage />} />
                       <Route path="/education" element={<EducationPage />} />
                       <Route path="/triage" element={<TriagePage />} />
