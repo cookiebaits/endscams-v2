@@ -129,7 +129,7 @@ export default function TriagePage() {
           'They know your personal information',
           'Amount includes cents (suggests legitimate business)',
         ],
-        'The scenario shows several indicators of a legitimate business: they're using credit cards which offer fraud protection, they know your personal information, and the pricing includes cents.'
+        'The scenario shows several indicators of a legitimate business: they\'re using credit cards which offer fraud protection, they know your personal information, and the pricing includes cents.'
       );
     } else if (warningPaymentMethods.includes(answers.paymentMethod || '')) {
       showResult(
