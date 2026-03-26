@@ -5,1861 +5,773 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScamShield — Anti-Scam Training</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
 :root{
-  --bg:#080b10;
-  --bg2:#0d1117;
-  --s1:#111820;
-  --s2:#192030;
-  --s3:#1e2a3a;
-  --s4:#243040;
-  --b1:rgba(255,255,255,0.06);
-  --b2:rgba(255,255,255,0.12);
-  --b3:rgba(255,255,255,0.2);
-  --t1:#f0f4fa;
-  --t2:#8fa3be;
-  --t3:#4a5f78;
-  --t4:#2a3a50;
-  --green:#00d97e;
-  --green2:rgba(0,217,126,0.12);
-  --green3:rgba(0,217,126,0.06);
-  --red:#ff3d5a;
-  --red2:rgba(255,61,90,0.12);
-  --red3:rgba(255,61,90,0.06);
-  --blue:#3d8bff;
-  --blue2:rgba(61,139,255,0.12);
-  --amber:#ffb020;
-  --amber2:rgba(255,176,32,0.12);
-  --r:8px;
-  --r2:14px;
-  --r3:20px;
+  --bg:#080b10; --bg2:#0d1117; --s1:#111820; --s2:#192030; --s3:#1e2a3a;
+  --b1:rgba(255,255,255,0.06); --b2:rgba(255,255,255,0.12); --b3:rgba(255,255,255,0.2);
+  --t1:#f0f4fa; --t2:#8fa3be; --t3:#4a5f78;
+  --green:#00d97e; --green2:rgba(0,217,126,0.12);
+  --red:#ff3d5a; --red2:rgba(255,61,90,0.12);
+  --blue:#3d8bff; --blue2:rgba(61,139,255,0.12);
+  --amber:#ffb020; --amber2:rgba(255,176,32,0.12);
+  --purple:#b142ff; --teal:#00e5ff;
+  --r:8px; --r2:14px;
 }
 
 html{scroll-behavior:smooth}
-
 body{
-  background:var(--bg);
-  color:var(--t1);
-  font-family:'Outfit',sans-serif;
-  font-weight:400;
-  min-height:100vh;
-  overflow-x:hidden;
-  line-height:1.5;
+  background:var(--bg); color:var(--t1);
+  font-family:'Outfit',sans-serif; font-weight:400;
+  min-height:100vh; overflow-x:hidden; line-height:1.5;
 }
 
-/* SCROLLBAR */
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--s4);border-radius:4px}
-
-/* MONO */
-.mono{font-family:'JetBrains Mono',monospace}
+/* ─── SYSTEM UI ─── */
+.screen{display:none;min-height:100vh;animation:fadeUp 0.25s ease;}
+.screen.active{display:flex;flex-direction:column;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
 /* ─── LANDING ─── */
-#landing{
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  padding:3rem 1.5rem;
-  position:relative;
-  overflow:hidden;
-}
-
-#landing::before{
-  content:'';
-  position:absolute;
-  width:700px;height:700px;
-  border-radius:50%;
-  background:radial-gradient(circle,rgba(0,217,126,0.05) 0%,transparent 70%);
-  top:-200px;right:-150px;
-  pointer-events:none;
-}
-
-#landing::after{
-  content:'';
-  position:absolute;
-  width:500px;height:500px;
-  border-radius:50%;
-  background:radial-gradient(circle,rgba(61,139,255,0.06) 0%,transparent 70%);
-  bottom:-100px;left:-100px;
-  pointer-events:none;
-}
-
-.land-eyebrow{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.65rem;
-  letter-spacing:0.2em;
-  text-transform:uppercase;
-  color:var(--t3);
-  margin-bottom:1.2rem;
-  display:flex;
-  align-items:center;
-  gap:0.5rem;
-}
-
-.land-eyebrow::before,.land-eyebrow::after{
-  content:'';
-  display:block;
-  width:32px;height:1px;
-  background:var(--b3);
-}
-
-.land-logo{
-  font-size:clamp(2.8rem,6vw,4.5rem);
-  font-weight:900;
-  line-height:1;
-  letter-spacing:-0.03em;
-  margin-bottom:1rem;
-  position:relative;
-}
-
+#landing.active{ align-items:center; justify-content:center; padding:3rem 1.5rem; position:relative; overflow:hidden; }
+.land-eyebrow{font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--t3);margin-bottom:1.2rem;display:flex;align-items:center;gap:0.5rem;}
+.land-eyebrow::before,.land-eyebrow::after{content:'';display:block;width:32px;height:1px;background:var(--b3);}
+.land-logo{font-size:clamp(2.8rem,6vw,4.5rem);font-weight:900;line-height:1;letter-spacing:-0.03em;margin-bottom:1rem;}
 .land-logo .hi{color:var(--green)}
-.land-logo .lo{color:var(--t1)}
+.land-sub{font-size:1rem;color:var(--t2);font-weight:300;margin-bottom:3.5rem;max-width:500px;text-align:center;}
 
-.land-sub{
-  font-size:1rem;
-  color:var(--t2);
-  font-weight:300;
-  margin-bottom:3.5rem;
-  max-width:400px;
-  text-align:center;
-  line-height:1.7;
-}
+.game-grid{ display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem; width:100%;max-width:1000px;z-index:1; }
+.gcard{ background:var(--s1);padding:2rem 1.8rem;border:1px solid var(--b1); border-radius:var(--r2);cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden; }
+.gcard:hover{background:var(--s2);transform:translateY(-3px);border-color:var(--b2);}
+.gcard-accent{position:absolute;top:0;left:0;right:0;height:4px;}
+.gcard.c-green .gcard-accent{background:var(--green)}
+.gcard.c-blue .gcard-accent{background:var(--blue)}
+.gcard.c-red .gcard-accent{background:var(--red)}
+.gcard.c-amber .gcard-accent{background:var(--amber)}
+.gcard.c-purple .gcard-accent{background:var(--purple)}
+.gcard.c-teal .gcard-accent{background:var(--teal)}
+.gcard-num{font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--t3);margin-bottom:0.8rem;}
+.gcard h3{font-size:1.35rem;font-weight:700;margin-bottom:0.6rem;}
+.gcard p{font-size:0.85rem;color:var(--t2);margin-bottom:1.4rem;}
 
-/* GAME CARDS */
-.game-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(270px,1fr));
-  gap:1px;
-  width:100%;
-  max-width:960px;
-  background:var(--b1);
-  border:1px solid var(--b1);
-  border-radius:var(--r2);
-  overflow:hidden;
-  position:relative;
-  z-index:1;
-}
-
-.gcard{
-  background:var(--s1);
-  padding:2rem 1.8rem;
-  cursor:pointer;
-  transition:background 0.18s,transform 0.18s;
-  position:relative;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-}
-
-.gcard:hover{background:var(--s2);transform:translateY(-1px)}
-
-.gcard-accent{
-  position:absolute;
-  top:0;left:0;right:0;height:3px;
-}
-
-.gcard.c-green .gcard-accent{background:linear-gradient(90deg,var(--green),transparent)}
-.gcard.c-blue .gcard-accent{background:linear-gradient(90deg,var(--blue),transparent)}
-.gcard.c-red .gcard-accent{background:linear-gradient(90deg,var(--red),transparent)}
-
-.gcard-num{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.62rem;
-  letter-spacing:0.2em;
-  text-transform:uppercase;
-  color:var(--t3);
-  margin-bottom:0.8rem;
-}
-
-.gcard h3{
-  font-size:1.35rem;
-  font-weight:700;
-  letter-spacing:-0.02em;
-  margin-bottom:0.6rem;
-}
-
-.gcard p{
-  font-size:0.82rem;
-  color:var(--t2);
-  line-height:1.65;
-  font-weight:300;
-  flex:1;
-  margin-bottom:1.4rem;
-}
-
-.gcard-tags{display:flex;gap:0.4rem;flex-wrap:wrap}
-
-.tag{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;
-  letter-spacing:0.08em;
-  padding:3px 9px;
-  border-radius:4px;
-  text-transform:uppercase;
-  border:1px solid;
-}
-
-.tag-g{background:var(--green2);color:var(--green);border-color:rgba(0,217,126,0.25)}
-.tag-b{background:var(--blue2);color:var(--blue);border-color:rgba(61,139,255,0.25)}
-.tag-r{background:var(--red2);color:var(--red);border-color:rgba(255,61,90,0.25)}
-.tag-a{background:var(--amber2);color:var(--amber);border-color:rgba(255,176,32,0.25)}
-
-/* ─── SCREEN SYSTEM ─── */
-.screen{display:none;min-height:100vh;animation:fadeUp 0.25s ease}
-.screen.active{display:block}
-
-@keyframes fadeUp{
-  from{opacity:0;transform:translateY(8px)}
-  to{opacity:1;transform:translateY(0)}
-}
-
-/* ─── TOP NAV ─── */
-.topnav{
-  height:52px;
-  background:rgba(8,11,16,0.95);
-  border-bottom:1px solid var(--b1);
-  display:flex;
-  align-items:center;
-  gap:1rem;
-  padding:0 1.4rem;
-  position:sticky;
-  top:0;z-index:200;
-  backdrop-filter:blur(12px);
-}
-
-.nav-back{
-  display:flex;align-items:center;gap:0.4rem;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.72rem;
-  color:var(--t3);
-  cursor:pointer;
-  border:1px solid var(--b1);
-  padding:5px 12px;
-  border-radius:6px;
-  transition:all 0.15s;
-  background:none;
-}
-
+/* ─── SHARED UI ─── */
+.topnav{ height:52px;background:rgba(8,11,16,0.95);border-bottom:1px solid var(--b1); display:flex;align-items:center;gap:1rem;padding:0 1.4rem;position:sticky;top:0;z-index:200; }
+.nav-back{background:none;border:1px solid var(--b1);color:var(--t3);padding:5px 12px;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono';font-size:0.72rem;}
 .nav-back:hover{border-color:var(--b2);color:var(--t2)}
-
-.nav-title{
-  font-weight:700;
-  font-size:0.88rem;
-  letter-spacing:-0.01em;
-}
-
-.nav-pill{
-  margin-left:auto;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.62rem;
-  letter-spacing:0.1em;
-  text-transform:uppercase;
-  padding:4px 12px;
-  border-radius:20px;
-  border:1px solid;
-}
-
+.nav-title{font-weight:700;font-size:0.88rem;}
+.nav-pill{margin-left:auto;font-family:'JetBrains Mono';font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;border:1px solid;}
 .np-warn{background:var(--red2);color:var(--red);border-color:rgba(255,61,90,0.3)}
 .np-ok{background:var(--green2);color:var(--green);border-color:rgba(0,217,126,0.3)}
-.np-neutral{background:var(--blue2);color:var(--blue);border-color:rgba(61,139,255,0.3)}
 
-/* ─── BUTTONS ─── */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:0.4rem;
-  padding:0.6rem 1.3rem;
-  border-radius:var(--r);
-  border:none;
-  cursor:pointer;
-  font-family:'Outfit',sans-serif;
-  font-size:0.84rem;
-  font-weight:600;
-  letter-spacing:-0.01em;
-  transition:all 0.15s;
-  white-space:nowrap;
-}
-
-.btn-green{background:var(--green);color:#060e0a}
-.btn-green:hover{opacity:0.88;transform:translateY(-1px)}
-.btn-red{background:var(--red);color:#fff}
-.btn-red:hover{opacity:0.88;transform:translateY(-1px)}
-.btn-blue{background:var(--blue);color:#fff}
-.btn-blue:hover{opacity:0.88;transform:translateY(-1px)}
-.btn-ghost{background:none;border:1px solid var(--b2);color:var(--t2)}
-.btn-ghost:hover{border-color:var(--b3);color:var(--t1);background:var(--s2)}
-.btn-amber{background:var(--amber);color:#1a0e00}
-.btn-amber:hover{opacity:0.88}
-.btn-sm{padding:0.42rem 0.9rem;font-size:0.76rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:0.6rem 1.3rem;border-radius:var(--r);border:none;cursor:pointer;font-family:'Outfit';font-size:0.84rem;font-weight:600;transition:all 0.15s;}
+.btn-green{background:var(--green);color:#000}.btn-green:hover{opacity:0.85}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{opacity:0.85}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{opacity:0.85}
+.btn-amber{background:var(--amber);color:#000}.btn-amber:hover{opacity:0.85}
+.btn-purple{background:var(--purple);color:#fff}.btn-purple:hover{opacity:0.85}
+.btn-ghost{background:transparent;border:1px solid var(--b1);color:var(--t1)}.btn-ghost:hover{background:var(--s2);border-color:var(--b2)}
 .btn-full{width:100%}
-
-/* ─── FORM ELEMENTS ─── */
-label.fl{
-  display:block;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;
-  letter-spacing:0.15em;
-  text-transform:uppercase;
-  color:var(--t3);
-  margin-bottom:0.45rem;
-}
-
-input[type=text],textarea,select{
-  width:100%;
-  background:var(--s2);
-  border:1px solid var(--b1);
-  color:var(--t1);
-  padding:0.6rem 0.85rem;
-  border-radius:var(--r);
-  font-family:'Outfit',sans-serif;
-  font-size:0.84rem;
-  font-weight:400;
-  outline:none;
-  transition:border-color 0.15s,background 0.15s;
-  -webkit-appearance:none;
-}
-
-input[type=text]:focus,textarea:focus,select:focus{
-  border-color:var(--b2);
-  background:var(--s3);
-}
-
-textarea{min-height:96px;resize:vertical;line-height:1.6}
-select option{background:var(--s2)}
-select{cursor:pointer}
-
-.field{margin-bottom:1rem}
-
-/* ─── GAME 1 ─── */
-.g1-split{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  min-height:calc(100vh - 52px);
-}
-
-.g1-pane{
-  display:flex;
-  flex-direction:column;
-  border-right:1px solid var(--b1);
-}
-.g1-pane:last-child{border-right:none}
-
-.pane-head{
-  padding:0.9rem 1.4rem;
-  border-bottom:1px solid var(--b1);
-  display:flex;
-  align-items:center;
-  gap:0.7rem;
-  background:var(--bg2);
-}
-
-.pane-head-dot{
-  width:8px;height:8px;border-radius:50%;flex-shrink:0;
-}
-
-.pane-head-label{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.68rem;
-  letter-spacing:0.15em;
-  text-transform:uppercase;
-  font-weight:700;
-}
-
-.pane-head-sub{
-  font-size:0.72rem;
-  color:var(--t3);
-  margin-left:auto;
-}
-
-.pane-body{
-  flex:1;
-  overflow-y:auto;
-  padding:1.3rem;
-}
-
-/* tip / alert boxes */
-.tipbox{
-  border-radius:var(--r);
-  padding:0.9rem 1rem;
-  margin-bottom:1.1rem;
-  font-size:0.78rem;
-  line-height:1.7;
-}
-
-.tipbox-amber{background:var(--amber2);border:1px solid rgba(255,176,32,0.2);color:#c49530}
-.tipbox-green{background:var(--green2);border:1px solid rgba(0,217,126,0.2);color:#4dd99a}
-.tipbox-red{background:var(--red2);border:1px solid rgba(255,61,90,0.2);color:#f07087}
-.tipbox-blue{background:var(--blue2);border:1px solid rgba(61,139,255,0.2);color:#7ab0ff}
-
-.tipbox strong{
-  display:flex;align-items:center;gap:0.4rem;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.62rem;
-  letter-spacing:0.15em;
-  text-transform:uppercase;
-  margin-bottom:0.4rem;
-}
-
-/* quick pick chips */
-.chips{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.45rem}
-
-.chip{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.67rem;
-  padding:4px 10px;
-  border-radius:5px;
-  cursor:pointer;
-  border:1px solid var(--b1);
-  color:var(--t3);
-  background:var(--s2);
-  transition:all 0.14s;
-}
-
-.chip:hover{border-color:rgba(255,61,90,0.4);color:var(--red);background:var(--red3)}
-
-/* mail items */
-.mail-item{
-  background:var(--s1);
-  border:1px solid var(--b1);
-  border-radius:var(--r);
-  padding:0.8rem 1rem;
-  margin-bottom:0.4rem;
-  cursor:pointer;
-  transition:all 0.14s;
-  position:relative;
-}
-
-.mail-item:hover{border-color:var(--b2);background:var(--s2)}
-.mail-item.is-spam{border-color:rgba(255,61,90,0.4);background:var(--red3)}
-.mail-item.is-safe{border-color:rgba(0,217,126,0.35);background:var(--green3)}
-
-.mail-sender{
-  font-size:0.8rem;
-  font-weight:600;
-  color:var(--t1);
-  margin-bottom:0.15rem;
-  display:flex;align-items:center;gap:0.5rem;
-}
-
-.mail-addr{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.65rem;
-  color:var(--t3);
-  font-weight:400;
-}
-
-.mail-subj{font-size:0.78rem;color:var(--t2);margin-bottom:0.1rem}
-.mail-prev{font-size:0.72rem;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90%}
-
-.mail-spambtn{
-  position:absolute;right:0.8rem;top:50%;transform:translateY(-50%);
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;
-  padding:3px 9px;
-  border-radius:5px;
-  border:1px solid rgba(255,61,90,0.3);
-  background:var(--red3);
-  color:var(--red);
-  cursor:pointer;
-  opacity:0;
-  transition:opacity 0.14s;
-  white-space:nowrap;
-}
-
-.mail-item:hover .mail-spambtn{opacity:1}
-
-/* pane footer */
-.pane-foot{
-  border-top:1px solid var(--b1);
-  padding:0.85rem 1.4rem;
-  background:var(--bg2);
-  display:flex;
-  align-items:center;
-  gap:1.2rem;
-}
-
-.stat-pair{display:flex;flex-direction:column;gap:2px}
-.stat-lbl{font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--t3)}
-.stat-val{font-size:1.3rem;font-weight:800;letter-spacing:-0.03em}
-
-/* sent log */
-.sent-entry{
-  background:var(--s2);
-  border:1px solid rgba(255,61,90,0.2);
-  border-radius:var(--r);
-  padding:0.75rem 0.9rem;
-  margin-bottom:0.5rem;
-  font-size:0.75rem;
-}
-
-.sent-tag{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.58rem;
-  letter-spacing:0.12em;
-  color:var(--red);
-  margin-bottom:0.3rem;
-  text-transform:uppercase;
-}
-
-/* ─── MODAL ─── */
-.overlay{
-  position:fixed;inset:0;
-  background:rgba(4,6,10,0.82);
-  display:flex;align-items:center;justify-content:center;
-  z-index:500;
-  padding:1rem;
-  backdrop-filter:blur(4px);
-  animation:fadeIn 0.15s ease;
-}
-
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-
-.modal{
-  background:var(--s1);
-  border:1px solid var(--b2);
-  border-radius:var(--r2);
-  padding:1.8rem;
-  width:100%;
-  max-width:520px;
-  animation:slideUp 0.2s ease;
-}
-
-@keyframes slideUp{
-  from{opacity:0;transform:translateY(12px)}
-  to{opacity:1;transform:translateY(0)}
-}
-
-.modal-hd{
-  display:flex;justify-content:space-between;align-items:flex-start;
-  margin-bottom:1.2rem;
-}
-
-.modal-hd h3{font-size:0.95rem;font-weight:700;letter-spacing:-0.01em;max-width:88%}
-
-.modal-close{
-  background:none;border:none;
-  color:var(--t3);cursor:pointer;
-  font-size:1.1rem;line-height:1;
-  padding:2px;
-  transition:color 0.14s;
-}
-.modal-close:hover{color:var(--t1)}
-
-.email-body-display{
-  background:var(--s2);
-  border:1px solid var(--b1);
-  border-radius:var(--r);
-  padding:1rem;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.73rem;
-  line-height:1.85;
-  color:var(--t2);
-  white-space:pre-wrap;
-  max-height:220px;
-  overflow-y:auto;
-}
-
-.modal-row{
-  display:flex;align-items:center;margin-bottom:0.6rem;
-}
-
-.modal-lbl{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--t3);min-width:48px;
-}
-
-.modal-val{font-family:'JetBrains Mono',monospace;font-size:0.76rem;color:var(--t1)}
-
-.modal-footer{display:flex;gap:0.6rem;justify-content:flex-end;margin-top:1.3rem}
-
-/* ─── GAME 2 ─── */
-.g2-wrap{max-width:820px;margin:0 auto;padding:2rem 1.5rem}
-
-.scoreboard{
-  display:grid;grid-template-columns:1fr 1fr;
-  gap:1rem;margin-bottom:1.5rem;
-}
-
-.score-card{
-  background:var(--s1);
-  border:1px solid var(--b1);
-  border-radius:var(--r2);
-  padding:1.3rem 1.4rem;
-  transition:all 0.2s;
-  position:relative;
-  overflow:hidden;
-}
-
-.score-card::before{
-  content:'';
-  position:absolute;top:0;left:0;right:0;height:2px;
-  background:var(--b1);
-  transition:background 0.2s;
-}
-
-.score-card.active-a::before{background:var(--green)}
-.score-card.active-b::before{background:var(--blue)}
-.score-card.win::before{background:var(--amber)}
-.score-card.active-a,.score-card.active-b{border-color:var(--b2)}
-
-.sc-name{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;
-  color:var(--t3);margin-bottom:0.5rem;
-}
-
-.sc-score{
-  font-size:2.4rem;font-weight:900;letter-spacing:-0.04em;
-  color:var(--t1);margin-bottom:0.2rem;
-}
-
-.sc-acc{font-size:0.75rem;color:var(--t3);font-family:'JetBrains Mono',monospace}
-
-.timer-ring{
-  text-align:center;margin-bottom:1.3rem;
-  display:flex;flex-direction:column;align-items:center;
-}
-
-.timer-big{
-  font-family:'JetBrains Mono',monospace;
-  font-size:3.5rem;
-  font-weight:700;
-  letter-spacing:-0.04em;
-  color:var(--green);
-  transition:color 0.3s;
-  line-height:1;
-}
-
-.timer-big.tw{color:var(--amber)}
-.timer-big.td{color:var(--red)}
-
-.timer-lbl{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;
-  color:var(--t3);margin-top:0.3rem;
-}
-
-.prog{height:3px;background:var(--b1);border-radius:3px;margin-bottom:1.1rem;overflow:hidden}
-.prog-fill{height:100%;background:var(--green);border-radius:3px;transition:width 0.3s}
-
-.turn-badge{
-  text-align:center;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.7rem;letter-spacing:0.1em;
-  color:var(--t3);margin-bottom:1rem;
-  text-transform:uppercase;
-}
-
-.turn-badge span{color:var(--t1);font-weight:700}
-
-.q-card{
-  background:var(--s1);
-  border:1px solid var(--b1);
-  border-radius:var(--r2);
-  padding:1.8rem 2rem;
-  margin-bottom:1rem;
-}
-
-.q-num{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;
-  color:var(--t3);margin-bottom:0.9rem;
-}
-
-.q-txt{
-  font-size:1.05rem;font-weight:500;letter-spacing:-0.01em;
-  line-height:1.65;margin-bottom:1.5rem;
-}
-
-.q-opts{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem}
-
-.q-opt{
-  background:var(--s2);
-  border:1px solid var(--b1);
-  border-radius:var(--r);
-  padding:0.8rem 1rem;
-  cursor:pointer;
-  font-size:0.82rem;
-  font-family:'Outfit',sans-serif;
-  font-weight:400;
-  color:var(--t2);
-  text-align:left;
-  transition:all 0.14s;
-  line-height:1.5;
-}
-
-.q-opt:hover{border-color:var(--b2);color:var(--t1);background:var(--s3)}
-.q-opt.right{border-color:rgba(0,217,126,0.5);background:var(--green2);color:var(--green)}
-.q-opt.wrong{border-color:rgba(255,61,90,0.5);background:var(--red2);color:var(--red)}
-
-.feedback-bar{
-  border-radius:var(--r);
-  padding:0.75rem 1rem;
-  font-size:0.82rem;
-  line-height:1.6;
-  margin-bottom:0.8rem;
-  display:none;
-}
-
-.feedback-bar.ok{background:var(--green2);border:1px solid rgba(0,217,126,0.25);color:var(--green)}
-.feedback-bar.bad{background:var(--red2);border:1px solid rgba(255,61,90,0.25);color:var(--red)}
-
-/* result */
-.result-wrap{padding:3rem 1.5rem;text-align:center}
-.result-hed{font-size:2.2rem;font-weight:900;letter-spacing:-0.04em;margin-bottom:0.5rem}
-.result-sub{font-size:0.85rem;color:var(--t2);line-height:1.7;margin-bottom:2rem}
-
-/* setup */
-.setup-wrap{max-width:560px;margin:0 auto;padding:3rem 1.5rem;text-align:center}
-.setup-wrap h2{font-size:1.7rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:0.6rem}
-.setup-wrap p{font-size:0.85rem;color:var(--t2);line-height:1.75;margin-bottom:2rem}
-
-.rules{
-  background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);
-  padding:1.3rem 1.5rem;margin-bottom:1.5rem;text-align:left;
-  list-style:none;
-}
-
-.rules li{
-  display:flex;gap:0.7rem;
-  font-size:0.8rem;color:var(--t2);
-  padding:0.45rem 0;
-  border-bottom:1px solid var(--b1);
-  line-height:1.5;
-  align-items:flex-start;
-}
-.rules li:last-child{border-bottom:none}
-.rules li .rn{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.62rem;color:var(--green);
-  min-width:18px;margin-top:1px;
-}
-
-/* ─── GAME 3 ─── */
-.g3-layout{
-  display:grid;
-  grid-template-columns:260px 1fr;
-  min-height:calc(100vh - 52px);
-}
-
-.g3-sidebar{
-  background:var(--bg2);
-  border-right:1px solid var(--b1);
-  display:flex;flex-direction:column;
-}
-
-.acct-card{
-  background:linear-gradient(145deg,#0f1c2e,#142236);
-  padding:1.4rem;
-  border-bottom:1px solid var(--b1);
-  border-left:3px solid var(--blue);
-}
-
-.acct-name{font-size:0.95rem;font-weight:700;margin-bottom:0.15rem}
-.acct-num{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.65rem;color:var(--t3);margin-bottom:1rem;
-}
-.acct-bal-lbl{font-size:0.68rem;color:var(--t3);margin-bottom:0.2rem}
-.acct-bal{font-size:1.7rem;font-weight:900;letter-spacing:-0.03em}
-.acct-bal.danger{color:var(--red)}
-
-.sidebar-alert{
-  margin:1rem;
-  background:var(--red2);
-  border:1px solid rgba(255,61,90,0.25);
-  border-radius:var(--r);
-  padding:0.85rem 1rem;
-  font-size:0.76rem;
-  color:#e87080;
-  line-height:1.65;
-}
-
-.sidebar-alert strong{
-  display:block;
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--red);margin-bottom:0.3rem;
-}
-
-.sb-nav-item{
-  padding:0.75rem 1.3rem;
-  font-size:0.8rem;color:var(--t3);
-  cursor:pointer;transition:all 0.14s;
-  border-bottom:1px solid var(--b1);
-  font-weight:400;
-}
-
-.sb-nav-item:hover,.sb-nav-item.on{
-  background:var(--s2);color:var(--t1);
-}
-
-.sb-foot{
-  margin-top:auto;
-  padding:1rem 1.3rem;
-  border-top:1px solid var(--b1);
-}
-
-.sb-foot-lbl{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--t3);margin-bottom:0.4rem;
-}
-
-.fraud-count-big{
-  font-size:1.8rem;font-weight:900;letter-spacing:-0.03em;color:var(--red);
-  margin-bottom:0.8rem;
-}
-
-/* transactions */
-.g3-main{padding:1.4rem;overflow-y:auto}
-
-.section-hd{
-  display:flex;align-items:center;gap:0.6rem;
-  font-size:0.88rem;font-weight:700;letter-spacing:-0.01em;
-  margin-bottom:1.1rem;
-}
-
-.sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-.sdot-red{background:var(--red)}
-.sdot-green{background:var(--green)}
-.sdot-amber{background:var(--amber)}
-
-.tx-row{
-  display:grid;
-  grid-template-columns:40px 1fr auto auto;
-  gap:0.8rem;align-items:center;
-  background:var(--s1);border:1px solid var(--b1);
-  border-radius:var(--r);
-  padding:0.75rem 1rem;
-  margin-bottom:0.4rem;
-  cursor:pointer;transition:all 0.14s;
-}
-
-.tx-row:hover{border-color:var(--b2);background:var(--s2)}
-.tx-row.fr{border-color:rgba(255,61,90,0.35);background:var(--red3)}
-.tx-row.sf{border-color:rgba(0,217,126,0.3);background:var(--green3)}
-
-.tx-ico{
-  width:36px;height:36px;border-radius:50%;
-  background:var(--s2);border:1px solid var(--b1);
-  display:flex;align-items:center;justify-content:center;
-  font-size:0.88rem;
-}
-
-.tx-name{font-size:0.82rem;font-weight:500;margin-bottom:0.1rem}
-.tx-meta{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--t3)}
-.tx-status-badge{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--red);letter-spacing:0.05em;margin-top:1px}
-.tx-status-safe{font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--green);letter-spacing:0.05em;margin-top:1px}
-.tx-date{font-family:'JetBrains Mono',monospace;font-size:0.64rem;color:var(--t3);text-align:right}
-.tx-amt{font-size:0.9rem;font-weight:700;text-align:right;letter-spacing:-0.02em}
-.tx-amt.cr{color:var(--green)}
-.tx-amt.db{color:var(--t1)}
-.tx-amt.sus{color:var(--red)}
-
-/* tx modal detail table */
-.detail-tbl{width:100%;border-collapse:collapse;font-size:0.8rem}
-.detail-tbl td{padding:6px 0;border-top:1px solid var(--b1);vertical-align:top}
-.detail-tbl td:first-child{color:var(--t3);width:40%}
-.detail-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monospace;font-size:0.76rem}
-.detail-tbl tr:first-child td{border-top:none}
-
-/* ─── NOTIFICATIONS ─── */
-.notif{
-  position:fixed;top:1rem;right:1rem;
-  background:var(--s2);border:1px solid var(--b2);
-  border-radius:var(--r);
-  padding:0.8rem 1.1rem;
-  font-size:0.8rem;line-height:1.5;
-  z-index:999;max-width:300px;
-  animation:slideIn 0.2s ease;
-  font-weight:500;
-}
-
-.notif.ok{border-color:rgba(0,217,126,0.4);color:var(--green)}
-.notif.er{border-color:rgba(255,61,90,0.4);color:var(--red)}
-.notif.wn{border-color:rgba(255,176,32,0.4);color:var(--amber)}
-
-@keyframes slideIn{
-  from{transform:translateX(16px);opacity:0}
-  to{transform:translateX(0);opacity:1}
-}
-
-/* scammer/tips panel */
-.scammer-step{
-  background:var(--s2);
-  border:1px solid rgba(255,61,90,0.15);
-  border-left:3px solid rgba(255,61,90,0.5);
-  border-radius:0 var(--r) var(--r) 0;
-  padding:0.9rem 1rem;
-  margin-bottom:0.7rem;
-  font-size:0.79rem;color:var(--t2);line-height:1.65;
-}
-
-.scammer-step-hd{
-  font-family:'JetBrains Mono',monospace;
-  font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;
-  color:var(--red);margin-bottom:0.4rem;
-}
+.btn:disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+
+label.fl{display:block;font-family:'JetBrains Mono';font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--t3);margin-bottom:0.45rem;}
+input[type=text],textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);color:var(--t1);padding:0.7rem;border-radius:var(--r);font-family:'Outfit';font-size:0.85rem;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--b2);background:var(--s3);}
+.field{margin-bottom:1.2rem}
+
+.wrap{max-width:600px;margin:3rem auto;width:100%;padding:0 1.5rem;}
+.wrap-lg{max-width:900px;margin:2rem auto;width:100%;padding:0 1.5rem;}
+.panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);padding:2rem;}
+.timer-big{font-family:'JetBrains Mono';font-size:3rem;font-weight:700;color:var(--t1);text-align:center;margin-bottom:1rem;line-height:1;}
+
+.handoff{text-align:center;padding:4rem 1.5rem;max-width:500px;margin:0 auto;}
+.handoff h2{font-size:2rem;margin-bottom:1rem;}
+.handoff p{color:var(--t2);margin-bottom:2rem;}
+
+/* ─── REALISTIC UI CLASSES ─── */
+.email-ui{background:#fff;color:#333;border-radius:8px;overflow:hidden;font-family:'Inter',sans-serif;height:600px;display:flex;}
+.email-sidebar{width:200px;background:#f3f4f6;border-right:1px solid #e5e7eb;padding:1rem;}
+.email-list{width:300px;border-right:1px solid #e5e7eb;overflow-y:auto;background:#fff;}
+.email-item{padding:1rem;border-bottom:1px solid #e5e7eb;cursor:pointer;}
+.email-item:hover{background:#f9fafb;}
+.email-item.active{background:#eff6ff;border-left:3px solid #3b82f6;}
+.email-read{flex:1;padding:2rem;overflow-y:auto;background:#fff;}
+
+.bank-ui{background:#f8fafc;color:#0f172a;border-radius:8px;overflow:hidden;font-family:'Inter',sans-serif;padding:2rem;}
+.bank-tx-row{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;padding:1rem 0;border-bottom:1px solid #e2e8f0;align-items:center;}
+.bank-tx-row:hover{background:#f1f5f9;cursor:pointer;}
+.bank-tx-amt.neg{color:#334155;} .bank-tx-amt.pos{color:#10b981;}
+
+.market-ui{background:#f0f2f5;color:#050505;border-radius:8px;padding:2rem;font-family:'Inter',sans-serif;}
+.market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;}
+.m-card{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,0.1);cursor:pointer;}
+.m-img{height:160px;background:#e4e6eb;display:flex;align-items:center;justify-content:center;font-size:4rem;}
+.m-info{padding:1rem;} .m-price{font-size:1.2rem;font-weight:700;} .m-title{font-size:0.95rem;font-weight:600;}
+
+/* Game 4 Modal */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center;padding:1rem;}
+.modal-overlay.active{display:flex;}
+.modal-content{background:#fff;color:#000;width:100%;max-width:500px;border-radius:12px;padding:2rem;font-family:'Inter',sans-serif;}
+
+.sms-ui{background:#000;color:#fff;border:10px solid #1c1c1e;border-radius:30px;width:340px;height:600px;margin:0 auto;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;}
+.sms-head{text-align:center;padding:1.5rem 1rem 0.5rem;border-bottom:1px solid #333;background:rgba(28,28,30,0.9);}
+.sms-body{flex:1;padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem;}
+.sms-bub{padding:0.6rem 1rem;border-radius:18px;max-width:80%;font-size:0.95rem;line-height:1.4;}
+.sms-bub.them{background:#262628;align-self:flex-start;border-bottom-left-radius:4px;}
+.sms-bub.me{background:#0a84ff;align-self:flex-end;border-bottom-right-radius:4px;}
+
+/* Game 6 B2B UI */
+.invoice-ui{background:#fff;color:#111;border-radius:8px;font-family:'Inter',sans-serif;display:flex;height:600px;}
+.inv-list{width:350px;border-right:1px solid #ddd;overflow-y:auto;}
+.inv-card{padding:1.2rem;border-bottom:1px solid #ddd;cursor:pointer;}
+.inv-card:hover{background:#f9f9f9;}
+.inv-read{flex:1;padding:2rem;background:#f4f5f7;}
+.inv-doc{background:#fff;border:1px solid #ccc;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);min-height:400px;}
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════ LANDING ═══════════════════════ -->
-<div id="landing">
+<div id="landing" class="screen active">
   <div class="land-eyebrow">Anti-Scam Training Suite</div>
   <div class="land-logo"><span class="hi">Scam</span><span class="lo">Shield</span></div>
-  <p class="land-sub">Three interactive games to teach your team how to spot, resist, and defeat social engineering attacks.</p>
-
+  <p class="land-sub">Interactive games forcing your team to think like a scammer to better defend against them.</p>
   <div class="game-grid">
-    <div class="gcard c-green" onclick="startGame1()">
-      <div class="gcard-accent"></div>
-      <div class="gcard-num">Game 01</div>
-      <h3>Phishing Lab</h3>
-      <p>Team A crafts convincing phishing emails and spoofed domains. Team B hunts for the fake among 20 real-looking emails.</p>
-      <div class="gcard-tags">
-        <span class="tag tag-g">2 teams</span>
-        <span class="tag tag-r">Hard</span>
-      </div>
-    </div>
-    <div class="gcard c-blue" onclick="startGame2Setup()">
-      <div class="gcard-accent"></div>
-      <div class="gcard-num">Game 02</div>
-      <h3>Scam Showdown</h3>
-      <p>Race against the clock. Fastest team to spot scams wins — accuracy and speed both count toward your score.</p>
-      <div class="gcard-tags">
-        <span class="tag tag-b">Timed</span>
-        <span class="tag tag-g">2 teams</span>
-      </div>
-    </div>
-    <div class="gcard c-red" onclick="startGame3()">
-      <div class="gcard-accent"></div>
-      <div class="gcard-num">Game 03</div>
-      <h3>Bank Heist</h3>
-      <p>A scammer has taken over Team B's bank account. Find and cancel every fraudulent transaction before it's too late.</p>
-      <div class="gcard-tags">
-        <span class="tag tag-r">Very Hard</span>
-        <span class="tag tag-a">Live Balance</span>
-      </div>
-    </div>
+    <div class="gcard c-green" onclick="startG1()"><div class="gcard-accent"></div><div class="gcard-num">Game 01</div><h3>Phishing Lab</h3><p>Team A edits a phishing template. Team B must find it buried in a realistic corporate inbox.</p></div>
+    <div class="gcard c-blue" onclick="startG2()"><div class="gcard-accent"></div><div class="gcard-num">Game 02</div><h3>Scam Showdown</h3><p>A dual-quiz testing scammer strategy vs defender protocols. Accuracy and speed matter.</p></div>
+    <div class="gcard c-red" onclick="startG3()"><div class="gcard-accent"></div><div class="gcard-num">Game 03</div><h3>Bank Heist</h3><p>Team A hides 5 highly suspicious charges in a statement. Team B must audit and flag them.</p></div>
+    <div class="gcard c-amber" onclick="startG4()"><div class="gcard-accent"></div><div class="gcard-num">Game 04</div><h3>Marketplace Mayhem</h3><p>Team A creates a manipulative listing. Team B must investigate item descriptions to catch it.</p></div>
+    <div class="gcard c-purple" onclick="startG5()"><div class="gcard-accent"></div><div class="gcard-num">Game 05</div><h3>The SMS Inbox</h3><p>Team A targets the victim via text. Team B must dig through an active SMS inbox to find the threat.</p></div>
+    <div class="gcard c-teal" onclick="startG6()"><div class="gcard-accent"></div><div class="gcard-num">Game 06</div><h3>The Phantom Invoice</h3><p>Team A forges a B2B invoice. Team B must audit pending payments against the Vendor Master File.</p></div>
   </div>
 </div>
 
-<!-- ═══════════════════════ GAME 1 ═══════════════════════ -->
-<div id="game1" class="screen">
-  <div class="topnav">
-    <button class="nav-back" onclick="goHome()">← Home</button>
-    <span class="nav-title">Phishing Lab</span>
-    <span class="nav-pill np-warn" id="g1-phase">Compose Phase</span>
-  </div>
-
-  <div class="g1-split">
-    <!-- Team A -->
-    <div class="g1-pane">
-      <div class="pane-head">
-        <div class="pane-head-dot" style="background:var(--red)"></div>
-        <span class="pane-head-label" style="color:var(--red)">Team A — Scammer Lab</span>
-      </div>
-      <div class="pane-body">
-        <div class="tipbox tipbox-amber">
-          <strong>🎭 Scammer Tips</strong>
-          Create urgency, impersonate trusted brands, use domain typos, build fake invoices. The more convincing — the harder for Team B.
-        </div>
-
-        <div class="field">
-          <label class="fl">Attack Type</label>
-          <select id="g1-type" onchange="updateAttackType()">
-            <option value="email">Phishing Email</option>
-            <option value="invoice">Fake Invoice</option>
-            <option value="domain">Spoofed Domain Email</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="fl">Impersonate As</label>
-          <select id="g1-sender">
-            <option>PayPal Security Team</option>
-            <option>Microsoft Account Services</option>
-            <option>Amazon Order Verification</option>
-            <option>IT Department — Helpdesk</option>
-            <option>HR Team — Benefits Portal</option>
-            <option>Accounts Payable Dept</option>
-            <option>DHL Delivery Alert</option>
-            <option>Google Workspace Admin</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label class="fl">From Address <span style="color:var(--red);font-size:0.6rem;">(use typos!)</span></label>
-          <input type="text" id="g1-from" value="security@paypa1.com">
-          <div class="chips" id="g1-chips">
-            <span class="chip" onclick="setDomain('security@paypa1.com')">paypa1.com</span>
-            <span class="chip" onclick="setDomain('support@miicrosoft.com')">miicrosoft.com</span>
-            <span class="chip" onclick="setDomain('noreply@amaz0n-verify.com')">amaz0n-verify.com</span>
-            <span class="chip" onclick="setDomain('it@cornpany-help.net')">cornpany-help.net</span>
-            <span class="chip" onclick="setDomain('hr@benefits-p0rtal.org')">benefits-p0rtal.org</span>
-            <span class="chip" onclick="setDomain('accounts@inv0ice-desk.com')">inv0ice-desk.com</span>
-            <span class="chip" onclick="setDomain('alerts@g00gle-verify.net')">g00gle-verify.net</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="fl">Subject Line</label>
-          <select id="g1-subj">
-            <option>[ACTION REQUIRED] Verify your account immediately</option>
-            <option>Unusual sign-in detected — confirm your identity</option>
-            <option>Invoice #INV-8827 overdue — payment needed</option>
-            <option>Your password will expire in 24 hours</option>
-            <option>Package held — confirm delivery details</option>
-            <option>HR: Update your direct deposit information</option>
-            <option>Shared document waiting for your signature</option>
-            <option>IT Notice: Security breach — reset password now</option>
-          </select>
-        </div>
-
-        <div id="g1-inv-fields" style="display:none">
-          <div class="field">
-            <label class="fl">Invoice Details</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
-              <input type="text" id="g1-inv-num" value="INV-8827" placeholder="Invoice #">
-              <input type="text" id="g1-inv-amt" value="$4,850.00" placeholder="Amount">
-              <input type="text" id="g1-inv-vendor" value="CloudSync Solutions Ltd" placeholder="Vendor">
-              <input type="text" id="g1-inv-due" value="OVERDUE — Pay Now" placeholder="Status">
-            </div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="fl">Template</label>
-          <select id="g1-tpl" onchange="loadTemplate()" style="margin-bottom:0.5rem">
-            <option value="">— choose template —</option>
-            <option value="t1">Account suspension warning</option>
-            <option value="t2">Fake invoice payment</option>
-            <option value="t3">Password reset urgency</option>
-            <option value="t4">Package held delivery</option>
-            <option value="t5">HR direct deposit update</option>
-          </select>
-          <label class="fl">Email Body</label>
-          <textarea id="g1-body" placeholder="Write your phishing message..."></textarea>
-        </div>
-
-        <button class="btn btn-red btn-full" onclick="sendPhish()">Send to Team B Inbox →</button>
-        <div id="g1-log" style="margin-top:1rem"></div>
-      </div>
-    </div>
-
-    <!-- Team B -->
-    <div class="g1-pane">
-      <div class="pane-head">
-        <div class="pane-head-dot" style="background:var(--blue)"></div>
-        <span class="pane-head-label" style="color:var(--blue)">Team B — Security Analyst</span>
-        <span class="pane-head-sub mono">Inbox · <span id="g1-email-count">0</span> emails</span>
-      </div>
-      <div class="pane-body" id="g1-inbox"></div>
-      <div class="pane-foot">
-        <div class="stat-pair">
-          <span class="stat-lbl">Score</span>
-          <span class="stat-val" id="g1-score" style="color:var(--green)">0</span>
-        </div>
-        <div class="stat-pair">
-          <span class="stat-lbl">Caught</span>
-          <span class="stat-val" id="g1-caught" style="color:var(--green)">0/0</span>
-        </div>
-        <div style="flex:1"></div>
-        <button class="btn btn-ghost btn-sm" onclick="checkG1()">Reveal Results</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="g1-modal" class="overlay" style="display:none">
-    <div class="modal">
-      <div class="modal-hd">
-        <h3 id="g1-m-subj"></h3>
-        <button class="modal-close" onclick="closeModal('g1-modal')">✕</button>
-      </div>
-      <div class="modal-row"><span class="modal-lbl">From</span><span class="modal-val" id="g1-m-from"></span></div>
-      <div class="email-body-display" id="g1-m-body"></div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost btn-sm" onclick="markEmail('safe')">✓ Mark Safe</button>
-        <button class="btn btn-red btn-sm" onclick="markEmail('spam')">🚫 Mark Spam</button>
-      </div>
-    </div>
+<div id="handoff" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title" id="ho-title">Handoff</span></div>
+  <div class="handoff">
+    <div style="font-size:4rem;margin-bottom:1rem;">🔄</div>
+    <h2 id="ho-head">Team A Finished</h2>
+    <p id="ho-msg">Hand the device over to Team B. Do not let them see your answers.</p>
+    <button class="btn btn-blue btn-full" id="ho-btn">Team B Ready →</button>
   </div>
 </div>
 
-<!-- ═══════════════════════ GAME 2 ═══════════════════════ -->
-<div id="game2" class="screen">
-  <div class="topnav">
-    <button class="nav-back" onclick="goHome()">← Home</button>
-    <span class="nav-title">Scam Showdown</span>
-    <span class="nav-pill np-neutral" id="g2-nav-pill" style="display:none"></span>
-  </div>
-
-  <!-- SETUP -->
-  <div id="g2-setup">
-    <div class="setup-wrap">
-      <h2>Scam Showdown</h2>
-      <p>Each team answers the same questions back-to-back. Team A goes first — Team B can't see the answers. Fastest time + most correct answers wins.</p>
-      <ul class="rules">
-        <li><span class="rn">01</span>Team A answers all questions first — Team B leaves the room</li>
-        <li><span class="rn">02</span>Each question has a 15-second timer — answer fast for bonus points</li>
-        <li><span class="rn">03</span>Score = correct answers × 100, minus total seconds taken</li>
-        <li><span class="rn">04</span>Team B faces the same questions after Team A finishes</li>
-        <li><span class="rn">05</span>Highest score wins — both accuracy and speed count</li>
-      </ul>
+<div id="g1-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Phishing Lab</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--red);">Craft the Phish</h3>
       <div class="field">
-        <label class="fl">Number of Questions</label>
-        <select id="g2-qcount">
-          <option value="6">6 questions</option>
-          <option value="8" selected>8 questions</option>
-          <option value="12">All 12 questions</option>
+        <label class="fl">Load Template</label>
+        <select id="g1-template" onchange="loadG1Template()">
+          <option value="0">Microsoft Security Alert</option>
+          <option value="1">HR: Updated Paid Time Off</option>
+          <option value="2">IT: Mandatory VPN Update</option>
         </select>
       </div>
-      <button class="btn btn-blue btn-full" onclick="startG2()">Start — Team A Goes First →</button>
-    </div>
-  </div>
-
-  <!-- HANDOFF SCREEN between teams -->
-  <div id="g2-handoff" style="display:none">
-    <div class="setup-wrap">
-      <div style="font-size:3rem;margin-bottom:1rem">🔄</div>
-      <h2 id="g2-handoff-hed">Team A Done!</h2>
-      <p id="g2-handoff-body"></p>
-      <div id="g2-handoff-score" style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);padding:1.5rem;margin-bottom:1.5rem;text-align:center">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--t3);margin-bottom:0.5rem">Team A Result</div>
-        <div style="font-size:2.4rem;font-weight:900;letter-spacing:-0.04em" id="g2-ta-interim-score">—</div>
-        <div style="font-size:0.78rem;color:var(--t3);font-family:'JetBrains Mono',monospace" id="g2-ta-interim-detail">—</div>
-      </div>
-      <button class="btn btn-blue btn-full" onclick="startTeamBRound()">Team B is Ready — Start →</button>
-    </div>
-  </div>
-
-  <!-- QUIZ -->
-  <div id="g2-quiz" style="display:none">
-    <div class="g2-wrap">
-
-      <!-- Live scoreboard: Team A always shows, Team B shows pending during Team A's round -->
-      <div class="scoreboard">
-        <div class="score-card" id="g2-ca">
-          <div class="sc-name" style="display:flex;align-items:center;gap:0.5rem">
-            Team A <span id="g2-ca-badge" style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;padding:2px 7px;border-radius:4px;display:none"></span>
-          </div>
-          <div class="sc-score" id="g2-sa">—</div>
-          <div class="sc-acc" id="g2-aa">waiting...</div>
-        </div>
-        <div class="score-card" id="g2-cb">
-          <div class="sc-name" style="display:flex;align-items:center;gap:0.5rem">
-            Team B <span id="g2-cb-badge" style="font-family:'JetBrains Mono',monospace;font-size:0.58rem;padding:2px 7px;border-radius:4px;display:none"></span>
-          </div>
-          <div class="sc-score" id="g2-sb">—</div>
-          <div class="sc-acc" id="g2-ab">up next...</div>
-        </div>
-      </div>
-
-      <div class="timer-ring">
-        <div class="timer-big" id="g2-timer">15</div>
-        <div class="timer-lbl">seconds remaining</div>
-      </div>
-
-      <div class="prog"><div class="prog-fill" id="g2-prog" style="width:0%"></div></div>
-      <div class="turn-badge" id="g2-turn"><span>Team A</span> — Question <span id="g2-turn-q">1</span> of <span id="g2-turn-total">8</span></div>
-
-      <div class="q-card">
-        <div class="q-num" id="g2-qn">Question 1 of 8</div>
-        <div class="q-txt" id="g2-qt"></div>
-        <div class="q-opts" id="g2-qo"></div>
-      </div>
-
-      <div class="feedback-bar" id="g2-fb"></div>
-    </div>
-  </div>
-
-  <!-- RESULT -->
-  <div id="g2-result" style="display:none">
-    <div class="result-wrap">
-      <div class="result-hed" id="g2-r-hed"></div>
-      <p class="result-sub" id="g2-r-sub"></p>
-
-      <!-- breakdown table -->
-      <div style="max-width:560px;margin:0 auto 2rem;background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);overflow:hidden">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--b1)">
-          <div style="padding:0.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--t3)"></div>
-          <div style="padding:0.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--t3);text-align:center;border-left:1px solid var(--b1)">Team A</div>
-          <div style="padding:0.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--t3);text-align:center;border-left:1px solid var(--b1)">Team B</div>
-        </div>
-        <div id="g2-breakdown"></div>
-      </div>
-
-      <button class="btn btn-blue" onclick="startGame2Setup()">Play Again</button>
-      <button class="btn btn-ghost" onclick="goHome()" style="margin-left:0.5rem">Home</button>
+      <p style="font-size:0.8rem;color:var(--amber);margin-bottom:1rem;">* Edit the fields below to make it more convincing and trick Team B!</p>
+      <div class="field"><label class="fl">Sender Name</label><input type="text" id="g1-sender"></div>
+      <div class="field"><label class="fl">Sender Email (Use a typo!)</label><input type="text" id="g1-email"></div>
+      <div class="field"><label class="fl">Subject</label><input type="text" id="g1-subj"></div>
+      <div class="field"><label class="fl">Email Body</label><textarea id="g1-body" style="height:100px;"></textarea></div>
+      <button class="btn btn-red btn-full" onclick="g1FinishA()">Inject into Team B's Inbox →</button>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════ GAME 3 ═══════════════════════ -->
-<div id="game3" class="screen">
-  <div class="topnav">
-    <button class="nav-back" onclick="goHome()">← Home</button>
-    <span class="nav-title">Bank Heist</span>
-    <span class="nav-pill np-warn">⚠ Breach Detected</span>
-  </div>
-
-  <div class="g3-layout">
-    <div class="g3-sidebar">
-      <div class="acct-card">
-        <div class="acct-name">Sarah Mitchell</div>
-        <div class="acct-num">ACC •••• •••• 4829</div>
-        <div class="acct-bal-lbl">Available Balance</div>
-        <div class="acct-bal danger" id="g3-bal">$1,247.33</div>
+<div id="g1-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Phishing Lab</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="margin-bottom:1rem;color:var(--t2);">Find and click the 1 phishing email Team A edited among the legitimate ones.</div>
+    <div class="email-ui">
+      <div class="email-sidebar">
+        <div style="font-weight:700;margin-bottom:1rem;color:#111">Inbox (13)</div>
+        <div style="color:#666;font-size:0.9rem;">Drafts</div>
       </div>
-      <div class="sidebar-alert">
-        <strong>🚨 Security Alert</strong>
-        Unusual activity detected. Review recent transactions and flag anything you don't recognise.
-      </div>
-      <div class="sb-nav-item on" onclick="startGame3()">📋 All Transactions</div>
-      <div class="sb-nav-item" onclick="showScammerView()">👁 Scammer's Playbook (Team A)</div>
-      <div class="sb-nav-item" onclick="showTipsPanel()">💡 Investigation Tips</div>
-      <div class="sb-foot">
-        <div class="sb-foot-lbl">Fraud Found</div>
-        <div class="fraud-count-big"><span id="g3-fc">0</span> / <span id="g3-ft">0</span></div>
-        <button class="btn btn-green btn-full btn-sm" onclick="checkFraud()">Submit & Check</button>
+      <div class="email-list" id="g1-inbox"></div>
+      <div class="email-read" id="g1-reader">
+        <div style="color:#999;text-align:center;margin-top:50%;">Select an email to read</div>
       </div>
     </div>
+  </div>
+</div>
 
-    <div class="g3-main" id="g3-main">
-      <div class="section-hd">
-        <span class="sdot sdot-red"></span> Recent Transactions
-        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--t3)">Last 30 days</span>
-      </div>
-      <div id="g3-txlist"></div>
+<div id="g2" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Scam Showdown</span><span class="nav-pill np-warn" id="g2-pill">Team A</span></div>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <div class="timer-big" id="g2-timer" style="margin:0;">0.0s</div>
+      <div style="font-size:1.5rem;font-weight:700;color:var(--t2);">Score: <span id="g2-score-ui">0</span>/5</div>
+    </div>
+    <div class="panel" id="g2-quiz-area">
+      <div style="font-family:'JetBrains Mono';font-size:0.7rem;color:var(--t3);margin-bottom:1rem;" id="g2-qnum">Question 1/5</div>
+      <h3 style="margin-bottom:1.5rem;font-size:1.2rem;" id="g2-qtext"></h3>
+      <div id="g2-opts" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
+      <div id="g2-feedback" style="margin-top:1rem;font-weight:700;text-align:center;height:24px;"></div>
     </div>
   </div>
+</div>
 
-  <div id="g3-modal" class="overlay" style="display:none">
-    <div class="modal">
-      <div class="modal-hd">
-        <h3 id="g3-m-title"></h3>
-        <button class="modal-close" onclick="closeModal('g3-modal')">✕</button>
+<div id="g2-res" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Scam Showdown</span></div>
+  <div class="wrap">
+    <div class="panel" style="text-align:center;">
+      <h2 style="font-size:2rem;margin-bottom:1rem;">Results</h2>
+      <div style="display:flex;justify-content:space-around;margin-bottom:2rem;">
+        <div>
+          <div style="color:var(--t3);font-family:'JetBrains Mono';font-size:0.7rem;">TEAM A (Scammer)</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--red);" id="g2-resa-score"></div>
+          <div style="color:var(--t2);" id="g2-resa-time"></div>
+        </div>
+        <div>
+          <div style="color:var(--t3);font-family:'JetBrains Mono';font-size:0.7rem;">TEAM B (Defender)</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--blue);" id="g2-resb-score"></div>
+          <div style="color:var(--t2);" id="g2-resb-time"></div>
+        </div>
       </div>
-      <div id="g3-m-body"></div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost btn-sm" onclick="markTxSafe()">✓ Looks Legitimate</button>
-        <button class="btn btn-red btn-sm" onclick="markTxFraud()">🚨 Flag as Fraud</button>
+      <button class="btn btn-ghost" style="margin-top:2rem;" onclick="goHome()">Return Home</button>
+    </div>
+  </div>
+</div>
+
+<div id="g3-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Bank Heist</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="timer-big" id="g3-timer-a">0.0s</div>
+    <div class="panel">
+      <h3 style="margin-bottom:0.5rem;color:var(--red);">Hide the Fraud</h3>
+      <p style="font-size:0.85rem;color:var(--t2);margin-bottom:1.5rem;">Select 5 fraudulent transactions. They will be mixed into a statement of 20 normal charges.</p>
+      <div id="g3-selectors"></div>
+      <button class="btn btn-red btn-full" style="margin-top:1rem;" onclick="g3FinishA()">Inject Fraud & Stop Clock →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g3-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Bank Heist</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1rem;">
+      <div class="timer-big" id="g3-timer-b" style="margin:0;">0.0s</div>
+      <button class="btn btn-blue" onclick="g3FinishB()">Submit Audit</button>
+    </div>
+    <div class="bank-ui">
+      <div class="bank-header">
+        <div><div style="font-size:0.85rem;color:#64748b;font-weight:600;">Checking •••• 4829</div><div class="bank-bal">$12,402.50</div></div>
+        <div style="text-align:right;"><div style="font-size:0.85rem;color:#64748b;font-weight:600;">Fraud Flagged</div><div style="font-size:1.5rem;font-weight:700;color:#ef4444;" id="g3-flag-count">0 / 5</div></div>
+      </div>
+      <div id="g3-bank-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="g4-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Marketplace Mayhem</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--amber);">Create Scam Listing</h3>
+      <div class="field"><label class="fl">Item</label><select id="g4-item"><option value="PS5|🎮">PlayStation 5</option><option value="MacBook M2|💻">MacBook M2</option><option value="Swift Tickets|🎫">Taylor Swift Tickets (x2)</option></select></div>
+      <div class="field"><label class="fl">Price Strategy</label><select id="g4-price"><option value="$450">Retail (Believable)</option><option value="$150">70% Off (Bait)</option></select></div>
+      <div class="field"><label class="fl">Manipulative Description</label><select id="g4-desc">
+        <option>Kindly email my uncle at david@gmail.com if interested, I am posting for him.</option>
+        <option>Out of state for military deployment, but I can ship it today if you use Zelle.</option>
+        <option>My son passed away and looking at this hurts. Just pay for shipping via Apple Gift Card.</option>
+      </select></div>
+      <button class="btn btn-amber btn-full" onclick="g4FinishA()">Post to Marketplace →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g4-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Marketplace Mayhem</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="color:var(--t2);margin-bottom:1rem;text-align:center;">Click items to view details. Flag the ONE scam listing created by Team A.</div>
+    <div class="market-ui">
+      <div style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;border-bottom:1px solid #e5e5e5;padding-bottom:0.5rem;">Marketplace - Los Angeles, CA</div>
+      <div class="market-grid" id="g4-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="g4-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;">
+      <h2 id="g4-m-title" style="font-size:1.5rem;font-weight:700;"></h2>
+      <button style="background:none;border:none;font-size:1.5rem;cursor:pointer;" onclick="document.getElementById('g4-modal').classList.remove('active')">×</button>
+    </div>
+    <div id="g4-m-price" style="font-size:1.2rem;font-weight:600;color:#10b981;margin-bottom:1rem;"></div>
+    <div style="font-size:0.9rem;color:#666;margin-bottom:0.5rem;text-transform:uppercase;font-weight:700;">Description</div>
+    <p id="g4-m-desc" style="margin-bottom:2rem;line-height:1.6;color:#333;"></p>
+    <div style="display:flex;gap:1rem;">
+      <button class="btn" style="background:#e5e7eb;color:#000;flex:1;">Message Seller</button>
+      <button class="btn btn-red" style="flex:1;" id="g4-m-flag">🚩 Flag as Scam</button>
+    </div>
+  </div>
+</div>
+
+<div id="g5-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The SMS Inbox</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--purple);">Smishing Attack (SMS Phishing)</h3>
+      <div class="field">
+        <label class="fl">Select Hook</label>
+        <select id="g5-hook">
+          <option value="USPS: Your package cannot be delivered due to incomplete address. Please update here:">USPS Package Failure</option>
+          <option value="CHASE ALERT: Did you attempt a purchase of $499 at BEST BUY? If NO, secure account:">Bank Fraud Alert</option>
+          <option value="Netflix: Your recent payment failed. Your account will be suspended in 24 hrs. Update info:">Netflix Suspension</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="fl">Malicious Link (Add a subtle typo!)</label>
+        <input type="text" id="g5-link" value="https://usps-tracking-portal.com">
+      </div>
+      <button class="btn btn-purple btn-full" onclick="g5FinishA()">Send SMS →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g5-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The SMS Inbox</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="color:var(--t2);margin-bottom:1rem;text-align:center;">Review your SMS inbox. Click on a thread to read it and flag the scam.</div>
+    <div style="display:flex;background:#fff;border-radius:8px;overflow:hidden;height:500px;color:#000;">
+      <div style="width:250px;border-right:1px solid #ddd;background:#f9f9f9;overflow-y:auto;" id="g5-inbox"></div>
+      <div style="flex:1;padding:2rem;display:flex;flex-direction:column;" id="g5-reader">
+        <div style="color:#999;margin:auto;">Select a conversation</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="g6-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The Phantom Invoice</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--teal);">Business Email Compromise</h3>
+      <p style="font-size:0.85rem;color:var(--t2);margin-bottom:1rem;">Forge an invoice from a known vendor to steal corporate funds.</p>
+      <div class="field">
+        <label class="fl">Spoof Domain (Make it look like acme-supplies.com)</label>
+        <select id="g6-domain">
+          <option value="accounting@acme-supplies.com">accounting@acme-supplies.com (Real)</option>
+          <option value="accounting@acmesupplies-inc.com">accounting@acmesupplies-inc.com (Fake)</option>
+          <option value="accounting@acme-supplies.co">accounting@acme-supplies.co (Fake)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="fl">Routing Number</label>
+        <select id="g6-route">
+          <option value="122000247">122000247 (Real Bank)</option>
+          <option value="091000019">091000019 (Offshore Wire)</option>
+        </select>
+      </div>
+      <button class="btn btn-full" style="background:var(--teal);color:#000;font-weight:700;" onclick="g6FinishA()">Submit Invoice to Accounts Payable →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g6-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The Phantom Invoice</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;align-items:center;">
+      <div style="color:var(--t2);">Compare pending invoices against the Master File. Flag the forgery.</div>
+      <button class="btn" style="background:#333;color:#fff;" onclick="alert('VENDOR MASTER FILE\n\n1. Global Logistics: billing@globallogistics.com | RTN: 021000021\n2. Acme Supplies: accounting@acme-supplies.com | RTN: 122000247\n3. CloudHost Pro: support@cloudhostpro.io | RTN: 111000025')">📁 View Master File</button>
+    </div>
+    <div class="invoice-ui">
+      <div class="inv-list" id="g6-list"></div>
+      <div class="inv-read" id="g6-reader">
+        <div style="color:#999;text-align:center;margin-top:40%;">Select an invoice to review</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-// ══════════ NAV ══════════
+// ════════ SYSTEM LOGIC ════════
 function goHome(){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById('landing').style.display='flex';
-  clearInterval(g2Interval);
-  // reset g2 sub-screens
-  ['g2-setup','g2-handoff','g2-quiz','g2-result'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.style.display='none';
-  });
-  document.getElementById('g2-setup').style.display='block';
+  document.getElementById('landing').classList.add('active');
+  clearInterval(g2Int); clearInterval(g3IntA); clearInterval(g3IntB);
 }
 function showScreen(id){
-  document.getElementById('landing').style.display='none';
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
 }
-function closeModal(id){document.getElementById(id).style.display='none'}
-function notify(msg,type='ok'){
-  const n=document.createElement('div');
-  n.className=`notif ${type}`;n.textContent=msg;
-  document.body.appendChild(n);
-  setTimeout(()=>n.remove(),2800);
+function doHandoff(title, msg, nextAction){
+  document.getElementById('ho-title').textContent = title;
+  document.getElementById('ho-msg').textContent = msg;
+  document.getElementById('ho-btn').onclick = () => { typeof nextAction === 'function' ? nextAction() : showScreen(nextAction); };
+  showScreen('handoff');
 }
 
-// ══════════ GAME 1 DATA ══════════
-const templates={
-  t1:`Dear Customer,
+// ════════ GAME 1: PHISHING ════════
+const g1Tmpl = [
+  {s:"Microsoft Security", e:"alerts@rnicrosoft-support.com", sub:"ACTION REQUIRED: Password Expiry", b:"Your corporate password expires in 2 hours. Click the secure link below to retain access and avoid lockout."},
+  {s:"HR Department", e:"hr-updates@company-portal.com", sub:"URGENT: Updated PTO Policy 2026", b:"Please review the attached mandatory changes to your Paid Time Off allocation for the upcoming year."},
+  {s:"IT Service Desk", e:"helpdesk@it-support-internal.com", sub:"Mandatory VPN Client Update", b:"Your current VPN client is out of compliance. Download the patch here immediately to maintain network access."}
+];
+const g1Legit = [
+  {s:"IT Helpdesk", e:"it@company.com", sub:"Server Maintenance 2AM", b:"Servers will be down briefly."},
+  {s:"HR Dept", e:"hr@company.com", sub:"Holiday Schedule", b:"Attached is the schedule for next year."},
+  {s:"Sarah M.", e:"sarah.m@company.com", sub:"Lunch?", b:"Are we still on for 12?"},
+  {s:"Finance", e:"finance@company.com", sub:"Expense Reports", b:"Due this Friday."},
+  {s:"Zoom", e:"no-reply@zoom.us", sub:"Meeting Started", b:"Your 3PM has begun."},
+  {s:"Slack", e:"no-reply@slack.com", sub:"Unread Messages", b:"You have 3 mentions in #general."},
+  {s:"Building Admin", e:"admin@company.com", sub:"Elevator Repair", b:"Elevator 3 is out of service today."},
+  {s:"GitHub", e:"noreply@github.com", sub:"Pull Request Merged", b:"Your recent PR was successfully merged."},
+  {s:"Jira", e:"jira@company.com", sub:"Ticket Assigned", b:"DEV-409 has been assigned to you."},
+  {s:"Marketing", e:"marketing@company.com", sub:"Brand Guidelines", b:"Please use the updated logo deck."},
+  {s:"John Doe", e:"john.d@company.com", sub:"Project Sync", b:"Can we move our 1-on-1 to tomorrow?"},
+  {s:"Benefits Team", e:"benefits@company.com", sub:"Open Enrollment", b:"Reminder: Open enrollment ends next week."}
+];
+let g1Phish = {};
 
-We have detected unusual activity on your account. To prevent suspension, you must verify your identity within 24 hours.
+function startG1(){ showScreen('g1-a'); loadG1Template(); }
 
-[ VERIFY ACCOUNT NOW ]
+function loadG1Template(){
+  let val = document.getElementById('g1-template').value;
+  let t = g1Tmpl[val];
+  document.getElementById('g1-sender').value = t.s;
+  document.getElementById('g1-email').value = t.e;
+  document.getElementById('g1-subj').value = t.sub;
+  document.getElementById('g1-body').value = t.b;
+}
 
-Failure to act will result in permanent account closure.
+function g1FinishA(){
+  g1Phish = { s: document.getElementById('g1-sender').value, e: document.getElementById('g1-email').value, sub: document.getElementById('g1-subj').value, b: document.getElementById('g1-body').value, isBad: true };
+  
+  let mix = [...g1Legit].sort(()=>Math.random()-0.5);
+  // Insert randomly, but NEVER in the first 2 or last 2 spots
+  let targetIndex = Math.floor(Math.random() * (mix.length - 4)) + 2;
+  mix.splice(targetIndex, 0, g1Phish);
 
-Security Team`,
-  t2:`Hello,
+  const list = document.getElementById('g1-inbox');
+  list.innerHTML = '';
+  mix.forEach((m) => {
+    let div = document.createElement('div'); div.className = 'email-item';
+    div.innerHTML = `<div class="e-sender">${m.s}</div><div class="e-subj">${m.sub}</div><div class="e-prev">${m.b}</div>`;
+    div.onclick = () => {
+      document.querySelectorAll('.email-item').forEach(e=>e.classList.remove('active')); div.classList.add('active');
+      document.getElementById('g1-reader').innerHTML = `
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e5e5e5;padding-bottom:1rem;margin-bottom:1rem;">
+          <div><h2 style="color:#111;margin-bottom:0.5rem">${m.sub}</h2><div style="color:#444"><strong>${m.s}</strong> &lt;${m.e}&gt;</div></div>
+          <button class="btn btn-red" style="height:fit-content" onclick="g1Check(${m.isBad ? true : false})">Report Phishing</button>
+        </div>
+        <div style="color:#333;white-space:pre-wrap;line-height:1.6;">${m.b}</div>
+      `;
+    };
+    list.appendChild(div);
+  });
+  doHandoff("Phishing Lab", "Team A planted the edited phishing email.", "g1-b");
+}
 
-Invoice #INV-8827 for $4,850.00 is now OVERDUE.
+function g1Check(isBad){
+  if(isBad) alert("🎯 SUCCESS! Team B caught the phishing email!");
+  else alert("❌ FAIL! Team B reported a legitimate email.");
+  goHome();
+}
 
-Immediate payment is required to avoid service interruption and late fees.
-
-[ PAY INVOICE NOW ]
-
-CloudSync Solutions Ltd`,
-  t3:`IT SECURITY NOTICE
-
-Your network password expires in 24 hours.
-
-Reset it now to avoid losing access to all company systems.
-
-[ RESET PASSWORD NOW ]
-
-IT Helpdesk`,
-  t4:`Your package could not be delivered.
-
-Please confirm your address and pay a $1.99 redelivery fee within 48 hours or your package will be returned.
-
-[ CONFIRM & PAY ]`,
-  t5:`Dear Employee,
-
-Payroll requires you to update your direct deposit information before Friday to ensure timely payment.
-
-[ UPDATE DIRECT DEPOSIT ]
-
-HR Benefits Team`
-};
-
-const legitEmails=[
-  {from:'James Carter',addr:'j.carter@company.com',subj:'Q3 Report Draft — please review',prev:'Hi team, I\'ve uploaded the Q3 draft...',body:'Hi team,\n\nI\'ve uploaded the Q3 report draft to our shared folder. Please review by Friday.\n\nThanks,\nJames',isPhish:false},
-  {from:'Lisa Wong',addr:'l.wong@company.com',subj:'Team lunch — Thursday 12pm',prev:'Just a reminder about team lunch this Thursday...',body:'Hi everyone,\n\nTeam lunch is Thursday at 12pm at The Grille on 5th. Let me know if you can\'t make it!\n\nLisa',isPhish:false},
-  {from:'IT Helpdesk',addr:'helpdesk@company.com',subj:'Scheduled maintenance — Sunday 2am',prev:'System maintenance this Sunday between 2–5am...',body:'Hi,\n\nSystem maintenance is scheduled for Sunday 2:00–5:00am. You may experience brief interruptions.\n\nNo action required.\n\nIT Helpdesk',isPhish:false},
-  {from:'Tom Richards',addr:'t.richards@company.com',subj:'Re: Budget approval — approved',prev:'Tom, approved — please proceed with the vendor order...',body:'Hi Tom,\n\nYour budget request for the new workstations has been approved. Proceed with the vendor order.\n\nFinance Team',isPhish:false},
-  {from:'HR Department',addr:'hr@company.com',subj:'Updated holiday schedule 2025',prev:'Please find attached the updated holiday calendar...',body:'Dear Team,\n\nPlease find the updated holiday schedule for 2025. All dates confirmed with management.\n\nBest, HR',isPhish:false},
-  {from:'Slack',addr:'noreply@slack.com',subj:'You have 3 unread messages',prev:'Messages waiting in #general and #dev-team...',body:'You have 3 unread messages:\n\n• #general: Lisa mentioned you\n• #dev-team: 2 new messages from Tom\n\nLog in to reply.',isPhish:false},
-  {from:'Zoom',addr:'no-reply@zoom.us',subj:'Your meeting starts in 15 minutes',prev:'"Sprint Review" starts soon...',body:'Your meeting:\n\nSprint Review — Biweekly\nHost: James Carter\nTime: 3:00 PM today',isPhish:false},
-  {from:'Google Drive',addr:'drive-shares-noreply@google.com',subj:'Lisa Wong shared a file with you',prev:'Lisa shared Marketing_Plan_2025.pptx...',body:'Lisa Wong (l.wong@company.com) shared:\n\nMarketing_Plan_2025.pptx\n\nView in Google Drive.',isPhish:false},
-  {from:'DocuSign',addr:'dse@docusign.net',subj:'Please sign: NDA Agreement',prev:'Tom Richards sent you a document to sign...',body:'Tom Richards requests your signature on:\n\nNDA Agreement — Vendor Contract\n\nReview and sign in the DocuSign portal.',isPhish:false},
-  {from:'Finance Team',addr:'finance@company.com',subj:'Expense reports due Friday',prev:'Reminder: Submit expense reports by end of Friday...',body:'Hi all,\n\nQ3 expense reports are due Friday EOD. Submit via portal and attach all receipts.\n\nFinance Team',isPhish:false},
-  {from:'Security Ops',addr:'soc@company.com',subj:'Monthly security newsletter',prev:'Password hygiene best practices and 2FA tips...',body:'Security Newsletter — October 2025\n\n• Why use a password manager\n• How to enable 2FA\n• Phishing trends this month\n\nRead more on the intranet.',isPhish:false},
-  {from:'Sarah Mitchell',addr:'s.mitchell@company.com',subj:'WFH on Wednesday',prev:'I\'ll be WFH Wednesday, reachable on Slack...',body:'Hi team,\n\nI\'ll be working from home Wednesday — fully reachable on Slack and joining the 10am standup.\n\nSarah',isPhish:false},
-  {from:'Atlassian',addr:'notifications@atlassian.com',subj:'Tom assigned you a Jira ticket',prev:'JIR-291: Fix login redirect bug...',body:'Tom Richards assigned:\n\nJIR-291: Fix login redirect on mobile\nProject: Platform Engineering\nPriority: High',isPhish:false},
-  {from:'LinkedIn',addr:'messages-noreply@linkedin.com',subj:'New connection request',prev:'Anna Kowalski wants to connect...',body:'Anna Kowalski, Head of Marketing at TechCorp, wants to connect with you.\n\n4 mutual connections.',isPhish:false},
-  {from:'Office Manager',addr:'office@company.com',subj:'Fire drill reminder — Thursday 11am',prev:'Fire drill scheduled for Thursday morning...',body:'Hi all,\n\nFire drill Thursday at 11:00am. Proceed to the assembly point on the ground floor when the alarm sounds.\n\nOffice Management',isPhish:false},
-  {from:'Accounts Payable',addr:'ap@company.com',subj:'Invoice received: CloudSync $1,240',prev:'Invoice from CloudSync Solutions received...',body:'Hi,\n\nInvoice logged:\n\nVendor: CloudSync Solutions\nAmount: $1,240.00\nRef: INV-8801\n\nPayment net 30. No further action needed.',isPhish:false},
-  {from:'Webex',addr:'no-reply@webex.com',subj:'Recording: All Hands Meeting',prev:'Recording from last week\'s All Hands is ready...',body:'Recording available:\n\nAll Hands — Q3 Review\nDate: October 14, 2025\nLength: 1h 12m\n\nView in Webex Recordings.',isPhish:false},
-  {from:'1Password',addr:'no-reply@1password.com',subj:'New device sign-in detected',prev:'A new device accessed your 1Password account...',body:'New device sign-in:\n\nDevice: Chrome on macOS\nLocation: New York, US\nTime: Today 9:14am\n\nIf this was you, no action needed.',isPhish:false},
-  {from:'James Carter',addr:'j.carter@company.com',subj:'Re: Client presentation feedback',prev:'Great work! A few tweaks on slides 4 and 7...',body:'Hi,\n\nGreat work on the presentation.\n\nTwo suggestions:\n- Slide 4: simplify the chart\n- Slide 7: update to latest Q3 data\n\nOtherwise ready to go!\n\nJames',isPhish:false},
+// ════════ GAME 2: SCAM SHOWDOWN ════════
+const g2QA = [
+  {q:"As a scammer, what is the best emotional trigger to use in a BEC email?", o:["Happiness","Urgency/Fear","Curiosity"], a:1},
+  {q:"Which domain typo is hardest to spot visually?", o:["paypa1.com","rnicrosoft.com","appIe.com (capital i)"], a:2},
+  {q:"To steal an MFA code, you should:", o:["Ask for it directly","Say 'Read me the secure verification code I just sent'","Hack their phone"], a:1},
+  {q:"Which payment method is completely irreversible?", o:["PayPal G&S","Credit Card","Apple Gift Cards"], a:2},
+  {q:"In a Romance Scam, when do you ask for money?", o:["Day 1","After 2 weeks of building trust","Never"], a:1}
+];
+const g2QB = [
+  {q:"The CEO texts you asking for gift cards. You should:", o:["Buy them","Text back to confirm","Call their known phone number"], a:2},
+  {q:"A pop-up says your PC has a virus. You should:", o:["Call the 1-800 number","Close the browser tab","Download the suggested fix"], a:1},
+  {q:"A vendor emails a sudden change of bank details. You:", o:["Update it in payroll","Call the vendor on a verified number","Email them back to confirm"], a:1},
+  {q:"Someone calls from 'Microsoft' about a refund. Microsoft will:", o:["Ask for remote access","Never call you unsolicited","Offer $500 compensation"], a:1},
+  {q:"Zelle/Venmo should only be used for:", o:["Buying items on Facebook","People you know and trust","Paying new vendors"], a:1}
 ];
 
-let g1Emails=[],g1PhishCount=0,g1Score=0,g1Caught=0,g1OpenEmail=null;
-
-function updateAttackType(){
-  document.getElementById('g1-inv-fields').style.display=
-    document.getElementById('g1-type').value==='invoice'?'block':'none';
-}
-function setDomain(v){document.getElementById('g1-from').value=v}
-function loadTemplate(){
-  const k=document.getElementById('g1-tpl').value;
-  if(templates[k])document.getElementById('g1-body').value=templates[k];
-}
-
-function startGame1(){
-  g1Emails=[...legitEmails].sort(()=>Math.random()-0.5).slice(0,19);
-  g1PhishCount=0;g1Score=0;g1Caught=0;
-  showScreen('game1');
-  renderInbox();
-}
-
-function renderInbox(){
-  const box=document.getElementById('g1-inbox');
-  box.innerHTML='';
-  const all=[...g1Emails].sort(()=>Math.random()-0.5);
-  all.forEach((em,i)=>{
-    const d=document.createElement('div');
-    d.className='mail-item';
-    if(em._actioned==='spam')d.classList.add('is-spam');
-    if(em._actioned==='safe')d.classList.add('is-safe');
-    d.innerHTML=`
-      <div class="mail-sender">${em.from}<span class="mail-addr">&lt;${em.addr}&gt;</span></div>
-      <div class="mail-subj">${em.subj}</div>
-      <div class="mail-prev">${em.prev}</div>
-      <button class="mail-spambtn" onclick="event.stopPropagation();quickSpam(${g1Emails.indexOf(em)})">Mark Spam</button>
-    `;
-    d.onclick=()=>openG1Email(em);
-    box.appendChild(d);
-  });
-  document.getElementById('g1-email-count').textContent=all.length;
-}
-
-function openG1Email(em){
-  g1OpenEmail=em;
-  document.getElementById('g1-m-subj').textContent=em.subj;
-  document.getElementById('g1-m-from').textContent=`${em.from} <${em.addr}>`;
-  document.getElementById('g1-m-body').textContent=em.body;
-  document.getElementById('g1-modal').style.display='flex';
-}
-
-function markEmail(action){
-  if(!g1OpenEmail)return;
-  processAction(g1OpenEmail,action);
-  closeModal('g1-modal');
-}
-
-function quickSpam(idx){processAction(g1Emails[idx],'spam')}
-
-function processAction(em,action){
-  if(em._actioned)return;
-  em._actioned=action;
-  if(action==='spam'){
-    if(em.isPhish){g1Score+=100;g1Caught++;notify('✓ Phishing caught! +100','ok')}
-    else{g1Score-=25;notify('✗ Legitimate email flagged! −25','er')}
-  } else {
-    if(em.isPhish){g1Score-=50;notify('✗ Missed phishing! −50','er')}
-  }
-  updateG1UI();
-  renderInbox();
-}
-
-function updateG1UI(){
-  document.getElementById('g1-score').textContent=Math.max(0,g1Score);
-  document.getElementById('g1-caught').textContent=`${g1Caught}/${g1PhishCount}`;
-}
-
-function sendPhish(){
-  const body=document.getElementById('g1-body').value;
-  if(!body.trim()){notify('Write an email body first!','wn');return}
-  const type=document.getElementById('g1-type').value;
-  let finalBody=body;
-  if(type==='invoice'){
-    const n=document.getElementById('g1-inv-num').value;
-    const a=document.getElementById('g1-inv-amt').value;
-    const v=document.getElementById('g1-inv-vendor').value;
-    const d=document.getElementById('g1-inv-due').value;
-    finalBody=`━━━━━━━━━━━━━━━━━━━━━━\nINVOICE NOTIFICATION\n━━━━━━━━━━━━━━━━━━━━━━\nFrom: ${v}\nRef: ${n}\nAmount: ${a}\nStatus: ${d}\n━━━━━━━━━━━━━━━━━━━━━━\n\n${body}`;
-  }
-  const em={
-    from:document.getElementById('g1-sender').value,
-    addr:document.getElementById('g1-from').value,
-    subj:document.getElementById('g1-subj').value,
-    prev:finalBody.split('\n').find(l=>l.trim().length>10)||'Requires your immediate attention...',
-    body:finalBody,isPhish:true
-  };
-  g1Emails.push(em);
-  g1PhishCount++;
-  updateG1UI();
-  const log=document.getElementById('g1-log');
-  const e=document.createElement('div');
-  e.className='sent-entry';
-  e.innerHTML=`<div class="sent-tag">📤 Sent to Team B</div><strong style="font-size:0.8rem">${em.subj}</strong><div class="mono" style="font-size:0.65rem;color:var(--t3);margin-top:2px">${em.addr}</div>`;
-  log.prepend(e);
-  renderInbox();
-  notify(`Phishing sent! (${g1PhishCount} total)`,'wn');
-}
-
-function checkG1(){
-  if(!g1PhishCount){notify('Team A hasn\'t sent anything yet!','wn');return}
-  const pct=Math.round((g1Caught/g1PhishCount)*100);
-  notify(`${g1Caught}/${g1PhishCount} caught (${pct}%) — Score: ${Math.max(0,g1Score)}`,pct>=50?'ok':'er');
-  g1Emails.forEach(em=>{
-    if(em.isPhish&&em._actioned!=='spam'){
-      // visual highlight happens on re-render
-    }
-  });
-  renderInbox();
-}
-
-// ══════════ GAME 2 DATA ══════════
-const allQ=[
-  {q:"You receive an email from 'PayPal-Security@paypa1.com' saying your account is suspended. You have 2 hours to verify or it gets closed.",opts:["Click the link immediately — urgent!","Check the domain — 'paypa1.com' is misspelled","Reply asking for details","Forward to a colleague to check"],correct:1,explain:"'paypa1.com' uses the number 1 instead of the letter l — classic domain spoofing."},
-  {q:"A text says you've won £500 from a supermarket you've never visited. Click a link and enter bank details to claim.",opts:["Enter details — could be real!","Classic prize scam — delete it","Forward to 5 friends to confirm","Reply STOP to opt out"],correct:1,explain:"Unexpected prize wins requiring bank details are always scams. Real prizes don't need payment."},
-  {q:"Your 'grandson' calls in distress from abroad needing £1,000 wired urgently — and says 'don't tell anyone in the family.'",opts:["Wire immediately — family emergency!","Hang up, call your grandson's real number to verify","Ask for proof then send","Wire half first as a test"],correct:1,explain:"This is the grandparent scam. The secrecy demand is the biggest red flag. Always verify via a known number."},
-  {q:"A caller claims to be from Microsoft Support — your computer is sending errors and they need remote access to fix it.",opts:["Grant access — they sound official","Ask them to email first","Hang up — Microsoft never calls unsolicited","Watch what they do with remote access"],correct:2,explain:"Microsoft, Apple and Google never call you about errors unsolicited. This is a tech support scam."},
-  {q:"An invoice from a regular supplier arrives but with a new bank account number. The email says they 'changed banks recently.'",opts:["Pay it — suppliers change banks","Email the same address to confirm","Call the supplier on a known number to verify","Pay half now, half after confirmation"],correct:2,explain:"BEC fraud intercepts supplier emails. Always verify bank changes via a separate phone call."},
-  {q:"A pop-up says your computer is infected and you must call 1-800-HELPDESK immediately to avoid data loss.",opts:["Call the number right away!","Close the tab — it's a fake alert","Download the recommended software","Restart and call if it reappears"],correct:1,explain:"Fake virus pop-ups are designed to call scammer hotlines. Real antivirus never uses browser pop-ups."},
-  {q:"Someone on a dating app you've talked to for weeks asks for a small loan to visit you — promising to pay back double.",opts:["Send it — you've built trust","This is romance fraud — cut contact","Send half as a test","Ask for collateral"],correct:1,explain:"Romance scammers invest weeks building trust before requesting money. 'Double repayment' is always a manipulation."},
-  {q:"You list something on Marketplace. The buyer offers to pay by cheque for MORE than the price and asks you to wire back the difference.",opts:["Agree — extra money!","Overpayment scam — cheques bounce after you wire real money","Deposit and wait 7 days before wiring","Report to the platform and decline"],correct:1,explain:"Fake cheques clear visually but bounce weeks later. You've already wired real money. Classic overpayment scam."},
-  {q:"An email from 'HMRC' shows you're owed £320 tax refund and asks for bank details to process it.",opts:["Enter details — government refund!","HMRC sends refunds to your registered account — this is a scam","Forward to your accountant","Call the number in the email to verify"],correct:1,explain:"HMRC never emails asking for bank details. The number in the email would also be fake."},
-  {q:"A job offer lands with £80k salary, no interview, work from home. They ask for your NI number and bank details on day one 'for payroll.'",opts:["Submit — dream job!","Job scam harvesting personal data — do not proceed","Submit NI but not bank details","Ask for a video call first"],correct:1,explain:"Legitimate employers never request bank or NI details before a contract or interview. This is identity theft."},
-  {q:"You're asked to pay for a service via gift cards (Amazon or iTunes). The seller says it's 'easier for international payments.'",opts:["Buy the gift cards — convenient","Only scammers ask for gift card payments — refuse","Buy one as a test","Ask if PayPal works instead"],correct:1,explain:"Gift cards are untraceable and irreversible. No real business uses them for international payments."},
-  {q:"A charity emails after a major disaster with a payment link. The domain is 'redcross-donate-now.org'. Is this legitimate?",opts:["Donate immediately — urgent!","Likely fake — donate via official redcross.org directly","Donate if the link uses https://","Ask them for a receipt before donating"],correct:1,explain:"Disaster donation scams spike after major events. Always type the official website directly into your browser."},
-];
-
-// ── Game 2 state ──
-// Each team gets their own run through the same shuffled questions.
-// g2Phase: 'A' | 'B'
-// g2Logs[team][qIdx] = { correct, timeTaken }
-let g2Qs=[], g2Cur=0, g2Phase='A';
-let g2Logs={A:[], B:[]};          // per-question records
-let g2Interval=null, g2TV=15, g2TS=0, g2Done=false;
-
-// Derived totals helper
-function g2Totals(team){
-  const log=g2Logs[team];
-  const correct=log.filter(r=>r.correct).length;
-  const totalTime=log.reduce((s,r)=>s+r.timeTaken,0);
-  // Score: each correct = 100 pts, minus total seconds used (floored to 0)
-  const score=Math.max(0, correct*100 - Math.round(totalTime));
-  const pct=log.length>0?Math.round(correct/log.length*100):0;
-  return {correct, totalTime, score, pct, answered:log.length};
-}
-
-function startGame2Setup(){
-  showScreen('game2');
-  document.getElementById('g2-setup').style.display='block';
-  document.getElementById('g2-quiz').style.display='none';
-  document.getElementById('g2-handoff').style.display='none';
-  document.getElementById('g2-result').style.display='none';
-  document.getElementById('g2-nav-pill').style.display='none';
-  clearInterval(g2Interval);
-}
+let g2Phase = 'A', g2Idx = 0, g2TimeA = 0, g2TimeB = 0, g2ScoreA = 0, g2ScoreB = 0, g2Int = null, g2Start = 0;
+let g2CanAnswer = true;
 
 function startG2(){
-  const n=parseInt(document.getElementById('g2-qcount').value)||8;
-  g2Qs=[...allQ].sort(()=>Math.random()-0.5).slice(0,n);
-  g2Cur=0; g2Phase='A'; g2Logs={A:[],B:[]}; g2Done=false;
-
-  document.getElementById('g2-setup').style.display='none';
-  document.getElementById('g2-handoff').style.display='none';
-  document.getElementById('g2-quiz').style.display='block';
-  document.getElementById('g2-result').style.display='none';
-
-  const pill=document.getElementById('g2-nav-pill');
-  pill.style.display=''; pill.textContent='Team A Playing';
-  pill.className='nav-pill np-warn';
-
-  // Scoreboard init — Team A active, Team B hidden score
-  document.getElementById('g2-sa').textContent='0';
-  document.getElementById('g2-aa').textContent='answering...';
-  document.getElementById('g2-sb').textContent='—';
-  document.getElementById('g2-ab').textContent='up next';
-  setBadge('g2-ca-badge','LIVE','rgba(255,176,32,0.2)','var(--amber)');
-  hideBadge('g2-cb-badge');
-  document.getElementById('g2-ca').className='score-card active-a';
-  document.getElementById('g2-cb').className='score-card';
-
-  showQ();
+  g2Phase = 'A'; g2Idx = 0; g2TimeA = 0; g2TimeB = 0; g2ScoreA = 0; g2ScoreB = 0;
+  document.getElementById('g2-pill').textContent = "Team A: Scammer Strategy";
+  document.getElementById('g2-pill').className = "nav-pill np-warn";
+  showScreen('g2'); renderG2Q();
+  g2Start = Date.now();
+  g2Int = setInterval(()=>{ document.getElementById('g2-timer').textContent = ((Date.now()-g2Start)/1000).toFixed(1) + 's'; },100);
 }
 
-function setBadge(id,text,bg,color){
-  const el=document.getElementById(id);
-  el.style.display='';el.textContent=text;
-  el.style.background=bg;el.style.color=color;el.style.border='1px solid '+color;
-}
-function hideBadge(id){document.getElementById(id).style.display='none'}
-
-function showQ(){
-  if(g2Cur>=g2Qs.length){
-    // Current team finished
-    if(g2Phase==='A') showHandoff();
-    else endG2();
+function renderG2Q(){
+  g2CanAnswer = true;
+  let arr = g2Phase === 'A' ? g2QA : g2QB;
+  let score = g2Phase === 'A' ? g2ScoreA : g2ScoreB;
+  document.getElementById('g2-score-ui').textContent = score;
+  document.getElementById('g2-feedback').textContent = "";
+  
+  if(g2Idx >= arr.length){
+    clearInterval(g2Int);
+    if(g2Phase === 'A'){
+      g2TimeA = (Date.now()-g2Start)/1000;
+      doHandoff("Scam Showdown", `Team A scored ${g2ScoreA}/5 in ${g2TimeA.toFixed(1)}s.`, startG2B);
+    } else {
+      g2TimeB = (Date.now()-g2Start)/1000;
+      showG2Res();
+    }
     return;
   }
-  const q=g2Qs[g2Cur]; g2Done=false;
-  const total=g2Qs.length;
-  const teamLabel=g2Phase==='A'?'Team A':'Team B';
-
-  document.getElementById('g2-qn').textContent=`Question ${g2Cur+1} of ${total}`;
-  document.getElementById('g2-qt').textContent=q.q;
-  document.getElementById('g2-prog').style.width=`${(g2Cur/total)*100}%`;
-  document.getElementById('g2-fb').style.display='none';
-  document.getElementById('g2-turn').innerHTML=`<span>${teamLabel}</span> — Question <span>${g2Cur+1}</span> of <span>${total}</span>`;
-
-  const opts=document.getElementById('g2-qo');
-  opts.innerHTML='';
-  q.opts.forEach((o,i)=>{
-    const b=document.createElement('button');
-    b.className='q-opt'; b.textContent=o;
-    b.onclick=()=>answerQ(i);
+  
+  let q = arr[g2Idx];
+  document.getElementById('g2-qnum').textContent = `Question ${g2Idx+1}/${arr.length}`;
+  document.getElementById('g2-qtext').textContent = q.q;
+  const opts = document.getElementById('g2-opts');
+  opts.innerHTML = '';
+  q.o.forEach((txt, i)=>{
+    let b = document.createElement('button'); b.className = 'btn btn-ghost'; b.style.justifyContent = 'flex-start'; b.textContent = txt;
+    b.onclick = () => {
+      if(!g2CanAnswer) return;
+      g2CanAnswer = false;
+      document.querySelectorAll('#g2-opts button').forEach(btn => btn.disabled = true);
+      
+      let isCorrect = (i === q.a);
+      if(isCorrect){
+        if(g2Phase === 'A') g2ScoreA++; else g2ScoreB++;
+        b.style.background = 'var(--green2)'; b.style.borderColor = 'var(--green)';
+        document.getElementById('g2-feedback').style.color = 'var(--green)';
+        document.getElementById('g2-feedback').textContent = "Correct!";
+      } else {
+        b.style.background = 'var(--red2)'; b.style.borderColor = 'var(--red)';
+        document.getElementById('g2-feedback').style.color = 'var(--red)';
+        document.getElementById('g2-feedback').textContent = "Incorrect (2s Penalty Wait)";
+      }
+      document.getElementById('g2-score-ui').textContent = g2Phase === 'A' ? g2ScoreA : g2ScoreB;
+      setTimeout(()=>{ g2Idx++; renderG2Q(); }, 2000);
+    };
     opts.appendChild(b);
   });
-  startG2Timer();
 }
 
-function startG2Timer(){
-  clearInterval(g2Interval);
-  g2TV=15; g2TS=Date.now();
-  tickTimer();
-  g2Interval=setInterval(()=>{
-    g2TV=15-Math.floor((Date.now()-g2TS)/1000);
-    if(g2TV<=0){clearInterval(g2Interval);g2TV=0;if(!g2Done)timeoutQ()}
-    tickTimer();
-  },200);
+function startG2B() {
+  g2Phase = 'B'; g2Idx = 0;
+  document.getElementById('g2-pill').textContent = "Team B: Defender Strategy";
+  document.getElementById('g2-pill').className = "nav-pill np-ok";
+  showScreen('g2'); renderG2Q();
+  g2Start = Date.now();
+  g2Int = setInterval(()=>{ document.getElementById('g2-timer').textContent = ((Date.now()-g2Start)/1000).toFixed(1) + 's'; },100);
 }
 
-function tickTimer(){
-  const el=document.getElementById('g2-timer');
-  el.textContent=Math.max(0,g2TV);
-  el.className='timer-big'+(g2TV<=5?' td':g2TV<=8?' tw':'');
+function showG2Res(){
+  document.getElementById('g2-resa-score').textContent = g2ScoreA + "/5";
+  document.getElementById('g2-resa-time').textContent = g2TimeA.toFixed(1)+'s';
+  document.getElementById('g2-resb-score').textContent = g2ScoreB + "/5";
+  document.getElementById('g2-resb-time').textContent = g2TimeB.toFixed(1)+'s';
+  showScreen('g2-res');
 }
 
-function answerQ(ci){
-  if(g2Done)return; g2Done=true; clearInterval(g2Interval);
-  const q=g2Qs[g2Cur];
-  const t=Math.min(15,(Date.now()-g2TS)/1000);
-  const ok=ci===q.correct;
+// ════════ GAME 3: BANK HEIST ════════
+const g3Opts = [
+  {name: "Binance Crypto Wire", amt: "-$2,500.00", f:true},
+  {name: "CoinFlip BTC ATM", amt: "-$800.00", f:true},
+  {name: "Western Union - Kiev", amt: "-$1,200.00", f:true},
+  {name: "Apple Store - eGift", amt: "-$500.00", f:true},
+  {name: "Google Play - 10x", amt: "-$1,000.00", f:true},
+  {name: "Zelle — 'IRS Agent'", amt: "-$450.00", f:true},
+  {name: "Target.com GiftCards", amt: "-$400.00", f:true}
+];
+const g3Legit = [
+  {name:"Acme Corp Payroll", amt:"+$3,850.00"}, {name:"Highview Rent", amt:"-$1,200.00"},
+  {name:"City Water", amt:"-$87.40"}, {name:"Target Superstore", amt:"-$64.22"},
+  {name:"Netflix", amt:"-$15.99"}, {name:"Starbucks", amt:"-$4.75"},
+  {name:"Verizon Wireless", amt:"-$85.00"}, {name:"Amazon Prime", amt:"-$139.00"},
+  {name:"DoorDash", amt:"-$28.50"}, {name:"AMC Theatres", amt:"-$22.00"},
+  {name:"Uber Rides", amt:"-$14.50"}, {name:"CVS Pharmacy", amt:"-$18.30"},
+  {name:"Planet Fitness", amt:"-$24.99"}, {name:"MTA Subway", amt:"-$30.00"},
+  {name:"Checking Interest", amt:"+$0.83"}
+];
 
-  g2Logs[g2Phase].push({correct:ok, timeTaken:t});
+let g3IntA, g3StartA, g3TimeA, g3IntB, g3StartB, g3TimeB;
+let g3Chosen = [], g3Found = 0;
 
-  document.querySelectorAll('.q-opt').forEach((b,i)=>{
-    b.onclick=null;
-    if(i===q.correct) b.classList.add('right');
-    else if(i===ci&&!ok) b.classList.add('wrong');
-  });
-
-  if(ok) showFB(`✓ Correct! (${t.toFixed(1)}s) — ${q.explain}`,true);
-  else   showFB(`✗ Wrong. ${q.explain}`,false);
-
-  // Update live running score for current team
-  liveUpdateScore();
-  setTimeout(()=>{g2Cur++; showQ();},2200);
-}
-
-function timeoutQ(){
-  if(g2Done)return; g2Done=true;
-  const q=g2Qs[g2Cur];
-  g2Logs[g2Phase].push({correct:false, timeTaken:15});
-  document.querySelectorAll('.q-opt').forEach((b,i)=>{b.onclick=null;if(i===q.correct)b.classList.add('right')});
-  showFB(`⏱ Time's up! ${q.explain}`,false);
-  liveUpdateScore();
-  setTimeout(()=>{g2Cur++; showQ();},2200);
-}
-
-function showFB(msg,ok){
-  const el=document.getElementById('g2-fb');
-  el.textContent=msg; el.style.display='block';
-  el.className='feedback-bar '+(ok?'ok':'bad');
-}
-
-function liveUpdateScore(){
-  const t=g2Totals(g2Phase);
-  if(g2Phase==='A'){
-    document.getElementById('g2-sa').textContent=t.score;
-    document.getElementById('g2-aa').textContent=`${t.correct}/${t.answered} correct`;
-  } else {
-    document.getElementById('g2-sb').textContent=t.score;
-    document.getElementById('g2-ab').textContent=`${t.correct}/${t.answered} correct`;
+function startG3(){
+  showScreen('g3-a');
+  const sel = document.getElementById('g3-selectors'); sel.innerHTML = '';
+  for(let i=0; i<5; i++){
+    let d = document.createElement('div'); d.className='field';
+    let s = document.createElement('select');
+    g3Opts.forEach((o, idx)=> s.innerHTML += `<option value="${idx}">${o.name} (${o.amt})</option>`);
+    s.selectedIndex = i; d.appendChild(s); sel.appendChild(d);
   }
+  g3StartA = Date.now();
+  g3IntA = setInterval(()=>{ document.getElementById('g3-timer-a').textContent = ((Date.now()-g3StartA)/1000).toFixed(1) + 's'; },100);
 }
 
-function showHandoff(){
-  clearInterval(g2Interval);
-  document.getElementById('g2-quiz').style.display='none';
-  document.getElementById('g2-handoff').style.display='block';
-
-  const tA=g2Totals('A');
-  document.getElementById('g2-handoff-hed').textContent='Team A is done!';
-  document.getElementById('g2-handoff-body').textContent=
-    `Team A answered ${tA.correct} of ${g2Qs.length} questions correctly in ${tA.totalTime.toFixed(1)}s total. Now hand the device to Team B — make sure they haven't seen the answers!`;
-  document.getElementById('g2-ta-interim-score').textContent=tA.score+' pts';
-  document.getElementById('g2-ta-interim-detail').textContent=
-    `${tA.correct}/${g2Qs.length} correct · ${tA.totalTime.toFixed(1)}s total · ${tA.pct}% accuracy`;
-
-  const pill=document.getElementById('g2-nav-pill');
-  pill.textContent='Handoff'; pill.className='nav-pill np-neutral';
+function g3FinishA(){
+  clearInterval(g3IntA); g3TimeA = (Date.now()-g3StartA)/1000;
+  g3Chosen = []; g3Found = 0;
+  const selects = document.getElementById('g3-selectors').querySelectorAll('select');
+  selects.forEach(s => g3Chosen.push(g3Opts[s.value]));
+  doHandoff("Bank Heist", "Team A hid 5 fraudulent transactions in "+g3TimeA.toFixed(1)+"s.", startG3B);
 }
 
-function startTeamBRound(){
-  g2Cur=0; g2Phase='B'; g2Done=false;
-  document.getElementById('g2-handoff').style.display='none';
-  document.getElementById('g2-quiz').style.display='block';
-
-  const pill=document.getElementById('g2-nav-pill');
-  pill.textContent='Team B Playing'; pill.className='nav-pill np-ok';
-
-  // Scoreboard: Team A shows locked final score, Team B goes active
-  const tA=g2Totals('A');
-  document.getElementById('g2-sa').textContent=tA.score;
-  document.getElementById('g2-aa').textContent=`${tA.correct}/${g2Qs.length} correct · DONE`;
-  document.getElementById('g2-sb').textContent='0';
-  document.getElementById('g2-ab').textContent='answering...';
-  setBadge('g2-ca-badge','DONE','rgba(0,217,126,0.15)','var(--green)');
-  setBadge('g2-cb-badge','LIVE','rgba(255,176,32,0.2)','var(--amber)');
-  document.getElementById('g2-ca').className='score-card';
-  document.getElementById('g2-cb').className='score-card active-b';
-
-  document.getElementById('g2-prog').style.width='0%';
-  showQ();
-}
-
-function endG2(){
-  clearInterval(g2Interval);
-  document.getElementById('g2-quiz').style.display='none';
-  document.getElementById('g2-result').style.display='block';
-  document.getElementById('g2-nav-pill').style.display='none';
-
-  const tA=g2Totals('A'), tB=g2Totals('B');
-  const winner=tA.score>tB.score?'Team A':tB.score>tA.score?'Team B':null;
-
-  document.getElementById('g2-r-hed').textContent=winner?`🏆 ${winner} Wins!`:"It's a Tie!";
-  document.getElementById('g2-r-sub').textContent=
-    `${g2Qs.length} questions · score = correct answers × 100 minus total seconds used`;
-
-  // Breakdown rows
-  const rows=[
-    ['Final Score', tA.score+' pts', tB.score+' pts', tA.score>tB.score?'A':tB.score>tA.score?'B':'tie'],
-    ['Correct Answers', `${tA.correct} / ${g2Qs.length}`, `${tB.correct} / ${g2Qs.length}`, tA.correct>tB.correct?'A':tB.correct>tA.correct?'B':'tie'],
-    ['Accuracy', `${tA.pct}%`, `${tB.pct}%`, tA.pct>tB.pct?'A':tB.pct>tA.pct?'B':'tie'],
-    ['Total Time', `${tA.totalTime.toFixed(1)}s`, `${tB.totalTime.toFixed(1)}s`, tA.totalTime<tB.totalTime?'A':tB.totalTime<tA.totalTime?'B':'tie'],
-  ];
-
-  const bd=document.getElementById('g2-breakdown');
-  bd.innerHTML=rows.map(([label,va,vb,win])=>`
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--b1)">
-      <div style="padding:0.65rem 1rem;font-size:0.78rem;color:var(--t2)">${label}</div>
-      <div style="padding:0.65rem 1rem;font-size:0.82rem;font-weight:${win==='A'?700:400};color:${win==='A'?'var(--green)':'var(--t1)'};text-align:center;border-left:1px solid var(--b1);font-family:'JetBrains Mono',monospace">${va}${win==='A'?' ✓':''}</div>
-      <div style="padding:0.65rem 1rem;font-size:0.82rem;font-weight:${win==='B'?700:400};color:${win==='B'?'var(--green)':'var(--t1)'};text-align:center;border-left:1px solid var(--b1);font-family:'JetBrains Mono',monospace">${vb}${win==='B'?' ✓':''}</div>
-    </div>
-  `).join('');
-}
-
-// ══════════ GAME 3 DATA ══════════
-const fraudTxs=[
-  {id:'f1',ico:'🏧',name:'ATM Withdrawal — Lagos, Nigeria',meta:'ATM · International',date:'Today 03:14',amt:'-$1,800.00',cr:false,fraud:true,explain:'ATM withdrawal at 3am in a country never visited — classic account takeover pattern.'},
-  {id:'f2',ico:'🛒',name:'Amazon Marketplace',meta:'Online Purchase',date:'Today 03:17',amt:'-$847.99',cr:false,fraud:true,explain:'3 minutes after the ATM hit — scammer buying electronics to resell quickly.'},
-  {id:'f3',ico:'💸',name:'Wire Transfer — Unknown Recipient',meta:'Bank Transfer · Ref: 00391-A',date:'Today 03:22',amt:'-$2,500.00',cr:false,fraud:true,explain:'Large wire to an unrecognised account at 3am — the core fraud transaction.'},
-  {id:'f4',ico:'🎰',name:'BetQuick Gaming Ltd',meta:'Online Gambling · Card ending 4829',date:'Today 04:01',amt:'-$499.00',cr:false,fraud:true,explain:'Unknown gambling site — no prior gambling transaction history in this account.'},
-];
-const legitTxs=[
-  {id:'l1',ico:'💼',name:'Payroll — Acme Corp',meta:'Monthly Salary',date:'Oct 28',amt:'+$3,850.00',cr:true,fraud:false},
-  {id:'l2',ico:'🏠',name:'Highview Properties',meta:'Monthly Rent',date:'Oct 1',amt:'-$1,200.00',cr:false,fraud:false},
-  {id:'l3',ico:'⚡',name:'EDF Energy',meta:'Direct Debit',date:'Oct 3',amt:'-$87.40',cr:false,fraud:false},
-  {id:'l4',ico:'🛒',name:'Tesco Superstore',meta:'Debit Card',date:'Oct 14',amt:'-$64.22',cr:false,fraud:false},
-  {id:'l5',ico:'🚇',name:'TfL — Oyster Top-Up',meta:'Transport for London',date:'Oct 9',amt:'-$30.00',cr:false,fraud:false},
-  {id:'l6',ico:'📺',name:'Netflix',meta:'Monthly Subscription',date:'Oct 7',amt:'-$15.99',cr:false,fraud:false},
-  {id:'l7',ico:'🏋️',name:'PureGym Monthly',meta:'Gym Membership',date:'Oct 2',amt:'-$24.99',cr:false,fraud:false},
-  {id:'l8',ico:'☕',name:'Costa Coffee',meta:'Contactless',date:'Oct 23',amt:'-$4.75',cr:false,fraud:false},
-  {id:'l9',ico:'💊',name:'Boots Pharmacy',meta:'Card Payment',date:'Oct 16',amt:'-$18.30',cr:false,fraud:false},
-  {id:'l10',ico:'📱',name:'EE Mobile',meta:'Phone Contract DD',date:'Oct 5',amt:'-$35.00',cr:false,fraud:false},
-  {id:'l11',ico:'📦',name:'Amazon Prime',meta:'Annual Membership',date:'Oct 20',amt:'-$12.99',cr:false,fraud:false},
-  {id:'l12',ico:'🍕',name:'Deliveroo',meta:'Food Delivery',date:'Oct 18',amt:'-$28.50',cr:false,fraud:false},
-  {id:'l13',ico:'🏦',name:'Interest Credit',meta:'Monthly Interest',date:'Oct 31',amt:'+$0.83',cr:true,fraud:false},
-  {id:'l14',ico:'🚿',name:'Thames Water',meta:'Water Bill DD',date:'Oct 6',amt:'-$42.00',cr:false,fraud:false},
-  {id:'l15',ico:'🎬',name:'Odeon Cinema',meta:'Card Payment',date:'Oct 12',amt:'-$22.00',cr:false,fraud:false},
-];
-
-let g3AllTxs=[],g3Flagged=new Set(),g3Safe=new Set(),g3CurTx=null;
-
-function startGame3(){
-  g3Flagged=new Set();g3Safe=new Set();
-  const order={'Today 03:14':0,'Today 03:17':1,'Today 03:22':2,'Today 04:01':3};
-  g3AllTxs=[...fraudTxs,...legitTxs].sort((a,b)=>(order[a.date]??99)-(order[b.date]??99));
-  showScreen('game3');
-  document.getElementById('g3-ft').textContent=fraudTxs.length;
-  renderTxs();updateFraudCount();
-}
-
-function renderTxs(){
-  const c=document.getElementById('g3-txlist');c.innerHTML='';
-  // restore section header
-  const hd=document.createElement('div');
-  hd.className='section-hd';
-  hd.innerHTML='<span class="sdot sdot-red"></span> Recent Transactions<span style="margin-left:auto;font-family:\'JetBrains Mono\',monospace;font-size:0.65rem;color:var(--t3)">Last 30 days</span>';
-  c.appendChild(hd);
-  g3AllTxs.forEach(tx=>{
-    const d=document.createElement('div');
-    d.className='tx-row';
-    if(g3Flagged.has(tx.id))d.classList.add('fr');
-    if(g3Safe.has(tx.id))d.classList.add('sf');
-    const amtCls=tx.cr?'cr':tx.fraud&&!g3Safe.has(tx.id)?'sus':'db';
-    const statusBadge=g3Flagged.has(tx.id)?`<div class="tx-status-badge">⚠ Flagged as Fraud</div>`:g3Safe.has(tx.id)?`<div class="tx-status-safe">✓ Marked Safe</div>`:'';
-    d.innerHTML=`
-      <div class="tx-ico">${tx.ico}</div>
-      <div><div class="tx-name">${tx.name}</div><div class="tx-meta">${tx.meta}</div>${statusBadge}</div>
-      <div class="tx-date">${tx.date}</div>
-      <div class="tx-amt ${amtCls}">${tx.amt}</div>
-    `;
-    d.onclick=()=>openTx(tx);
-    c.appendChild(d);
+function startG3B() {
+  showScreen('g3-b');
+  document.getElementById('g3-flag-count').textContent = "0 / 5";
+  let combined = [...g3Legit.map(x=>({...x,f:false})), ...g3Chosen].sort(()=>Math.random()-0.5);
+  const list = document.getElementById('g3-bank-list'); list.innerHTML = '';
+  combined.forEach((tx)=>{
+    let r = document.createElement('div'); r.className='bank-tx-row';
+    r.innerHTML = `<div><div style="font-weight:600;color:#0f172a">${tx.name}</div><div style="font-size:0.8rem;color:#64748b">Oct ${Math.floor(Math.random()*30)+1}</div></div><div class="bank-tx-amt ${tx.amt.includes('+')?'pos':'neg'}">${tx.amt}</div><div style="color:#cbd5e1;font-size:1.5rem;" class="flag-icon">⚑</div>`;
+    r.onclick = function(){
+      if(r.classList.contains('flagged')) return;
+      if(tx.f){
+        r.classList.add('flagged'); r.style.background = '#fee2e2'; r.querySelector('.flag-icon').style.color = '#ef4444';
+        g3Found++; document.getElementById('g3-flag-count').textContent = g3Found + " / 5";
+        if(g3Found === 5) g3FinishB();
+      } else {
+        r.style.background = '#f1f5f9';
+      }
+    };
+    list.appendChild(r);
   });
+  g3StartB = Date.now();
+  g3IntB = setInterval(()=>{ document.getElementById('g3-timer-b').textContent = ((Date.now()-g3StartB)/1000).toFixed(1) + 's'; },100);
 }
 
-function openTx(tx){
-  g3CurTx=tx;
-  document.getElementById('g3-m-title').textContent=tx.name;
-  const status=g3Flagged.has(tx.id)?'<span style="color:var(--red)">Flagged for Fraud</span>':g3Safe.has(tx.id)?'<span style="color:var(--green)">Marked Safe</span>':'Under review';
-  document.getElementById('g3-m-body').innerHTML=`
-    <table class="detail-tbl">
-      <tr><td>Amount</td><td style="font-weight:700;color:${tx.fraud?'var(--red)':'var(--t1)'}">${tx.amt}</td></tr>
-      <tr><td>Date / Time</td><td>${tx.date}</td></tr>
-      <tr><td>Reference</td><td>${tx.meta}</td></tr>
-      <tr><td>Status</td><td>${status}</td></tr>
-    </table>
-    <div style="margin-top:1rem;padding:0.8rem;background:var(--s2);border-radius:var(--r);font-size:0.76rem;color:var(--t3);line-height:1.65">
-      Does this look familiar? Flag as fraud to cancel it, or mark safe if you recognise the transaction.
-    </div>
-  `;
-  document.getElementById('g3-modal').style.display='flex';
+function g3FinishB(){
+  if(g3Found < 5){ alert("You must find all 5!"); return; }
+  clearInterval(g3IntB); g3TimeB = (Date.now()-g3StartB)/1000;
+  alert(`Team B Time: ${g3TimeB.toFixed(1)}s`);
+  goHome();
 }
 
-function markTxFraud(){
-  if(!g3CurTx)return;
-  g3Flagged.add(g3CurTx.id);g3Safe.delete(g3CurTx.id);
-  updateFraudCount();renderTxs();closeModal('g3-modal');
-  notify('Transaction flagged','wn');
-}
-function markTxSafe(){
-  if(!g3CurTx)return;
-  g3Safe.add(g3CurTx.id);g3Flagged.delete(g3CurTx.id);
-  updateFraudCount();renderTxs();closeModal('g3-modal');
-  notify('Marked as safe','ok');
+// ════════ GAME 4: MARKETPLACE ════════
+let g4Legit = [
+  {i:'🚲', t:'Trek Mountain Bike', p:'$250', d:'Used for 1 year, great condition. Cash only on pickup.', s:false},
+  {i:'🛋️', t:'IKEA Sofa', p:'$100', d:'Minor scratch on the leg, otherwise perfect. Must pick up with a truck.', s:false},
+  {i:'📺', t:'LG 55" Smart TV', p:'$200', d:'Upgraded to an OLED so selling this one. Includes remote and stand.', s:false},
+  {i:'🎸', t:'Fender Guitar', p:'$400', d:'Mint condition Stratocaster. Local meetup at the police station only.', s:false},
+  {i:'📱', t:'iPhone 13', p:'$350', d:'Unlocked. Screen protector since day 1. Venmo or cash accepted locally.', s:false}
+];
+
+function startG4(){ showScreen('g4-a'); }
+
+function g4FinishA(){
+  let item = document.getElementById('g4-item').value.split('|');
+  let p = document.getElementById('g4-price').value;
+  let desc = document.getElementById('g4-desc').value;
+  let fake = {i:item[1], t:item[0], p:p, d:desc, s:true};
+  
+  let grid = document.getElementById('g4-grid'); grid.innerHTML = '';
+  let combined = [...g4Legit, fake].sort(()=>Math.random()-0.5);
+  
+  combined.forEach(m => {
+    let card = document.createElement('div'); card.className='m-card';
+    card.innerHTML = `<div class="m-img">${m.i}</div><div class="m-info"><div class="m-price">${m.p}</div><div class="m-title">${m.t}</div><div class="m-loc" style="color:#666;font-size:0.8rem;">Los Angeles, CA</div></div>`;
+    card.onclick = () => {
+      document.getElementById('g4-m-title').textContent = m.t;
+      document.getElementById('g4-m-price').textContent = m.p;
+      document.getElementById('g4-m-desc').textContent = m.d;
+      document.getElementById('g4-m-flag').onclick = () => {
+        if(m.s) { alert("🎯 SUCCESS! Team B caught the fake listing based on the suspicious description."); goHome(); }
+        else { alert("❌ FAIL! Team B reported a legit seller."); document.getElementById('g4-modal').classList.remove('active'); }
+      };
+      document.getElementById('g4-modal').classList.add('active');
+    };
+    grid.appendChild(card);
+  });
+  doHandoff("Marketplace Mayhem", "Team A created a manipulative listing. Team B must spot it.", "g4-b");
 }
 
-function updateFraudCount(){
-  let cf=0;g3Flagged.forEach(id=>{if(fraudTxs.find(t=>t.id===id))cf++});
-  document.getElementById('g3-fc').textContent=cf;
+// ════════ GAME 5: SMS INBOX ════════
+const g5Legit = [
+  {n:"DoorDash", m:"Your Dasher is approaching with your order."},
+  {n:"Mom", m:"Are we still doing dinner on Sunday? Call me."},
+  {n:"Chase Alerts", m:"Card ending in 4421 was charged $14.99 at SPOTIFY. Reply N if unauthorized."},
+  {n:"Planet Fitness", m:"Your monthly membership fee of $24.99 was processed successfully."},
+  {n:"Alex", m:"Hey, can you send me that document when you get a chance?"}
+];
+
+function startG5(){ showScreen('g5-a'); }
+
+function g5FinishA(){
+  let hook = document.getElementById('g5-hook').value;
+  let link = document.getElementById('g5-link').value;
+  let fake = { n:"833-291-001", m: `${hook} ${link}`, s: true };
+  
+  let mix = [...g5Legit, fake].sort(()=>Math.random()-0.5);
+  let inbox = document.getElementById('g5-inbox'); inbox.innerHTML = '';
+  
+  mix.forEach((msg) => {
+    let div = document.createElement('div');
+    div.style = "padding:1rem;border-bottom:1px solid #ddd;cursor:pointer;";
+    div.innerHTML = `<div style="font-weight:600;margin-bottom:0.2rem;">${msg.n}</div><div style="font-size:0.85rem;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msg.m}</div>`;
+    div.onclick = () => {
+      document.getElementById('g5-reader').innerHTML = `
+        <div style="border-bottom:1px solid #ddd;padding-bottom:1rem;margin-bottom:1.5rem;">
+          <h3 style="margin-bottom:0.2rem;">${msg.n}</h3>
+          <div style="font-size:0.85rem;color:#666;">Text Message</div>
+        </div>
+        <div style="background:#e5e5ea;color:#000;padding:1rem;border-radius:18px;max-width:80%;align-self:flex-start;line-height:1.4;">${msg.m}</div>
+        <div style="margin-top:auto;padding-top:2rem;">
+          <button class="btn btn-red btn-full" onclick="g5Check(${msg.s ? true : false})">Report as Smishing</button>
+        </div>
+      `;
+    };
+    inbox.appendChild(div);
+  });
+  doHandoff("The SMS Inbox", "Team A sent the smishing text. Team B must find it in the inbox.", "g5-b");
 }
 
-function checkFraud(){
-  let cf=0,fp=0,missed=0;
-  fraudTxs.forEach(t=>{if(g3Flagged.has(t.id))cf++;else missed++;});
-  g3Flagged.forEach(id=>{if(!fraudTxs.find(t=>t.id===id))fp++;});
-  const lost=fraudTxs.filter(t=>!g3Flagged.has(t.id)).reduce((s,t)=>s+parseFloat(t.amt.replace(/[^0-9.]/g,'')),0);
-  const msg=cf===fraudTxs.length&&fp===0
-    ?'All fraud cancelled — account secured! 🎉'
-    :`${cf}/${fraudTxs.length} caught. ${fp>0?fp+' false positives. ':''}${missed>0?'$'+lost.toFixed(2)+' potentially lost.':''}`;
-  notify(msg,cf===fraudTxs.length&&fp===0?'ok':cf>0?'wn':'er');
-  renderTxs();
+function g5Check(isFake){
+  if(isFake) alert("🎯 EXCELLENT! You correctly identified the Smishing attack.");
+  else alert("❌ INCORRECT! You flagged a legitimate text message.");
+  goHome();
 }
 
-function showScammerView(){
-  const m=document.getElementById('g3-main');
-  m.innerHTML=`
-    <div class="section-hd"><span class="sdot sdot-red"></span>Team A — Scammer's Playbook</div>
-    <div class="scammer-step">
-      <div class="scammer-step-hd">Step 1 — Account Takeover</div>
-      Sarah received a fake 'bank security alert' email. She clicked a spoofed link to 'natlwest-secure.com' and entered her online banking credentials. The scammer now has full access.
-    </div>
-    <div class="scammer-step">
-      <div class="scammer-step-hd">Step 2 — Cash Out Fast</div>
-      At 3:14am (Sarah is asleep), the scammer hits an international ATM, buys $847 in electronics for resale on Amazon, then wires $2,500 to a mule account — all within 8 minutes.
-    </div>
-    <div class="scammer-step">
-      <div class="scammer-step-hd">Step 3 — Cover Tracks</div>
-      A final $499 gambling transaction adds noise to make the account history harder to audit — classic money laundering via micro-transactions.
-    </div>
-    <div class="tipbox tipbox-amber" style="margin-top:1rem">
-      <strong>🎭 Red Flags for Team B</strong>
-      Transactions at 3–4am · International ATM in unknown country · Multiple large transactions within minutes · Unrecognised wire transfer refs · Gambling with no prior history
-    </div>
-    <button class="btn btn-ghost btn-sm" onclick="startGame3()" style="margin-top:1rem">← Back to Transactions</button>
-  `;
+// ════════ GAME 6: THE PHANTOM INVOICE ════════
+const g6Legit = [
+  {v:"Global Logistics", e:"billing@globallogistics.com", r:"021000021", a:"$4,250.00"},
+  {v:"CloudHost Pro", e:"support@cloudhostpro.io", r:"111000025", a:"$899.00"},
+  {v:"Acme Supplies", e:"accounting@acme-supplies.com", r:"122000247", a:"$1,200.00"}
+];
+
+function startG6(){ showScreen('g6-a'); }
+
+function g6FinishA(){
+  let fakeDomain = document.getElementById('g6-domain').value;
+  let fakeRoute = document.getElementById('g6-route').value;
+  let fake = { v:"Acme Supplies", e:fakeDomain, r:fakeRoute, a:"$5,500.00", s:true };
+  
+  // Create a mix of legit invoices plus the fake one. 
+  // If the fake one is Acme Supplies, we replace the legit Acme Supplies to simulate the scammer stepping in.
+  let mix = [g6Legit[0], g6Legit[1], fake].sort(()=>Math.random()-0.5);
+  
+  let list = document.getElementById('g6-list'); list.innerHTML = '';
+  mix.forEach(inv => {
+    let div = document.createElement('div'); div.className = 'inv-card';
+    div.innerHTML = `<div style="font-weight:700;">${inv.v}</div><div style="font-size:0.85rem;color:#666;">${inv.a}</div>`;
+    div.onclick = () => {
+      document.getElementById('g6-reader').innerHTML = `
+        <div class="inv-doc">
+          <div style="display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:1rem;margin-bottom:2rem;">
+            <h2>INVOICE</h2><h2>${inv.v}</h2>
+          </div>
+          <div style="margin-bottom:1rem;"><strong>From:</strong> ${inv.e}</div>
+          <div style="margin-bottom:2rem;"><strong>Amount Due:</strong> <span style="font-size:1.5rem;font-weight:700;">${inv.a}</span></div>
+          <div style="background:#f9f9f9;padding:1rem;border:1px solid #ddd;margin-bottom:2rem;">
+            <div style="font-weight:700;margin-bottom:0.5rem;">Wire Payment Details</div>
+            <div>Bank Routing Number: <strong>${inv.r}</strong></div>
+            <div>Account Number: 8829104002</div>
+          </div>
+          <button class="btn btn-red btn-full" onclick="g6Check(${inv.s ? true : false})">Flag as Forgery</button>
+        </div>
+      `;
+    };
+    list.appendChild(div);
+  });
+  doHandoff("The Phantom Invoice", "Team A injected the forged invoice. Team B must find it.", "g6-b");
 }
 
-function showTipsPanel(){
-  const m=document.getElementById('g3-main');
-  m.innerHTML=`
-    <div class="section-hd"><span class="sdot sdot-green"></span>Investigation Tips for Team B</div>
-    <div class="tipbox tipbox-green">
-      <strong>🔍 What to Look For</strong>
-      <ul style="margin-top:0.5rem;padding-left:1.1rem;font-size:0.79rem;line-height:2.1;color:var(--t2)">
-        <li>Unusual hours — especially midnight to 5am</li>
-        <li>International transactions in countries never visited</li>
-        <li>Multiple large transactions in rapid succession</li>
-        <li>Wire transfers to unfamiliar or generic references</li>
-        <li>Gambling or gaming sites with zero prior history</li>
-        <li>New merchants appearing for the first time with large amounts</li>
-      </ul>
-    </div>
-    <div class="tipbox tipbox-blue" style="margin-top:0.8rem">
-      <strong>✓ Don't Flag These</strong>
-      Regular direct debits (rent, utilities, subscriptions), payroll, familiar merchants, small contactless payments at known shops.
-    </div>
-    <button class="btn btn-ghost btn-sm" onclick="startGame3()" style="margin-top:1rem">← Back to Transactions</button>
-  `;
+function g6Check(isFake){
+  if(isFake) alert("🎯 SECURE! You successfully identified the mismatched details on the forged invoice.");
+  else alert("💸 BREACH! You flagged a legitimate vendor invoice and let the fraudulent one slip through.");
+  goHome();
 }
 </script>
 </body>
