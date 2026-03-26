@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScamShield — Anti-Scam Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#080b10; --bg2:#0d1117; --s1:#111820; --s2:#192030; --s3:#1e2a3a;
+  --b1:rgba(255,255,255,0.06); --b2:rgba(255,255,255,0.12); --b3:rgba(255,255,255,0.2);
+  --t1:#f0f4fa; --t2:#8fa3be; --t3:#4a5f78;
+  --green:#00d97e; --green2:rgba(0,217,126,0.12);
+  --red:#ff3d5a; --red2:rgba(255,61,90,0.12);
+  --blue:#3d8bff; --blue2:rgba(61,139,255,0.12);
+  --amber:#ffb020; --amber2:rgba(255,176,32,0.12);
+  --purple:#b142ff; --teal:#00e5ff;
+  --r:8px; --r2:14px;
+}
+
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--t1);
+  font-family:'Outfit',sans-serif; font-weight:400;
+  min-height:100vh; overflow-x:hidden; line-height:1.5;
+}
+
+/* ─── SYSTEM UI ─── */
+.screen{display:none;min-height:100vh;animation:fadeUp 0.25s ease;}
+.screen.active{display:flex;flex-direction:column;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─── LANDING ─── */
+#landing.active{ align-items:center; justify-content:center; padding:3rem 1.5rem; position:relative; overflow:hidden; }
+.land-eyebrow{font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--t3);margin-bottom:1.2rem;display:flex;align-items:center;gap:0.5rem;}
+.land-eyebrow::before,.land-eyebrow::after{content:'';display:block;width:32px;height:1px;background:var(--b3);}
+.land-logo{font-size:clamp(2.8rem,6vw,4.5rem);font-weight:900;line-height:1;letter-spacing:-0.03em;margin-bottom:1rem;}
+.land-logo .hi{color:var(--green)}
+.land-sub{font-size:1rem;color:var(--t2);font-weight:300;margin-bottom:3.5rem;max-width:500px;text-align:center;}
+
+.game-grid{ display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem; width:100%;max-width:1000px;z-index:1; }
+.gcard{ background:var(--s1);padding:2rem 1.8rem;border:1px solid var(--b1); border-radius:var(--r2);cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden; }
+.gcard:hover{background:var(--s2);transform:translateY(-3px);border-color:var(--b2);}
+.gcard-accent{position:absolute;top:0;left:0;right:0;height:4px;}
+.gcard.c-green .gcard-accent{background:var(--green)}
+.gcard.c-blue .gcard-accent{background:var(--blue)}
+.gcard.c-red .gcard-accent{background:var(--red)}
+.gcard.c-amber .gcard-accent{background:var(--amber)}
+.gcard.c-purple .gcard-accent{background:var(--purple)}
+.gcard.c-teal .gcard-accent{background:var(--teal)}
+.gcard-num{font-family:'JetBrains Mono',monospace;font-size:0.62rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--t3);margin-bottom:0.8rem;}
+.gcard h3{font-size:1.35rem;font-weight:700;margin-bottom:0.6rem;}
+.gcard p{font-size:0.85rem;color:var(--t2);margin-bottom:1.4rem;}
+
+/* ─── SHARED UI ─── */
+.topnav{ height:52px;background:rgba(8,11,16,0.95);border-bottom:1px solid var(--b1); display:flex;align-items:center;gap:1rem;padding:0 1.4rem;position:sticky;top:0;z-index:200; }
+.nav-back{background:none;border:1px solid var(--b1);color:var(--t3);padding:5px 12px;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono';font-size:0.72rem;}
+.nav-back:hover{border-color:var(--b2);color:var(--t2)}
+.nav-title{font-weight:700;font-size:0.88rem;}
+.nav-pill{margin-left:auto;font-family:'JetBrains Mono';font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;border-radius:20px;border:1px solid;}
+.np-warn{background:var(--red2);color:var(--red);border-color:rgba(255,61,90,0.3)}
+.np-ok{background:var(--green2);color:var(--green);border-color:rgba(0,217,126,0.3)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:0.6rem 1.3rem;border-radius:var(--r);border:none;cursor:pointer;font-family:'Outfit';font-size:0.84rem;font-weight:600;transition:all 0.15s;}
+.btn-green{background:var(--green);color:#000}.btn-green:hover{opacity:0.85}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{opacity:0.85}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{opacity:0.85}
+.btn-amber{background:var(--amber);color:#000}.btn-amber:hover{opacity:0.85}
+.btn-purple{background:var(--purple);color:#fff}.btn-purple:hover{opacity:0.85}
+.btn-ghost{background:transparent;border:1px solid var(--b1);color:var(--t1)}.btn-ghost:hover{background:var(--s2);border-color:var(--b2)}
+.btn-full{width:100%}
+.btn:disabled{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+
+label.fl{display:block;font-family:'JetBrains Mono';font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--t3);margin-bottom:0.45rem;}
+input[type=text],textarea,select{width:100%;background:var(--s2);border:1px solid var(--b1);color:var(--t1);padding:0.7rem;border-radius:var(--r);font-family:'Outfit';font-size:0.85rem;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--b2);background:var(--s3);}
+.field{margin-bottom:1.2rem}
+
+.wrap{max-width:600px;margin:3rem auto;width:100%;padding:0 1.5rem;}
+.wrap-lg{max-width:900px;margin:2rem auto;width:100%;padding:0 1.5rem;}
+.panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);padding:2rem;}
+.timer-big{font-family:'JetBrains Mono';font-size:3rem;font-weight:700;color:var(--t1);text-align:center;margin-bottom:1rem;line-height:1;}
+
+.handoff{text-align:center;padding:4rem 1.5rem;max-width:500px;margin:0 auto;}
+.handoff h2{font-size:2rem;margin-bottom:1rem;}
+.handoff p{color:var(--t2);margin-bottom:2rem;}
+
+/* ─── REALISTIC UI CLASSES ─── */
+.email-ui{background:#fff;color:#333;border-radius:8px;overflow:hidden;font-family:'Inter',sans-serif;height:600px;display:flex;}
+.email-sidebar{width:200px;background:#f3f4f6;border-right:1px solid #e5e7eb;padding:1rem;}
+.email-list{width:300px;border-right:1px solid #e5e7eb;overflow-y:auto;background:#fff;}
+.email-item{padding:1rem;border-bottom:1px solid #e5e7eb;cursor:pointer;}
+.email-item:hover{background:#f9fafb;}
+.email-item.active{background:#eff6ff;border-left:3px solid #3b82f6;}
+.email-read{flex:1;padding:2rem;overflow-y:auto;background:#fff;}
+
+.bank-ui{background:#f8fafc;color:#0f172a;border-radius:8px;overflow:hidden;font-family:'Inter',sans-serif;padding:2rem;}
+.bank-tx-row{display:grid;grid-template-columns:auto 1fr auto;gap:1rem;padding:1rem 0;border-bottom:1px solid #e2e8f0;align-items:center;}
+.bank-tx-row:hover{background:#f1f5f9;cursor:pointer;}
+.bank-tx-amt.neg{color:#334155;} .bank-tx-amt.pos{color:#10b981;}
+
+.market-ui{background:#f0f2f5;color:#050505;border-radius:8px;padding:2rem;font-family:'Inter',sans-serif;}
+.market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;}
+.m-card{background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,0.1);cursor:pointer;}
+.m-img{height:160px;background:#e4e6eb;display:flex;align-items:center;justify-content:center;font-size:4rem;}
+.m-info{padding:1rem;} .m-price{font-size:1.2rem;font-weight:700;} .m-title{font-size:0.95rem;font-weight:600;}
+
+/* Game 4 Modal */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center;padding:1rem;}
+.modal-overlay.active{display:flex;}
+.modal-content{background:#fff;color:#000;width:100%;max-width:500px;border-radius:12px;padding:2rem;font-family:'Inter',sans-serif;}
+
+.sms-ui{background:#000;color:#fff;border:10px solid #1c1c1e;border-radius:30px;width:340px;height:600px;margin:0 auto;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;}
+.sms-head{text-align:center;padding:1.5rem 1rem 0.5rem;border-bottom:1px solid #333;background:rgba(28,28,30,0.9);}
+.sms-body{flex:1;padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:1rem;}
+.sms-bub{padding:0.6rem 1rem;border-radius:18px;max-width:80%;font-size:0.95rem;line-height:1.4;}
+.sms-bub.them{background:#262628;align-self:flex-start;border-bottom-left-radius:4px;}
+.sms-bub.me{background:#0a84ff;align-self:flex-end;border-bottom-right-radius:4px;}
+
+/* Game 6 B2B UI */
+.invoice-ui{background:#fff;color:#111;border-radius:8px;font-family:'Inter',sans-serif;display:flex;height:600px;}
+.inv-list{width:350px;border-right:1px solid #ddd;overflow-y:auto;}
+.inv-card{padding:1.2rem;border-bottom:1px solid #ddd;cursor:pointer;}
+.inv-card:hover{background:#f9f9f9;}
+.inv-read{flex:1;padding:2rem;background:#f4f5f7;}
+.inv-doc{background:#fff;border:1px solid #ccc;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);min-height:400px;}
+</style>
+</head>
+<body>
+
+<div id="landing" class="screen active">
+  <div class="land-eyebrow">Anti-Scam Training Suite</div>
+  <div class="land-logo"><span class="hi">Scam</span><span class="lo">Shield</span></div>
+  <p class="land-sub">Interactive games forcing your team to think like a scammer to better defend against them.</p>
+  <div class="game-grid">
+    <div class="gcard c-green" onclick="startG1()"><div class="gcard-accent"></div><div class="gcard-num">Game 01</div><h3>Phishing Lab</h3><p>Team A edits a phishing template. Team B must find it buried in a realistic corporate inbox.</p></div>
+    <div class="gcard c-blue" onclick="startG2()"><div class="gcard-accent"></div><div class="gcard-num">Game 02</div><h3>Scam Showdown</h3><p>A dual-quiz testing scammer strategy vs defender protocols. Accuracy and speed matter.</p></div>
+    <div class="gcard c-red" onclick="startG3()"><div class="gcard-accent"></div><div class="gcard-num">Game 03</div><h3>Bank Heist</h3><p>Team A hides 5 highly suspicious charges in a statement. Team B must audit and flag them.</p></div>
+    <div class="gcard c-amber" onclick="startG4()"><div class="gcard-accent"></div><div class="gcard-num">Game 04</div><h3>Marketplace Mayhem</h3><p>Team A creates a manipulative listing. Team B must investigate item descriptions to catch it.</p></div>
+    <div class="gcard c-purple" onclick="startG5()"><div class="gcard-accent"></div><div class="gcard-num">Game 05</div><h3>The SMS Inbox</h3><p>Team A targets the victim via text. Team B must dig through an active SMS inbox to find the threat.</p></div>
+    <div class="gcard c-teal" onclick="startG6()"><div class="gcard-accent"></div><div class="gcard-num">Game 06</div><h3>The Phantom Invoice</h3><p>Team A forges a B2B invoice. Team B must audit pending payments against the Vendor Master File.</p></div>
+  </div>
+</div>
+
+<div id="handoff" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title" id="ho-title">Handoff</span></div>
+  <div class="handoff">
+    <div style="font-size:4rem;margin-bottom:1rem;">🔄</div>
+    <h2 id="ho-head">Team A Finished</h2>
+    <p id="ho-msg">Hand the device over to Team B. Do not let them see your answers.</p>
+    <button class="btn btn-blue btn-full" id="ho-btn">Team B Ready →</button>
+  </div>
+</div>
+
+<div id="g1-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Phishing Lab</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--red);">Craft the Phish</h3>
+      <div class="field">
+        <label class="fl">Load Template</label>
+        <select id="g1-template" onchange="loadG1Template()">
+          <option value="0">Microsoft Security Alert</option>
+          <option value="1">HR: Updated Paid Time Off</option>
+          <option value="2">IT: Mandatory VPN Update</option>
+        </select>
+      </div>
+      <p style="font-size:0.8rem;color:var(--amber);margin-bottom:1rem;">* Edit the fields below to make it more convincing and trick Team B!</p>
+      <div class="field"><label class="fl">Sender Name</label><input type="text" id="g1-sender"></div>
+      <div class="field"><label class="fl">Sender Email (Use a typo!)</label><input type="text" id="g1-email"></div>
+      <div class="field"><label class="fl">Subject</label><input type="text" id="g1-subj"></div>
+      <div class="field"><label class="fl">Email Body</label><textarea id="g1-body" style="height:100px;"></textarea></div>
+      <button class="btn btn-red btn-full" onclick="g1FinishA()">Inject into Team B's Inbox →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g1-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Phishing Lab</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="margin-bottom:1rem;color:var(--t2);">Find and click the 1 phishing email Team A edited among the legitimate ones.</div>
+    <div class="email-ui">
+      <div class="email-sidebar">
+        <div style="font-weight:700;margin-bottom:1rem;color:#111">Inbox (13)</div>
+        <div style="color:#666;font-size:0.9rem;">Drafts</div>
+      </div>
+      <div class="email-list" id="g1-inbox"></div>
+      <div class="email-read" id="g1-reader">
+        <div style="color:#999;text-align:center;margin-top:50%;">Select an email to read</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="g2" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Scam Showdown</span><span class="nav-pill np-warn" id="g2-pill">Team A</span></div>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <div class="timer-big" id="g2-timer" style="margin:0;">0.0s</div>
+      <div style="font-size:1.5rem;font-weight:700;color:var(--t2);">Score: <span id="g2-score-ui">0</span>/5</div>
+    </div>
+    <div class="panel" id="g2-quiz-area">
+      <div style="font-family:'JetBrains Mono';font-size:0.7rem;color:var(--t3);margin-bottom:1rem;" id="g2-qnum">Question 1/5</div>
+      <h3 style="margin-bottom:1.5rem;font-size:1.2rem;" id="g2-qtext"></h3>
+      <div id="g2-opts" style="display:flex;flex-direction:column;gap:0.8rem;"></div>
+      <div id="g2-feedback" style="margin-top:1rem;font-weight:700;text-align:center;height:24px;"></div>
+    </div>
+  </div>
+</div>
+
+<div id="g2-res" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Scam Showdown</span></div>
+  <div class="wrap">
+    <div class="panel" style="text-align:center;">
+      <h2 style="font-size:2rem;margin-bottom:1rem;">Results</h2>
+      <div style="display:flex;justify-content:space-around;margin-bottom:2rem;">
+        <div>
+          <div style="color:var(--t3);font-family:'JetBrains Mono';font-size:0.7rem;">TEAM A (Scammer)</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--red);" id="g2-resa-score"></div>
+          <div style="color:var(--t2);" id="g2-resa-time"></div>
+        </div>
+        <div>
+          <div style="color:var(--t3);font-family:'JetBrains Mono';font-size:0.7rem;">TEAM B (Defender)</div>
+          <div style="font-size:2rem;font-weight:700;color:var(--blue);" id="g2-resb-score"></div>
+          <div style="color:var(--t2);" id="g2-resb-time"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" style="margin-top:2rem;" onclick="goHome()">Return Home</button>
+    </div>
+  </div>
+</div>
+
+<div id="g3-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Bank Heist</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="timer-big" id="g3-timer-a">0.0s</div>
+    <div class="panel">
+      <h3 style="margin-bottom:0.5rem;color:var(--red);">Hide the Fraud</h3>
+      <p style="font-size:0.85rem;color:var(--t2);margin-bottom:1.5rem;">Select 5 fraudulent transactions. They will be mixed into a statement of 20 normal charges.</p>
+      <div id="g3-selectors"></div>
+      <button class="btn btn-red btn-full" style="margin-top:1rem;" onclick="g3FinishA()">Inject Fraud & Stop Clock →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g3-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Bank Heist</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:1rem;">
+      <div class="timer-big" id="g3-timer-b" style="margin:0;">0.0s</div>
+      <button class="btn btn-blue" onclick="g3FinishB()">Submit Audit</button>
+    </div>
+    <div class="bank-ui">
+      <div class="bank-header">
+        <div><div style="font-size:0.85rem;color:#64748b;font-weight:600;">Checking •••• 4829</div><div class="bank-bal">$12,402.50</div></div>
+        <div style="text-align:right;"><div style="font-size:0.85rem;color:#64748b;font-weight:600;">Fraud Flagged</div><div style="font-size:1.5rem;font-weight:700;color:#ef4444;" id="g3-flag-count">0 / 5</div></div>
+      </div>
+      <div id="g3-bank-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="g4-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Marketplace Mayhem</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--amber);">Create Scam Listing</h3>
+      <div class="field"><label class="fl">Item</label><select id="g4-item"><option value="PS5|🎮">PlayStation 5</option><option value="MacBook M2|💻">MacBook M2</option><option value="Swift Tickets|🎫">Taylor Swift Tickets (x2)</option></select></div>
+      <div class="field"><label class="fl">Price Strategy</label><select id="g4-price"><option value="$450">Retail (Believable)</option><option value="$150">70% Off (Bait)</option></select></div>
+      <div class="field"><label class="fl">Manipulative Description</label><select id="g4-desc">
+        <option>Kindly email my uncle at david@gmail.com if interested, I am posting for him.</option>
+        <option>Out of state for military deployment, but I can ship it today if you use Zelle.</option>
+        <option>My son passed away and looking at this hurts. Just pay for shipping via Apple Gift Card.</option>
+      </select></div>
+      <button class="btn btn-amber btn-full" onclick="g4FinishA()">Post to Marketplace →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g4-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">Marketplace Mayhem</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="color:var(--t2);margin-bottom:1rem;text-align:center;">Click items to view details. Flag the ONE scam listing created by Team A.</div>
+    <div class="market-ui">
+      <div style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;border-bottom:1px solid #e5e5e5;padding-bottom:0.5rem;">Marketplace - Los Angeles, CA</div>
+      <div class="market-grid" id="g4-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="g4-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;">
+      <h2 id="g4-m-title" style="font-size:1.5rem;font-weight:700;"></h2>
+      <button style="background:none;border:none;font-size:1.5rem;cursor:pointer;" onclick="document.getElementById('g4-modal').classList.remove('active')">×</button>
+    </div>
+    <div id="g4-m-price" style="font-size:1.2rem;font-weight:600;color:#10b981;margin-bottom:1rem;"></div>
+    <div style="font-size:0.9rem;color:#666;margin-bottom:0.5rem;text-transform:uppercase;font-weight:700;">Description</div>
+    <p id="g4-m-desc" style="margin-bottom:2rem;line-height:1.6;color:#333;"></p>
+    <div style="display:flex;gap:1rem;">
+      <button class="btn" style="background:#e5e7eb;color:#000;flex:1;">Message Seller</button>
+      <button class="btn btn-red" style="flex:1;" id="g4-m-flag">🚩 Flag as Scam</button>
+    </div>
+  </div>
+</div>
+
+<div id="g5-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The SMS Inbox</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--purple);">Smishing Attack (SMS Phishing)</h3>
+      <div class="field">
+        <label class="fl">Select Hook</label>
+        <select id="g5-hook">
+          <option value="USPS: Your package cannot be delivered due to incomplete address. Please update here:">USPS Package Failure</option>
+          <option value="CHASE ALERT: Did you attempt a purchase of $499 at BEST BUY? If NO, secure account:">Bank Fraud Alert</option>
+          <option value="Netflix: Your recent payment failed. Your account will be suspended in 24 hrs. Update info:">Netflix Suspension</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="fl">Malicious Link (Add a subtle typo!)</label>
+        <input type="text" id="g5-link" value="https://usps-tracking-portal.com">
+      </div>
+      <button class="btn btn-purple btn-full" onclick="g5FinishA()">Send SMS →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g5-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The SMS Inbox</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="color:var(--t2);margin-bottom:1rem;text-align:center;">Review your SMS inbox. Click on a thread to read it and flag the scam.</div>
+    <div style="display:flex;background:#fff;border-radius:8px;overflow:hidden;height:500px;color:#000;">
+      <div style="width:250px;border-right:1px solid #ddd;background:#f9f9f9;overflow-y:auto;" id="g5-inbox"></div>
+      <div style="flex:1;padding:2rem;display:flex;flex-direction:column;" id="g5-reader">
+        <div style="color:#999;margin:auto;">Select a conversation</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="g6-a" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The Phantom Invoice</span><span class="nav-pill np-warn">Team A: Scammer</span></div>
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin-bottom:1rem;color:var(--teal);">Business Email Compromise</h3>
+      <p style="font-size:0.85rem;color:var(--t2);margin-bottom:1rem;">Forge an invoice from a known vendor to steal corporate funds.</p>
+      <div class="field">
+        <label class="fl">Spoof Domain (Make it look like acme-supplies.com)</label>
+        <select id="g6-domain">
+          <option value="accounting@acme-supplies.com">accounting@acme-supplies.com (Real)</option>
+          <option value="accounting@acmesupplies-inc.com">accounting@acmesupplies-inc.com (Fake)</option>
+          <option value="accounting@acme-supplies.co">accounting@acme-supplies.co (Fake)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="fl">Routing Number</label>
+        <select id="g6-route">
+          <option value="122000247">122000247 (Real Bank)</option>
+          <option value="091000019">091000019 (Offshore Wire)</option>
+        </select>
+      </div>
+      <button class="btn btn-full" style="background:var(--teal);color:#000;font-weight:700;" onclick="g6FinishA()">Submit Invoice to Accounts Payable →</button>
+    </div>
+  </div>
+</div>
+
+<div id="g6-b" class="screen">
+  <div class="topnav"><button class="nav-back" onclick="goHome()">← Home</button><span class="nav-title">The Phantom Invoice</span><span class="nav-pill np-ok">Team B: Defender</span></div>
+  <div class="wrap-lg">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;align-items:center;">
+      <div style="color:var(--t2);">Compare pending invoices against the Master File. Flag the forgery.</div>
+      <button class="btn" style="background:#333;color:#fff;" onclick="alert('VENDOR MASTER FILE\n\n1. Global Logistics: billing@globallogistics.com | RTN: 021000021\n2. Acme Supplies: accounting@acme-supplies.com | RTN: 122000247\n3. CloudHost Pro: support@cloudhostpro.io | RTN: 111000025')">📁 View Master File</button>
+    </div>
+    <div class="invoice-ui">
+      <div class="inv-list" id="g6-list"></div>
+      <div class="inv-read" id="g6-reader">
+        <div style="color:#999;text-align:center;margin-top:40%;">Select an invoice to review</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════ SYSTEM LOGIC ════════
+function goHome(){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('landing').classList.add('active');
+  clearInterval(g2Int); clearInterval(g3IntA); clearInterval(g3IntB);
+}
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function doHandoff(title, msg, nextAction){
+  document.getElementById('ho-title').textContent = title;
+  document.getElementById('ho-msg').textContent = msg;
+  document.getElementById('ho-btn').onclick = () => { typeof nextAction === 'function' ? nextAction() : showScreen(nextAction); };
+  showScreen('handoff');
+}
+
+// ════════ GAME 1: PHISHING ════════
+const g1Tmpl = [
+  {s:"Microsoft Security", e:"alerts@rnicrosoft-support.com", sub:"ACTION REQUIRED: Password Expiry", b:"Your corporate password expires in 2 hours. Click the secure link below to retain access and avoid lockout."},
+  {s:"HR Department", e:"hr-updates@company-portal.com", sub:"URGENT: Updated PTO Policy 2026", b:"Please review the attached mandatory changes to your Paid Time Off allocation for the upcoming year."},
+  {s:"IT Service Desk", e:"helpdesk@it-support-internal.com", sub:"Mandatory VPN Client Update", b:"Your current VPN client is out of compliance. Download the patch here immediately to maintain network access."}
+];
+const g1Legit = [
+  {s:"IT Helpdesk", e:"it@company.com", sub:"Server Maintenance 2AM", b:"Servers will be down briefly."},
+  {s:"HR Dept", e:"hr@company.com", sub:"Holiday Schedule", b:"Attached is the schedule for next year."},
+  {s:"Sarah M.", e:"sarah.m@company.com", sub:"Lunch?", b:"Are we still on for 12?"},
+  {s:"Finance", e:"finance@company.com", sub:"Expense Reports", b:"Due this Friday."},
+  {s:"Zoom", e:"no-reply@zoom.us", sub:"Meeting Started", b:"Your 3PM has begun."},
+  {s:"Slack", e:"no-reply@slack.com", sub:"Unread Messages", b:"You have 3 mentions in #general."},
+  {s:"Building Admin", e:"admin@company.com", sub:"Elevator Repair", b:"Elevator 3 is out of service today."},
+  {s:"GitHub", e:"noreply@github.com", sub:"Pull Request Merged", b:"Your recent PR was successfully merged."},
+  {s:"Jira", e:"jira@company.com", sub:"Ticket Assigned", b:"DEV-409 has been assigned to you."},
+  {s:"Marketing", e:"marketing@company.com", sub:"Brand Guidelines", b:"Please use the updated logo deck."},
+  {s:"John Doe", e:"john.d@company.com", sub:"Project Sync", b:"Can we move our 1-on-1 to tomorrow?"},
+  {s:"Benefits Team", e:"benefits@company.com", sub:"Open Enrollment", b:"Reminder: Open enrollment ends next week."}
+];
+let g1Phish = {};
+
+function startG1(){ showScreen('g1-a'); loadG1Template(); }
+
+function loadG1Template(){
+  let val = document.getElementById('g1-template').value;
+  let t = g1Tmpl[val];
+  document.getElementById('g1-sender').value = t.s;
+  document.getElementById('g1-email').value = t.e;
+  document.getElementById('g1-subj').value = t.sub;
+  document.getElementById('g1-body').value = t.b;
+}
+
+function g1FinishA(){
+  g1Phish = { s: document.getElementById('g1-sender').value, e: document.getElementById('g1-email').value, sub: document.getElementById('g1-subj').value, b: document.getElementById('g1-body').value, isBad: true };
+  
+  let mix = [...g1Legit].sort(()=>Math.random()-0.5);
+  // Insert randomly, but NEVER in the first 2 or last 2 spots
+  let targetIndex = Math.floor(Math.random() * (mix.length - 4)) + 2;
+  mix.splice(targetIndex, 0, g1Phish);
+
+  const list = document.getElementById('g1-inbox');
+  list.innerHTML = '';
+  mix.forEach((m) => {
+    let div = document.createElement('div'); div.className = 'email-item';
+    div.innerHTML = `<div class="e-sender">${m.s}</div><div class="e-subj">${m.sub}</div><div class="e-prev">${m.b}</div>`;
+    div.onclick = () => {
+      document.querySelectorAll('.email-item').forEach(e=>e.classList.remove('active')); div.classList.add('active');
+      document.getElementById('g1-reader').innerHTML = `
+        <div style="display:flex;justify-content:space-between;border-bottom:1px solid #e5e5e5;padding-bottom:1rem;margin-bottom:1rem;">
+          <div><h2 style="color:#111;margin-bottom:0.5rem">${m.sub}</h2><div style="color:#444"><strong>${m.s}</strong> &lt;${m.e}&gt;</div></div>
+          <button class="btn btn-red" style="height:fit-content" onclick="g1Check(${m.isBad ? true : false})">Report Phishing</button>
+        </div>
+        <div style="color:#333;white-space:pre-wrap;line-height:1.6;">${m.b}</div>
+      `;
+    };
+    list.appendChild(div);
+  });
+  doHandoff("Phishing Lab", "Team A planted the edited phishing email.", "g1-b");
+}
+
+function g1Check(isBad){
+  if(isBad) alert("🎯 SUCCESS! Team B caught the phishing email!");
+  else alert("❌ FAIL! Team B reported a legitimate email.");
+  goHome();
+}
+
+// ════════ GAME 2: SCAM SHOWDOWN ════════
+const g2QA = [
+  {q:"As a scammer, what is the best emotional trigger to use in a BEC email?", o:["Happiness","Urgency/Fear","Curiosity"], a:1},
+  {q:"Which domain typo is hardest to spot visually?", o:["paypa1.com","rnicrosoft.com","appIe.com (capital i)"], a:2},
+  {q:"To steal an MFA code, you should:", o:["Ask for it directly","Say 'Read me the secure verification code I just sent'","Hack their phone"], a:1},
+  {q:"Which payment method is completely irreversible?", o:["PayPal G&S","Credit Card","Apple Gift Cards"], a:2},
+  {q:"In a Romance Scam, when do you ask for money?", o:["Day 1","After 2 weeks of building trust","Never"], a:1}
+];
+const g2QB = [
+  {q:"The CEO texts you asking for gift cards. You should:", o:["Buy them","Text back to confirm","Call their known phone number"], a:2},
+  {q:"A pop-up says your PC has a virus. You should:", o:["Call the 1-800 number","Close the browser tab","Download the suggested fix"], a:1},
+  {q:"A vendor emails a sudden change of bank details. You:", o:["Update it in payroll","Call the vendor on a verified number","Email them back to confirm"], a:1},
+  {q:"Someone calls from 'Microsoft' about a refund. Microsoft will:", o:["Ask for remote access","Never call you unsolicited","Offer $500 compensation"], a:1},
+  {q:"Zelle/Venmo should only be used for:", o:["Buying items on Facebook","People you know and trust","Paying new vendors"], a:1}
+];
+
+let g2Phase = 'A', g2Idx = 0, g2TimeA = 0, g2TimeB = 0, g2ScoreA = 0, g2ScoreB = 0, g2Int = null, g2Start = 0;
+let g2CanAnswer = true;
+
+function startG2(){
+  g2Phase = 'A'; g2Idx = 0; g2TimeA = 0; g2TimeB = 0; g2ScoreA = 0; g2ScoreB = 0;
+  document.getElementById('g2-pill').textContent = "Team A: Scammer Strategy";
+  document.getElementById('g2-pill').className = "nav-pill np-warn";
+  showScreen('g2'); renderG2Q();
+  g2Start = Date.now();
+  g2Int = setInterval(()=>{ document.getElementById('g2-timer').textContent = ((Date.now()-g2Start)/1000).toFixed(1) + 's'; },100);
+}
+
+function renderG2Q(){
+  g2CanAnswer = true;
+  let arr = g2Phase === 'A' ? g2QA : g2QB;
+  let score = g2Phase === 'A' ? g2ScoreA : g2ScoreB;
+  document.getElementById('g2-score-ui').textContent = score;
+  document.getElementById('g2-feedback').textContent = "";
+  
+  if(g2Idx >= arr.length){
+    clearInterval(g2Int);
+    if(g2Phase === 'A'){
+      g2TimeA = (Date.now()-g2Start)/1000;
+      doHandoff("Scam Showdown", `Team A scored ${g2ScoreA}/5 in ${g2TimeA.toFixed(1)}s.`, startG2B);
+    } else {
+      g2TimeB = (Date.now()-g2Start)/1000;
+      showG2Res();
+    }
+    return;
+  }
+  
+  let q = arr[g2Idx];
+  document.getElementById('g2-qnum').textContent = `Question ${g2Idx+1}/${arr.length}`;
+  document.getElementById('g2-qtext').textContent = q.q;
+  const opts = document.getElementById('g2-opts');
+  opts.innerHTML = '';
+  q.o.forEach((txt, i)=>{
+    let b = document.createElement('button'); b.className = 'btn btn-ghost'; b.style.justifyContent = 'flex-start'; b.textContent = txt;
+    b.onclick = () => {
+      if(!g2CanAnswer) return;
+      g2CanAnswer = false;
+      document.querySelectorAll('#g2-opts button').forEach(btn => btn.disabled = true);
+      
+      let isCorrect = (i === q.a);
+      if(isCorrect){
+        if(g2Phase === 'A') g2ScoreA++; else g2ScoreB++;
+        b.style.background = 'var(--green2)'; b.style.borderColor = 'var(--green)';
+        document.getElementById('g2-feedback').style.color = 'var(--green)';
+        document.getElementById('g2-feedback').textContent = "Correct!";
+      } else {
+        b.style.background = 'var(--red2)'; b.style.borderColor = 'var(--red)';
+        document.getElementById('g2-feedback').style.color = 'var(--red)';
+        document.getElementById('g2-feedback').textContent = "Incorrect (2s Penalty Wait)";
+      }
+      document.getElementById('g2-score-ui').textContent = g2Phase === 'A' ? g2ScoreA : g2ScoreB;
+      setTimeout(()=>{ g2Idx++; renderG2Q(); }, 2000);
+    };
+    opts.appendChild(b);
+  });
+}
+
+function startG2B() {
+  g2Phase = 'B'; g2Idx = 0;
+  document.getElementById('g2-pill').textContent = "Team B: Defender Strategy";
+  document.getElementById('g2-pill').className = "nav-pill np-ok";
+  showScreen('g2'); renderG2Q();
+  g2Start = Date.now();
+  g2Int = setInterval(()=>{ document.getElementById('g2-timer').textContent = ((Date.now()-g2Start)/1000).toFixed(1) + 's'; },100);
+}
+
+function showG2Res(){
+  document.getElementById('g2-resa-score').textContent = g2ScoreA + "/5";
+  document.getElementById('g2-resa-time').textContent = g2TimeA.toFixed(1)+'s';
+  document.getElementById('g2-resb-score').textContent = g2ScoreB + "/5";
+  document.getElementById('g2-resb-time').textContent = g2TimeB.toFixed(1)+'s';
+  showScreen('g2-res');
+}
+
+// ════════ GAME 3: BANK HEIST ════════
+const g3Opts = [
+  {name: "Binance Crypto Wire", amt: "-$2,500.00", f:true},
+  {name: "CoinFlip BTC ATM", amt: "-$800.00", f:true},
+  {name: "Western Union - Kiev", amt: "-$1,200.00", f:true},
+  {name: "Apple Store - eGift", amt: "-$500.00", f:true},
+  {name: "Google Play - 10x", amt: "-$1,000.00", f:true},
+  {name: "Zelle — 'IRS Agent'", amt: "-$450.00", f:true},
+  {name: "Target.com GiftCards", amt: "-$400.00", f:true}
+];
+const g3Legit = [
+  {name:"Acme Corp Payroll", amt:"+$3,850.00"}, {name:"Highview Rent", amt:"-$1,200.00"},
+  {name:"City Water", amt:"-$87.40"}, {name:"Target Superstore", amt:"-$64.22"},
+  {name:"Netflix", amt:"-$15.99"}, {name:"Starbucks", amt:"-$4.75"},
+  {name:"Verizon Wireless", amt:"-$85.00"}, {name:"Amazon Prime", amt:"-$139.00"},
+  {name:"DoorDash", amt:"-$28.50"}, {name:"AMC Theatres", amt:"-$22.00"},
+  {name:"Uber Rides", amt:"-$14.50"}, {name:"CVS Pharmacy", amt:"-$18.30"},
+  {name:"Planet Fitness", amt:"-$24.99"}, {name:"MTA Subway", amt:"-$30.00"},
+  {name:"Checking Interest", amt:"+$0.83"}
+];
+
+let g3IntA, g3StartA, g3TimeA, g3IntB, g3StartB, g3TimeB;
+let g3Chosen = [], g3Found = 0;
+
+function startG3(){
+  showScreen('g3-a');
+  const sel = document.getElementById('g3-selectors'); sel.innerHTML = '';
+  for(let i=0; i<5; i++){
+    let d = document.createElement('div'); d.className='field';
+    let s = document.createElement('select');
+    g3Opts.forEach((o, idx)=> s.innerHTML += `<option value="${idx}">${o.name} (${o.amt})</option>`);
+    s.selectedIndex = i; d.appendChild(s); sel.appendChild(d);
+  }
+  g3StartA = Date.now();
+  g3IntA = setInterval(()=>{ document.getElementById('g3-timer-a').textContent = ((Date.now()-g3StartA)/1000).toFixed(1) + 's'; },100);
+}
+
+function g3FinishA(){
+  clearInterval(g3IntA); g3TimeA = (Date.now()-g3StartA)/1000;
+  g3Chosen = []; g3Found = 0;
+  const selects = document.getElementById('g3-selectors').querySelectorAll('select');
+  selects.forEach(s => g3Chosen.push(g3Opts[s.value]));
+  doHandoff("Bank Heist", "Team A hid 5 fraudulent transactions in "+g3TimeA.toFixed(1)+"s.", startG3B);
+}
+
+function startG3B() {
+  showScreen('g3-b');
+  document.getElementById('g3-flag-count').textContent = "0 / 5";
+  let combined = [...g3Legit.map(x=>({...x,f:false})), ...g3Chosen].sort(()=>Math.random()-0.5);
+  const list = document.getElementById('g3-bank-list'); list.innerHTML = '';
+  combined.forEach((tx)=>{
+    let r = document.createElement('div'); r.className='bank-tx-row';
+    r.innerHTML = `<div><div style="font-weight:600;color:#0f172a">${tx.name}</div><div style="font-size:0.8rem;color:#64748b">Oct ${Math.floor(Math.random()*30)+1}</div></div><div class="bank-tx-amt ${tx.amt.includes('+')?'pos':'neg'}">${tx.amt}</div><div style="color:#cbd5e1;font-size:1.5rem;" class="flag-icon">⚑</div>`;
+    r.onclick = function(){
+      if(r.classList.contains('flagged')) return;
+      if(tx.f){
+        r.classList.add('flagged'); r.style.background = '#fee2e2'; r.querySelector('.flag-icon').style.color = '#ef4444';
+        g3Found++; document.getElementById('g3-flag-count').textContent = g3Found + " / 5";
+        if(g3Found === 5) g3FinishB();
+      } else {
+        r.style.background = '#f1f5f9';
+      }
+    };
+    list.appendChild(r);
+  });
+  g3StartB = Date.now();
+  g3IntB = setInterval(()=>{ document.getElementById('g3-timer-b').textContent = ((Date.now()-g3StartB)/1000).toFixed(1) + 's'; },100);
+}
+
+function g3FinishB(){
+  if(g3Found < 5){ alert("You must find all 5!"); return; }
+  clearInterval(g3IntB); g3TimeB = (Date.now()-g3StartB)/1000;
+  alert(`Team B Time: ${g3TimeB.toFixed(1)}s`);
+  goHome();
+}
+
+// ════════ GAME 4: MARKETPLACE ════════
+let g4Legit = [
+  {i:'🚲', t:'Trek Mountain Bike', p:'$250', d:'Used for 1 year, great condition. Cash only on pickup.', s:false},
+  {i:'🛋️', t:'IKEA Sofa', p:'$100', d:'Minor scratch on the leg, otherwise perfect. Must pick up with a truck.', s:false},
+  {i:'📺', t:'LG 55" Smart TV', p:'$200', d:'Upgraded to an OLED so selling this one. Includes remote and stand.', s:false},
+  {i:'🎸', t:'Fender Guitar', p:'$400', d:'Mint condition Stratocaster. Local meetup at the police station only.', s:false},
+  {i:'📱', t:'iPhone 13', p:'$350', d:'Unlocked. Screen protector since day 1. Venmo or cash accepted locally.', s:false}
+];
+
+function startG4(){ showScreen('g4-a'); }
+
+function g4FinishA(){
+  let item = document.getElementById('g4-item').value.split('|');
+  let p = document.getElementById('g4-price').value;
+  let desc = document.getElementById('g4-desc').value;
+  let fake = {i:item[1], t:item[0], p:p, d:desc, s:true};
+  
+  let grid = document.getElementById('g4-grid'); grid.innerHTML = '';
+  let combined = [...g4Legit, fake].sort(()=>Math.random()-0.5);
+  
+  combined.forEach(m => {
+    let card = document.createElement('div'); card.className='m-card';
+    card.innerHTML = `<div class="m-img">${m.i}</div><div class="m-info"><div class="m-price">${m.p}</div><div class="m-title">${m.t}</div><div class="m-loc" style="color:#666;font-size:0.8rem;">Los Angeles, CA</div></div>`;
+    card.onclick = () => {
+      document.getElementById('g4-m-title').textContent = m.t;
+      document.getElementById('g4-m-price').textContent = m.p;
+      document.getElementById('g4-m-desc').textContent = m.d;
+      document.getElementById('g4-m-flag').onclick = () => {
+        if(m.s) { alert("🎯 SUCCESS! Team B caught the fake listing based on the suspicious description."); goHome(); }
+        else { alert("❌ FAIL! Team B reported a legit seller."); document.getElementById('g4-modal').classList.remove('active'); }
+      };
+      document.getElementById('g4-modal').classList.add('active');
+    };
+    grid.appendChild(card);
+  });
+  doHandoff("Marketplace Mayhem", "Team A created a manipulative listing. Team B must spot it.", "g4-b");
+}
+
+// ════════ GAME 5: SMS INBOX ════════
+const g5Legit = [
+  {n:"DoorDash", m:"Your Dasher is approaching with your order."},
+  {n:"Mom", m:"Are we still doing dinner on Sunday? Call me."},
+  {n:"Chase Alerts", m:"Card ending in 4421 was charged $14.99 at SPOTIFY. Reply N if unauthorized."},
+  {n:"Planet Fitness", m:"Your monthly membership fee of $24.99 was processed successfully."},
+  {n:"Alex", m:"Hey, can you send me that document when you get a chance?"}
+];
+
+function startG5(){ showScreen('g5-a'); }
+
+function g5FinishA(){
+  let hook = document.getElementById('g5-hook').value;
+  let link = document.getElementById('g5-link').value;
+  let fake = { n:"833-291-001", m: `${hook} ${link}`, s: true };
+  
+  let mix = [...g5Legit, fake].sort(()=>Math.random()-0.5);
+  let inbox = document.getElementById('g5-inbox'); inbox.innerHTML = '';
+  
+  mix.forEach((msg) => {
+    let div = document.createElement('div');
+    div.style = "padding:1rem;border-bottom:1px solid #ddd;cursor:pointer;";
+    div.innerHTML = `<div style="font-weight:600;margin-bottom:0.2rem;">${msg.n}</div><div style="font-size:0.85rem;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msg.m}</div>`;
+    div.onclick = () => {
+      document.getElementById('g5-reader').innerHTML = `
+        <div style="border-bottom:1px solid #ddd;padding-bottom:1rem;margin-bottom:1.5rem;">
+          <h3 style="margin-bottom:0.2rem;">${msg.n}</h3>
+          <div style="font-size:0.85rem;color:#666;">Text Message</div>
+        </div>
+        <div style="background:#e5e5ea;color:#000;padding:1rem;border-radius:18px;max-width:80%;align-self:flex-start;line-height:1.4;">${msg.m}</div>
+        <div style="margin-top:auto;padding-top:2rem;">
+          <button class="btn btn-red btn-full" onclick="g5Check(${msg.s ? true : false})">Report as Smishing</button>
+        </div>
+      `;
+    };
+    inbox.appendChild(div);
+  });
+  doHandoff("The SMS Inbox", "Team A sent the smishing text. Team B must find it in the inbox.", "g5-b");
+}
+
+function g5Check(isFake){
+  if(isFake) alert("🎯 EXCELLENT! You correctly identified the Smishing attack.");
+  else alert("❌ INCORRECT! You flagged a legitimate text message.");
+  goHome();
+}
+
+// ════════ GAME 6: THE PHANTOM INVOICE ════════
+const g6Legit = [
+  {v:"Global Logistics", e:"billing@globallogistics.com", r:"021000021", a:"$4,250.00"},
+  {v:"CloudHost Pro", e:"support@cloudhostpro.io", r:"111000025", a:"$899.00"},
+  {v:"Acme Supplies", e:"accounting@acme-supplies.com", r:"122000247", a:"$1,200.00"}
+];
+
+function startG6(){ showScreen('g6-a'); }
+
+function g6FinishA(){
+  let fakeDomain = document.getElementById('g6-domain').value;
+  let fakeRoute = document.getElementById('g6-route').value;
+  let fake = { v:"Acme Supplies", e:fakeDomain, r:fakeRoute, a:"$5,500.00", s:true };
+  
+  // Create a mix of legit invoices plus the fake one. 
+  // If the fake one is Acme Supplies, we replace the legit Acme Supplies to simulate the scammer stepping in.
+  let mix = [g6Legit[0], g6Legit[1], fake].sort(()=>Math.random()-0.5);
+  
+  let list = document.getElementById('g6-list'); list.innerHTML = '';
+  mix.forEach(inv => {
+    let div = document.createElement('div'); div.className = 'inv-card';
+    div.innerHTML = `<div style="font-weight:700;">${inv.v}</div><div style="font-size:0.85rem;color:#666;">${inv.a}</div>`;
+    div.onclick = () => {
+      document.getElementById('g6-reader').innerHTML = `
+        <div class="inv-doc">
+          <div style="display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:1rem;margin-bottom:2rem;">
+            <h2>INVOICE</h2><h2>${inv.v}</h2>
+          </div>
+          <div style="margin-bottom:1rem;"><strong>From:</strong> ${inv.e}</div>
+          <div style="margin-bottom:2rem;"><strong>Amount Due:</strong> <span style="font-size:1.5rem;font-weight:700;">${inv.a}</span></div>
+          <div style="background:#f9f9f9;padding:1rem;border:1px solid #ddd;margin-bottom:2rem;">
+            <div style="font-weight:700;margin-bottom:0.5rem;">Wire Payment Details</div>
+            <div>Bank Routing Number: <strong>${inv.r}</strong></div>
+            <div>Account Number: 8829104002</div>
+          </div>
+          <button class="btn btn-red btn-full" onclick="g6Check(${inv.s ? true : false})">Flag as Forgery</button>
+        </div>
+      `;
+    };
+    list.appendChild(div);
+  });
+  doHandoff("The Phantom Invoice", "Team A injected the forged invoice. Team B must find it.", "g6-b");
+}
+
+function g6Check(isFake){
+  if(isFake) alert("🎯 SECURE! You successfully identified the mismatched details on the forged invoice.");
+  else alert("💸 BREACH! You flagged a legitimate vendor invoice and let the fraudulent one slip through.");
+  goHome();
+}
+</script>
+</body>
+</html>
