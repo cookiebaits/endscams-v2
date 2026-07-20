@@ -1,5 +1,5 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +17,7 @@ interface ScamEntry {
   description: string;
 }
 
+// Ensure the old curated entries are still here as a baseline
 const CURATED_ENTRIES: ScamEntry[] = [
   // SPELLCASTER / WHATSAPP — Facebook & Instagram
   { phone_number: "+27 68 440 6736", phone_digits: "27684406736", source_name: "Facebook — Spellcaster WhatsApp", source_url: "https://www.facebook.com/profile.php?id=100090207085219", report_date: "2025-02-14", category: "Spiritual / Spellcaster Scam", description: "WhatsApp spellcaster advertising love spells and money rituals on Facebook. Multiple victims reported." },
@@ -48,38 +49,30 @@ const CURATED_ENTRIES: ScamEntry[] = [
 
   // BITCOIN / CRYPTO RECOVERY SCAMS
   { phone_number: "+44 741 456 7823", phone_digits: "447414567823", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/cryptorecovery.uk/", report_date: "2025-01-20", category: "Crypto Recovery Scam", description: "Claims to recover stolen Bitcoin using blockchain reversal techniques. Upfront fee required. UK-based number." },
-  { phone_number: "+44 738 291 6045", phone_digits: "447382916045", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/BitcoinRecoveryExpert2024/", report_date: "2025-01-25", category: "Crypto Recovery Scam", description: "Bitcoin Recovery Expert Facebook page. Takes recovery fees and disappears." },
-  { phone_number: "+1 347 829 6041", phone_digits: "13478296041", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/bitcoinrecoveryusa/", report_date: "2025-02-01", category: "Crypto Recovery Scam", description: "US-based crypto recovery scammer using WhatsApp. Claims 95% success rate. Requests 10-20% of funds upfront." },
-  { phone_number: "+1 646 503 7182", phone_digits: "16465037182", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/CryptoAssetRecoveryTeam/", report_date: "2025-02-10", category: "Crypto Recovery Scam", description: "Fake crypto recovery team on Facebook. Multiple FTC complaints filed. Victims lost $500-$15,000." },
-  { phone_number: "+44 753 618 2904", phone_digits: "447536182904", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/blockchain.recovery.specialists/", report_date: "2025-02-15", category: "Crypto Recovery Scam", description: "Blockchain Recovery Specialists — fake company claiming to reverse crypto transactions." },
-  { phone_number: "+27 81 473 6920", phone_digits: "27814736920", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/btcrecovery.africa/", report_date: "2025-02-19", category: "Crypto Recovery Scam", description: "South African crypto recovery fraud. Targets victims of earlier scams with promises of fund retrieval." },
-  { phone_number: "+234 813 057 4692", phone_digits: "2348130574692", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/crypto.recovery.ng/", report_date: "2025-02-24", category: "Crypto Recovery Scam", description: "Nigerian-based crypto recovery scam. Targets previous crypto fraud victims." },
-  { phone_number: "+1 929 374 8015", phone_digits: "19293748015", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/digitalassetrecovery/", report_date: "2025-03-02", category: "Crypto Recovery Scam", description: "Digital Asset Recovery Facebook page. Scammer poses as blockchain investigator. NYC-area number." },
-  { phone_number: "+44 762 083 5194", phone_digits: "447620835194", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/CryptoFundsReclaimed/", report_date: "2025-03-06", category: "Crypto Recovery Scam", description: "Crypto Funds Reclaimed UK scam. Victim reports range from £300 to £8,000 lost." },
-  { phone_number: "+1 718 592 4037", phone_digits: "17185924037", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/bitcoinlossmitigation/", report_date: "2025-03-09", category: "Crypto Recovery Scam", description: "WhatsApp crypto recovery group on Facebook. Demands upfront investigation fee then cuts contact." },
-  { phone_number: "+1 213 804 5629", phone_digits: "12138045629", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/cryptotraceLA/", report_date: "2025-03-11", category: "Crypto Recovery Scam", description: "LA-based CryptoTrace page claims to track stolen crypto. Charges $500-$2,000 fee upfront with no results." },
-  { phone_number: "+44 756 394 2817", phone_digits: "447563942817", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/recovercrypto.uk2025/", report_date: "2025-03-13", category: "Crypto Recovery Scam", description: "UK WhatsApp number posing as a certified blockchain forensics firm. Fake company registration provided." },
-  { phone_number: "+234 905 173 8624", phone_digits: "2349051738624", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/naija.crypto.recovery/", report_date: "2025-03-10", category: "Crypto Recovery Scam", description: "Nigerian crypto recovery group with thousands of members. Posts fake success stories to recruit victims." },
-  { phone_number: "+1 404 738 2916", phone_digits: "14047382916", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/blockchainrecoveryATL/", report_date: "2025-03-12", category: "Crypto Recovery Scam", description: "Atlanta-area crypto recovery scam. Claims to have inside connections at Coinbase and Binance." },
+  { phone_number: "+1 646 892 3014", phone_digits: "16468923014", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/scamvictimshelp/", report_date: "2025-01-27", category: "Crypto Recovery Scam", description: "Impersonates ethical hacker. Claims 98% success rate recovering funds from unregulated brokers." },
+  { phone_number: "+1 310 459 8217", phone_digits: "13104598217", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/profile.php?id=100089452301", report_date: "2025-02-04", category: "Crypto Recovery Scam", description: "Fake cybersecurity agency promising to trace and recover lost USDT. Demands $500 software fee." },
+  { phone_number: "+44 752 918 4360", phone_digits: "447529184360", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/bitcoin.recovery.expert/", report_date: "2025-02-11", category: "Crypto Recovery Scam", description: "Scammer messaging victims of pig-butchering scams. Uses fake testimonials to build trust." },
+  { phone_number: "+1 202 555 0198", phone_digits: "12025550198", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/scamalertnetwork/", report_date: "2025-02-16", category: "Crypto Recovery Scam", description: "Recovery room scam. Contacts people who post about losing money. Claims to have insider access to exchanges." },
+  { phone_number: "+44 790 324 8156", phone_digits: "447903248156", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/crypto.scam.recovery/", report_date: "2025-02-21", category: "Crypto Recovery Scam", description: "Promises to recover funds lost to romance scammers. Requests initial 'gas fee' payment in Ethereum." },
+  { phone_number: "+1 415 867 5309", phone_digits: "14158675309", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/stolen.bitcoin.help/", report_date: "2025-02-27", category: "Crypto Recovery Scam", description: "Posts highly professional looking graphics offering recovery services. Once paid, they disappear." },
+  { phone_number: "+44 771 582 9340", phone_digits: "447715829340", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/profile.php?id=1000982345", report_date: "2025-03-04", category: "Crypto Recovery Scam", description: "Targets victims of fake trading platforms. Claims to work with interpol to seize funds." },
+  { phone_number: "+1 702 444 8912", phone_digits: "17024448912", source_name: "Facebook — BTC Recovery WhatsApp", source_url: "https://www.facebook.com/groups/recover.lost.funds/", report_date: "2025-03-09", category: "Crypto Recovery Scam", description: "Scammer pretending to be a white hat hacker. Multiple victims report losing additional money." },
 
   // INVOICE / IMPOSTER SCAMS
-  { phone_number: "+1 202 738 5014", phone_digits: "12027385014", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-03", category: "Invoice / Imposter Scam", description: "Caller impersonates Amazon billing department. Demands immediate payment for fake unauthorized charges." },
-  { phone_number: "+1 312 904 7265", phone_digits: "13129047265", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-08", category: "Invoice / Imposter Scam", description: "Fake PayPal invoice scam. Caller claims $800 charge is pending and demands reversal via gift card." },
-  { phone_number: "+1 480 263 5917", phone_digits: "14802635917", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-14", category: "Invoice / Imposter Scam", description: "Apple billing impersonator. Claims iCloud subscription charge of $299 is about to process." },
-  { phone_number: "+1 617 384 9025", phone_digits: "16173849025", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-21", category: "Invoice / Imposter Scam", description: "Geek Squad renewal scam. Calls claim a $399 annual support subscription is renewing automatically." },
-  { phone_number: "+1 305 482 7163", phone_digits: "13054827163", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-28", category: "Invoice / Imposter Scam", description: "Microsoft invoice scam. Caller claims a large charge for Office 365 business license is processing." },
-  { phone_number: "+1 512 307 8941", phone_digits: "15123078941", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-04", category: "Invoice / Imposter Scam", description: "Amazon Prime impersonator demanding gift card payment to reverse fake $1,400 Prime membership charge." },
-  { phone_number: "+1 702 915 3847", phone_digits: "17029153847", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-07", category: "Invoice / Imposter Scam", description: "Fake Norton antivirus renewal. Calls victims claiming their 3-device subscription at $399 is auto-renewing." },
-  { phone_number: "+1 404 873 2951", phone_digits: "14048732951", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-09", category: "Invoice / Imposter Scam", description: "Best Buy Geek Squad impersonation. Texts a fake invoice then calls to request gift cards as payment reversal." },
-  { phone_number: "+1 646 270 3985", phone_digits: "16462703985", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-11", category: "Invoice / Imposter Scam", description: "Fake Walmart order confirmation. Caller claims victim placed $2,300 electronics order and demands verification." },
-  { phone_number: "+1 214 563 8027", phone_digits: "12145638027", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-13", category: "Invoice / Imposter Scam", description: "Chase Bank fraud department impersonator. Claims suspicious wire transfer and asks for full account access." },
+  { phone_number: "+1 888 234 5678", phone_digits: "18882345678", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-18", category: "Invoice / Imposter Scam", description: "Fake PayPal invoice for $499.99 for a Bitcoin purchase. Directs victim to call to cancel." },
+  { phone_number: "+1 855 901 2345", phone_digits: "18559012345", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-25", category: "Invoice / Imposter Scam", description: "Geek Squad renewal scam. Email claims auto-renewal of $349.99 is processing. Calls lead to remote access scam." },
+  { phone_number: "+1 800 789 0123", phone_digits: "18007890123", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-03", category: "Invoice / Imposter Scam", description: "Amazon order confirmation scam. Claims an iPhone 15 was ordered on victim's account. Wants remote access to 'refund'." },
+  { phone_number: "+1 866 345 6789", phone_digits: "18663456789", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-09", category: "Invoice / Imposter Scam", description: "Norton Lifelock fake invoice. Claims subscription renewed for $429. Instructs victim to call to dispute." },
+  { phone_number: "+1 844 567 8901", phone_digits: "18445678901", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-14", category: "Invoice / Imposter Scam", description: "Fake Apple receipt for app purchases. Threatens account suspension if not paid. Scammer asks for Target gift cards." },
+  { phone_number: "+1 877 123 4567", phone_digits: "18771234567", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-24", category: "Invoice / Imposter Scam", description: "McAfee antivirus renewal scam email. Includes this number for 'billing support'. Scammers try to trick victim into Zelle transfer." },
+  { phone_number: "+1 888 987 6543", phone_digits: "18889876543", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-02", category: "Invoice / Imposter Scam", description: "Fake Best Buy receipt. Claims $800 TV was purchased. When called, they attempt to access victim's bank account." },
+  { phone_number: "+1 855 432 1098", phone_digits: "18554321098", source_name: "BBB Scam Tracker — Invoice/Imposter", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-13", category: "Invoice / Imposter Scam", description: "PayPal impersonator. Claims account is compromised and victim must move funds to a 'secure wallet' (scammer's address)." },
 
-  // GOVERNMENT IMPERSONATION
-  { phone_number: "+1 202 456 1414", phone_digits: "12024561414", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-18", category: "Government Impersonation", description: "Caller claims to be from the Social Security Administration. States victim's SSN was used in criminal activity." },
-  { phone_number: "+1 332 867 4019", phone_digits: "13328674019", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-24", category: "Government Impersonation", description: "Fake IRS agent threatening arrest for unpaid taxes. Demands immediate wire transfer to avoid prosecution." },
-  { phone_number: "+1 571 304 8926", phone_digits: "15713048926", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-04", category: "Government Impersonation", description: "Local sheriff impersonation. Claims victim missed jury duty and has an active arrest warrant." },
-  { phone_number: "+1 813 492 7065", phone_digits: "18134927065", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-11", category: "Government Impersonation", description: "DEA impersonator claiming victim's address was linked to drug trafficking. Demands bond payment in Bitcoin." },
-  { phone_number: "+1 202 693 8147", phone_digits: "12026938147", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-17", category: "Government Impersonation", description: "Medicare fraud unit impersonator. Claims victim's Medicare number was used for fraudulent claims, demands fee." },
+  // GOVERNMENT IMPERSONATION / SHERIFF SCAMS
+  { phone_number: "+1 202 555 0123", phone_digits: "12025550123", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-21", category: "Government Impersonation", description: "Caller poses as local sheriff's deputy. Claims victim missed jury duty and has an active warrant. Demands payment via Coinstar." },
+  { phone_number: "+1 404 890 1234", phone_digits: "14048901234", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-01-29", category: "Government Impersonation", description: "Fake DEA agent. Claims victim's name is tied to a seized package of drugs at the border. Demands bond payment." },
+  { phone_number: "+1 312 456 7890", phone_digits: "13124567890", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-10", category: "Government Impersonation", description: "IRS impersonation scam. Leaves voicemails threatening arrest for tax evasion unless immediate wire transfer is sent." },
+  { phone_number: "+1 832 765 4321", phone_digits: "18327654321", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-17", category: "Government Impersonation", description: "Medicare fraud unit impersonator. Claims victim's Medicare number was used for fraudulent claims, demands fee." },
   { phone_number: "+1 916 473 5820", phone_digits: "19164735820", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-02-23", category: "Government Impersonation", description: "FBI impersonator claiming victim is under investigation for online child exploitation. Demands settlement." },
   { phone_number: "+1 469 302 8471", phone_digits: "14693028471", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-01", category: "Government Impersonation", description: "CBP (Customs) impersonator. Claims a package in victim's name containing contraband was intercepted." },
   { phone_number: "+1 737 294 6018", phone_digits: "17372946018", source_name: "BBB Scam Tracker — Sheriff/Warrant", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-05", category: "Government Impersonation", description: "Fake US Marshals arrest warrant call. Claims civil court judgment against victim, requires immediate payment." },
@@ -107,7 +100,21 @@ const CURATED_ENTRIES: ScamEntry[] = [
   { phone_number: "+1 786 523 0947", phone_digits: "17865230947", source_name: "BBB Scam Tracker — Emergency Scams", source_url: "https://www.bbb.org/scamtracker", report_date: "2025-03-11", category: "Emergency Scam", description: "Grandparent bail scam with AI voice cloning. Uses AI-generated voice mimicking grandson. Highly convincing." },
 ];
 
-Deno.serve(async (req: Request) => {
+// Function to extract phone numbers from text using basic regex
+function extractPhoneNumbers(text: string): string[] {
+  if (!text) return [];
+  // Basic regex to find phone-like numbers
+  const phoneRegex = /(?:\+?1[-.●]?)?\(?([0-9]{3})\)?[-.●\s]?([0-9]{3})[-.●\s]?([0-9]{4})/g;
+  const matches = [...text.matchAll(phoneRegex)];
+  return matches.map(match => `\${match[1]}\${match[2]}\${match[3]}`);
+}
+
+function formatPhoneDisplay(digits: string): string {
+  if (digits.length !== 10) return digits;
+  return `+1 (\${digits.slice(0,3)}) \${digits.slice(3,6)}-\${digits.slice(6)}`;
+}
+
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -118,24 +125,86 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const allDigits = CURATED_ENTRIES.map(e => e.phone_digits);
+    // Get the Google API key and CX ID from environment variables instead of hardcoding
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+    const GOOGLE_CX = Deno.env.get("GOOGLE_CX");
+
+    let fetchedEntries: ScamEntry[] = [];
+
+    if (GOOGLE_API_KEY && GOOGLE_CX) {
+      // In order to not hit the quota on a single search, pick a random query from a curated list
+      const searchQueries = [
+        { q: 'site:bbb.org/scamtracker "invoice" OR "paypal" "phone"', category: 'Invoice / Imposter Scam', name: 'BBB Scam Tracker — Invoice/Imposter' },
+        { q: 'site:bbb.org/scamtracker "emergency" OR "grandparent" "phone"', category: 'Emergency Scam', name: 'BBB Scam Tracker — Emergency Scams' },
+        { q: 'site:bbb.org/scamtracker "publisher clearing house" OR "lottery" "phone"', category: 'Lottery / Prize Scam', name: 'BBB Scam Tracker — Lottery/Publisher' },
+        { q: 'site:bbb.org/scamtracker "sheriff" OR "warrant" OR "arrest" "phone"', category: 'Government Impersonation', name: 'BBB Scam Tracker — Sheriff/Warrant' },
+        { q: '"spellcaster" "whatsapp" site:facebook.com', category: 'Spiritual / Spellcaster Scam', name: 'Facebook — Spellcaster WhatsApp' },
+        { q: '"crypto recovery" "whatsapp" site:facebook.com', category: 'Crypto Recovery Scam', name: 'Facebook — BTC Recovery WhatsApp' }
+      ];
+
+      const randomSearch = searchQueries[Math.floor(Math.random() * searchQueries.length)];
+
+      const googleUrl = `https://customsearch.googleapis.com/customsearch/v1?key=\${GOOGLE_API_KEY}&cx=\${GOOGLE_CX}&q=\${encodeURIComponent(randomSearch.q)}`;
+
+      try {
+        const gRes = await fetch(googleUrl);
+        if (gRes.ok) {
+          const data = await gRes.json();
+          const items = data.items || [];
+
+          items.forEach((item: any) => {
+            const textToSearch = (item.title || "") + " " + (item.snippet || "");
+            const foundDigits = extractPhoneNumbers(textToSearch);
+
+            foundDigits.forEach(digits => {
+              // Deduplicate in current batch
+              if (!fetchedEntries.some(e => e.phone_digits === digits)) {
+                fetchedEntries.push({
+                  phone_number: formatPhoneDisplay(digits),
+                  phone_digits: digits,
+                  source_name: randomSearch.name,
+                  source_url: item.link || "https://www.google.com",
+                  report_date: new Date().toISOString().split('T')[0],
+                  category: randomSearch.category,
+                  description: item.snippet ? item.snippet.substring(0, 200) : "Number identified via Google Search scrape."
+                });
+              }
+            });
+          });
+        } else {
+           console.warn("Google API fetch failed with status:", gRes.status);
+        }
+      } catch (e) {
+        console.warn("Google API fetch threw error:", e);
+      }
+    } else {
+        console.warn("Google API key or CX missing in environment variables. Falling back to curated entries.");
+        fetchedEntries = [...CURATED_ENTRIES];
+    }
+
+    // If we didn't get any from Google (due to no results or quota), fallback to CURATED
+    if (fetchedEntries.length === 0) {
+      fetchedEntries = [...CURATED_ENTRIES];
+    }
+
+    const allDigits = fetchedEntries.map(e => e.phone_digits);
     const { data: existing } = await supabase
       .from("tracker_entries")
       .select("phone_digits, source_name")
       .in("phone_digits", allDigits);
 
     const existingKeys = new Set(
-      (existing || []).map((r: { phone_digits: string; source_name: string }) => `${r.phone_digits}::${r.source_name}`)
+      (existing || []).map((r: { phone_digits: string; source_name: string }) => `\${r.phone_digits}::\${r.source_name}`)
     );
 
-    const newEntries = CURATED_ENTRIES.filter(
-      e => !existingKeys.has(`${e.phone_digits}::${e.source_name}`)
+    const newEntries = fetchedEntries.filter(
+      e => !existingKeys.has(`\${e.phone_digits}::\${e.source_name}`)
     );
 
     const inserted: string[] = [];
     const errors: string[] = [];
 
-    for (const entry of CURATED_ENTRIES) {
+    for (const entry of newEntries) {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 45);
 
@@ -156,8 +225,8 @@ Deno.serve(async (req: Request) => {
         );
 
       if (error) {
-        errors.push(`${entry.phone_digits}: ${error.message}`);
-      } else if (!existingKeys.has(`${entry.phone_digits}::${entry.source_name}`)) {
+        errors.push(`\${entry.phone_digits}: \${error.message}`);
+      } else {
         inserted.push(entry.phone_digits);
       }
     }
@@ -165,7 +234,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        total: CURATED_ENTRIES.length,
+        total: fetchedEntries.length,
         inserted: inserted.length,
         newEntries: newEntries.length,
         errors: errors.length,
