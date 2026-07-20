@@ -25,20 +25,29 @@ export function formatPhoneDisplay(digits: string): string {
     if (digits.startsWith('27')) {
       return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
     }
-    return `+${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+    if (digits.startsWith('44')) {
+      return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;
+    }
   }
   if (digits.length === 12) {
     if (digits.startsWith('44')) {
-      return `+44 ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
+      return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;
     }
-    return `+${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
   }
   if (digits.length === 13) {
     if (digits.startsWith('234')) {
-      return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+      return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`;
     }
-    return `+${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
   }
+
+  // Generic fallback for anything else, preserving country code structure if it has one
+  if (digits.length > 10) {
+      if (digits.startsWith('234')) return `+234 ${digits.slice(3)}`;
+      if (digits.startsWith('27')) return `+27 ${digits.slice(2)}`;
+      if (digits.startsWith('44')) return `+44 ${digits.slice(2)}`;
+      if (digits.startsWith('1')) return `+1 ${digits.slice(1)}`;
+  }
+
   return `+${digits}`;
 }
 

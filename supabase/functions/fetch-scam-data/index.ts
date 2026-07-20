@@ -133,6 +133,7 @@ serve(async (req: Request) => {
 
     if (GOOGLE_API_KEY && GOOGLE_CX) {
       // In order to not hit the quota on a single search, pick a random query from a curated list
+
       const searchQueries = [
         { q: 'site:bbb.org/scamtracker "invoice" OR "paypal" "phone"', category: 'Invoice / Imposter Scam', name: 'BBB Scam Tracker — Invoice/Imposter' },
         { q: 'site:bbb.org/scamtracker "emergency" OR "grandparent" "phone"', category: 'Emergency Scam', name: 'BBB Scam Tracker — Emergency Scams' },
@@ -142,41 +143,67 @@ serve(async (req: Request) => {
         { q: '"crypto recovery" "whatsapp" site:facebook.com', category: 'Crypto Recovery Scam', name: 'Facebook — BTC Recovery WhatsApp' }
       ];
 
-      const randomSearch = searchQueries[Math.floor(Math.random() * searchQueries.length)];
+      // Shuffle array to pick 3 unique random queries
+      const shuffledQueries = searchQueries.sort(() => 0.5 - Math.random()).slice(0, 3);
 
-      const googleUrl = `https://customsearch.googleapis.com/customsearch/v1?key=\${GOOGLE_API_KEY}&cx=\${GOOGLE_CX}&q=\${encodeURIComponent(randomSearch.q)}`;
+      for (const randomSearch of shuffledQueries) {
+        // Use dateRestrict=w2 to only get results from the last 2 weeks
+        const googleUrl = `https://customsearch.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(randomSearch.q)}&dateRestrict=w2`;
 
-      try {
-        const gRes = await fetch(googleUrl);
-        if (gRes.ok) {
-          const data = await gRes.json();
-          const items = data.items || [];
+        try {
+          const gRes = await fetch(googleUrl);
+          if (gRes.ok) {
+            const data = await gRes.json();
+            const items = data.items || [];
 
-          items.forEach((item: any) => {
-            const textToSearch = (item.title || "") + " " + (item.snippet || "");
-            const foundDigits = extractPhoneNumbers(textToSearch);
+            items.forEach((item: any) => {
+              const title = item.title || "";
+              const snippet = item.snippet || "";
+              const textToSearch = title + " " + snippet;
+              const foundDigits = extractPhoneNumbers(textToSearch);
 
-            foundDigits.forEach(digits => {
-              // Deduplicate in current batch
-              if (!fetchedEntries.some(e => e.phone_digits === digits)) {
-                fetchedEntries.push({
-                  phone_number: formatPhoneDisplay(digits),
-                  phone_digits: digits,
-                  source_name: randomSearch.name,
-                  source_url: item.link || "https://www.google.com",
-                  report_date: new Date().toISOString().split('T')[0],
-                  category: randomSearch.category,
-                  description: item.snippet ? item.snippet.substring(0, 200) : "Number identified via Google Search scrape."
-                });
-              }
+              foundDigits.forEach(digits => {
+                if (!fetchedEntries.some(e => e.phone_digits === digits)) {
+                  // Metadata extraction
+                  const isWhatsApp = textToSearch.toLowerCase().includes('whatsapp');
+                  let metadata = [];
+
+                  // Extract potential names (capitalized words after 'by', 'from', 'Dr', 'Mama', 'Mr', 'Mrs')
+                  const nameRegex = /(?:by|from|Dr\.?|Mama|Mr\.?|Mrs\.?) ([A-Z][a-z]+(?: [A-Z][a-z]+)?)/g;
+                  const nameMatches = [...textToSearch.matchAll(nameRegex)];
+                  if (nameMatches.length > 0) {
+                     metadata.push(`Mentions: ${nameMatches.map(m => m[1]).join(', ')}`);
+                  }
+
+                  if (isWhatsApp) metadata.push("WhatsApp contact confirmed");
+
+                  let desc = snippet.substring(0, 180);
+                  if (metadata.length > 0) {
+                    desc += ` | Metadata: ${metadata.join(', ')}`;
+                  } else {
+                    desc += " | Extracted from recent search results.";
+                  }
+
+                  fetchedEntries.push({
+                    phone_number: formatPhoneDisplay(digits),
+                    phone_digits: digits,
+                    source_name: randomSearch.name,
+                    source_url: item.link || "https://www.google.com",
+                    report_date: new Date().toISOString().split('T')[0],
+                    category: randomSearch.category,
+                    description: desc
+                  });
+                }
+              });
             });
-          });
-        } else {
-           console.warn("Google API fetch failed with status:", gRes.status);
+          } else {
+             console.warn("Google API fetch failed with status:", gRes.status);
+          }
+        } catch (e) {
+          console.warn("Google API fetch threw error:", e);
         }
-      } catch (e) {
-        console.warn("Google API fetch threw error:", e);
       }
+
     } else {
         console.warn("Google API key or CX missing in environment variables. Falling back to curated entries.");
         fetchedEntries = [...CURATED_ENTRIES];
@@ -187,26 +214,40 @@ serve(async (req: Request) => {
       fetchedEntries = [...CURATED_ENTRIES];
     }
 
+
     const allDigits = fetchedEntries.map(e => e.phone_digits);
     const { data: existing } = await supabase
       .from("tracker_entries")
-      .select("phone_digits, source_name")
+      .select("phone_digits, source_name, report_date, created_at")
       .in("phone_digits", allDigits);
 
-    const existingKeys = new Set(
-      (existing || []).map((r: { phone_digits: string; source_name: string }) => `\${r.phone_digits}::\${r.source_name}`)
-    );
+    const existingMap = new Map();
+    (existing || []).forEach((r: any) => {
+       existingMap.set(`${r.phone_digits}::${r.source_name}`, r);
+    });
 
-    const newEntries = fetchedEntries.filter(
-      e => !existingKeys.has(`\${e.phone_digits}::\${e.source_name}`)
-    );
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const entriesToUpsert = fetchedEntries.filter(e => {
+       const key = `${e.phone_digits}::${e.source_name}`;
+       if (!existingMap.has(key)) return true; // New entry
+
+       // If it exists, check if it's older than 2 weeks. If so, we refresh it with new data.
+       const existingEntry = existingMap.get(key);
+       const reportDate = new Date(existingEntry.report_date || existingEntry.created_at);
+       if (reportDate < twoWeeksAgo) return true; // Refresh old entry
+
+       return false; // Skip recently seen entry
+    });
 
     const inserted: string[] = [];
     const errors: string[] = [];
 
-    for (const entry of newEntries) {
+    for (const entry of entriesToUpsert) {
+      // Retain results up to 1 month (30 days)
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 45);
+      expiresAt.setDate(expiresAt.getDate() + 30);
 
       const { error } = await supabase
         .from("tracker_entries")
@@ -225,7 +266,7 @@ serve(async (req: Request) => {
         );
 
       if (error) {
-        errors.push(`\${entry.phone_digits}: \${error.message}`);
+        errors.push(`${entry.phone_digits}: ${error.message}`);
       } else {
         inserted.push(entry.phone_digits);
       }
@@ -236,7 +277,7 @@ serve(async (req: Request) => {
         success: true,
         total: fetchedEntries.length,
         inserted: inserted.length,
-        newEntries: newEntries.length,
+        newEntries: entriesToUpsert.length,
         errors: errors.length,
         errorDetails: errors,
       }),
