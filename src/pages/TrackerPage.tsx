@@ -44,45 +44,15 @@ type CombinedEntry = {
 
 const SOURCES = [
   {
-    name: 'BBB Scam Tracker — Invoice/Imposter',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%2520geek%2520inovoice%2520apple%2520amazon%2520invoice%26from%3D0',
-    category: 'Invoice / Imposter Scam',
+    name: 'US Gov Data — FCC/FTC Reports',
+    url: 'https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a',
+    category: 'Government Data',
   },
   {
-    name: 'BBB Scam Tracker — Emergency Scams',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0',
-    category: 'Emergency Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Lottery/Publisher',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpublisher%2520clearing%2520house%2520digest%2520million%2520lottery%2520mega%2520%26from%3D0',
-    category: 'Lottery / Prize Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Sheriff/Warrant',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dsheriff%2520warrant%2520jury%2520arrest%2520family%26from%3D0',
-    category: 'Government Impersonation',
-  },
-  {
-    name: 'Google — Spellcaster/WhatsApp (Facebook)',
-    url: 'https://www.google.com/search?q=site:+facebook.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr:w',
-    category: 'Spiritual / Spellcaster Scam',
-  },
-  {
-    name: 'Google — Spellcaster/WhatsApp (Instagram)',
-    url: 'https://www.google.com/search?q=site%3A+instagram.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr%3Aw',
-    category: 'Spiritual / Spellcaster Scam',
-  },
-  {
-    name: 'Google — BTC Recovery/WhatsApp',
-    url: 'https://www.google.com/search?q=site%3A+facebook.com+%22btc+recovery%22+%22Whatsapp%22&tbs=qdr%3Aw',
-    category: 'Crypto Recovery Scam',
-  },
-  {
-    name: 'Google — Guestbook Spellcaster',
-    url: 'https://www.google.com/search?q=inurl:%22guestbook%22+spell+whatsapp&tbs=qdr:m',
-    category: 'Spiritual / Spellcaster Scam',
-  },
+    name: 'Google Search — WhatsApp Scams',
+    url: 'https://www.google.com/search?q=%22whatsapp%22+%22scam%22',
+    category: 'Social Media / WhatsApp Scam',
+  }
 ];
 
 const CATEGORIES = [
