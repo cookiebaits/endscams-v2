@@ -243,3 +243,9 @@ If you migrated from Netlify and are seeing a Netlify "Site not found" or "Looks
   3. Delete the old records pointing to Netlify (often a CNAME or an A record to a Netlify IP).
   4. Create a new A record pointing to your new Dokploy server IP address.
   5. Ensure Cloudflare proxy (orange cloud) is enabled.
+
+### Using Cloudflare Supported Ports with Dokploy
+This repository is configured to work natively with Dokploy's Traefik setup. However, to bypass Traefik entirely or if you prefer proxying directly via a non-standard Cloudflare port:
+1. The container explicitly exposes port **8080** (`8080:80`).
+2. **8080** is an HTTP port supported by the Cloudflare Proxy.
+3. In your Cloudflare DNS settings, you can direct traffic explicitly to `http://your-server-ip:8080` if configuring origin rules or Page Rules, or simply know that the container responds directly on 8080 on the host machine.

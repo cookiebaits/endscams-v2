@@ -1,32 +1,6 @@
 version: '3.8'
 
 services:
-  traefik:
-    image: traefik:v3.6.7
-    restart: always
-    command:
-      - "--api.dashboard=false"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=dokploy-network"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@endscams.org}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "letsencrypt:/letsencrypt"
-    networks:
-      - dokploy-network
-
   endscams:
     build:
       context: .
@@ -37,6 +11,8 @@ services:
     restart: always
     expose:
       - "80"
+    ports:
+      - "8080:80"
     networks:
       - dokploy-network
     labels:
@@ -45,9 +21,6 @@ services:
       - "traefik.http.routers.endscams.entrypoints=websecure"
       - "traefik.http.routers.endscams.tls.certResolver=letsencrypt"
       - "traefik.http.services.endscams.loadbalancer.server.port=80"
-
-volumes:
-  letsencrypt:
 
 networks:
   dokploy-network:
