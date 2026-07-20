@@ -1,207 +1,70 @@
 import React, { useState } from 'react';
 import { AlertTriangle, DollarSign, TrendingUp, Users, Shield, ChevronDown, ChevronUp, ExternalLink, Info } from 'lucide-react';
-import { useFtcStats } from '../hooks/useFtcStats';
 
-const FTC_SOURCE = 'https://www.ftc.gov/reports/consumer-sentinel-network-data-book-2024';
+
+const FTC_SOURCE = 'https://www.ftc.gov/terms/consumer-sentinel-network';
 const FTC_REPORT_URL = 'https://reportfraud.ftc.gov/';
 
 const TOP_SCAMS = [
   {
     rank: 1,
     title: 'Imposter Scams',
-    lossAmount: '$2.95B',
-    reports: 854000,
-    description: 'Scammers impersonate government agencies (IRS, SSA, Medicare), well-known companies (Amazon, Microsoft, banks), or even friends and family to steal money or personal information.',
+    lossAmount: '>$3.5B',
+    reports: 1000000,
+    description: 'The most frequently reported fraud since 2020. Scammers impersonate government agencies, businesses, or individuals to steal money. Highest frequency of reports.',
     tips: [
-      'Government agencies never demand immediate payment or gift cards.',
+      'Government agencies and legitimate businesses never demand immediate payment via gift cards or crypto.',
       'Verify caller identity by hanging up and calling the official number directly.',
-      'Never wire money or send crypto to someone claiming to be from the government.',
       'Do not share Social Security numbers over unsolicited calls.',
     ],
-    source: 'https://www.ftc.gov/news-events/data-visualizations/data-spotlight/2024/01/imposter-scams-top-2023-reports-ftc',
+    source: 'https://www.ftc.gov/terms/consumer-sentinel-network',
     govResources: [
-      { label: 'SSA Office of Inspector General — Report Impersonation', url: 'https://oig.ssa.gov/report/' },
-      { label: 'IRS — Report IRS Impersonation Scams', url: 'https://www.irs.gov/newsroom/irs-impersonation-scam-reporting' },
       { label: 'USA.gov — Government Impersonator Scams', url: 'https://www.usa.gov/government-impersonator' },
     ],
   },
   {
     rank: 2,
-    title: 'Investment Scams (Crypto & Pig Butchering)',
-    lossAmount: '$2.73B',
-    reports: 117000,
-    description: 'Fraudulent investment schemes including cryptocurrency fraud, "pig butchering" romance investment scams, and fake trading platforms promise unrealistic returns before stealing funds.',
+    title: 'Investment Scams',
+    lossAmount: '>$7.9B',
+    reports: 0,
+    description: 'Fraudulent investment schemes account for half of all total reported fraud losses. The average individual loss is over $10,000.',
     tips: [
       'If it promises guaranteed high returns, it\'s a scam.',
       'Never invest money you cannot afford to lose through unregulated platforms.',
-      'Research any investment platform on SEC.gov and FINRA.org.',
       'Be skeptical of romantic partners pushing investment opportunities.',
     ],
-    source: 'https://www.ftc.gov/reports/investment-scams',
+    source: 'https://www.ftc.gov/terms/consumer-sentinel-network',
     govResources: [
       { label: 'SEC — Report Investment Fraud', url: 'https://www.sec.gov/tcr' },
-      { label: 'CFTC — Report Crypto Fraud', url: 'https://www.cftc.gov/complaint' },
-      { label: 'FBI IC3 — Internet Crime Complaint Center', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
     ],
   },
   {
     rank: 3,
-    title: 'Online Shopping Scams',
-    lossAmount: '$392M',
-    reports: 380000,
-    description: 'Fake online stores, counterfeit goods, non-delivery of products, and bogus sellers on social media platforms and marketplaces like Facebook Marketplace.',
-    tips: [
-      'Research sellers and check reviews before purchasing.',
-      'Pay with credit cards for buyer protection — never wire transfers.',
-      'Be cautious of deals that seem too good to be true.',
-      'Verify website security (HTTPS) and physical address.',
-    ],
-    source: 'https://www.ftc.gov/news-events/news/press-releases/2024/02/ftc-releases-2023-consumer-sentinel-network-data-book',
-    govResources: [
-      { label: 'USA.gov — Online Shopping Safety', url: 'https://www.usa.gov/online-shopping' },
-      { label: 'FBI IC3 — Report Online Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-      { label: 'USPS OIG — Report Mail/Package Fraud', url: 'https://www.uspsoig.gov/form/mail-fraud-complaint-form' },
-    ],
-  },
-  {
-    rank: 4,
-    title: 'Tech Support Scams',
-    lossAmount: '$924M',
-    reports: 146000,
-    description: 'Scammers pose as tech support from Microsoft, Apple, or other companies claiming your device is infected. They gain remote access and steal financial information or charge for fake services.',
-    tips: [
-      'Legitimate companies do not make unsolicited tech support calls.',
-      'Never allow remote access to your computer from an unsolicited caller.',
-      'Pop-up warnings claiming your computer is infected are scams.',
-      'Never pay for tech support with gift cards or wire transfers.',
-    ],
-    source: 'https://www.ftc.gov/news-events/data-visualizations/data-spotlight/2022/10/tech-support-scams',
-    govResources: [
-      { label: 'CISA — Tech Support Scam Awareness', url: 'https://www.cisa.gov/news-events/news/avoiding-social-engineering-and-phishing-attacks' },
-      { label: 'FBI IC3 — Report Tech Support Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-      { label: 'USA.gov — Tech Support Scams', url: 'https://www.usa.gov/tech-support-scams' },
-    ],
-  },
-  {
-    rank: 5,
-    title: 'Prize, Sweepstakes & Lottery Scams',
-    lossAmount: '$255M',
-    reports: 158000,
-    description: 'You\'ve "won" a lottery, sweepstakes, or prize — but you must pay fees, taxes, or processing charges first. Publisher\'s Clearing House, foreign lotteries, and mega prize scams.',
-    tips: [
-      'You cannot win a contest you never entered.',
-      'Never pay fees upfront to claim a prize — legitimate winnings have no advance fees.',
-      'Publishers Clearing House does not notify winners by phone demanding payment.',
-      'Foreign lottery winnings that require fees are always scams.',
-    ],
-    source: 'https://consumer.ftc.gov/articles/prize-sweepstakes-lottery-scams',
-    govResources: [
-      { label: 'USPS OIG — Report Lottery Mail Fraud', url: 'https://www.uspsoig.gov/form/mail-fraud-complaint-form' },
-      { label: 'FBI IC3 — Report Prize/Sweepstakes Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-      { label: 'USA.gov — Lottery and Sweepstakes Scams', url: 'https://www.usa.gov/lottery-scams' },
-    ],
-  },
-  {
-    rank: 6,
-    title: 'Romance Scams',
-    lossAmount: '$1.14B',
-    reports: 64000,
-    description: 'Scammers build fake romantic relationships online then ask for money, often claiming emergencies, medical crises, or investment opportunities. Highest reported losses per victim.',
+    title: 'Social Media Scams',
+    lossAmount: '>$2.0B',
+    reports: 0,
+    description: 'Social media is the top contact method by aggregate reported losses. Scammers use these platforms to initiate romance, investment, and shopping fraud.',
     tips: [
       'Be wary of online relationships that never meet in person.',
-      'Never send money to someone you\'ve only met online.',
-      'Research profile photos using reverse image search.',
-      'Report suspicious profiles to the platform immediately.',
+      'Research sellers and check reviews before purchasing via social media ads.',
+      'Verify the identity of friends asking for money via direct message.',
     ],
-    source: 'https://consumer.ftc.gov/articles/what-you-need-know-about-romance-scams',
+    source: 'https://www.ftc.gov/terms/consumer-sentinel-network',
     govResources: [
-      { label: 'FBI — Romance Scam Awareness', url: 'https://www.fbi.gov/scams-and-safety/common-scams-and-crimes/romance-scams' },
-      { label: 'FBI IC3 — Report Romance Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-      { label: 'CFTC — Romance Investment Scam Warning', url: 'https://www.cftc.gov/LearnAndProtect/AdvisoriesAndArticles/romance_scams.html' },
+      { label: 'FBI IC3 — Internet Crime Complaint Center', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
     ],
-  },
-  {
-    rank: 7,
-    title: 'Business & Employment Opportunity Scams',
-    lossAmount: '$316M',
-    reports: 99000,
-    description: 'Fake job offers requiring upfront payment, work-from-home reshipping schemes, fake check scams, pyramid schemes, and fraudulent franchise or business opportunity offers.',
-    tips: [
-      'Legitimate employers never ask for upfront payments.',
-      'Be skeptical of high-paying jobs with minimal qualifications required.',
-      'Research companies thoroughly on the BBB and Glassdoor.',
-      'Reshipping or check cashing jobs are almost always money laundering schemes.',
-    ],
-    source: 'https://consumer.ftc.gov/articles/job-scams',
-    govResources: [
-      { label: 'DOL — Report Wage & Employment Fraud', url: 'https://www.dol.gov/agencies/whd/contact/complaints' },
-      { label: 'FBI IC3 — Report Employment Scams', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-      { label: 'USA.gov — Job Scams', url: 'https://www.usa.gov/job-scams' },
-    ],
-  },
-  {
-    rank: 8,
-    title: 'Identity Theft',
-    lossAmount: '$819M',
-    reports: 1100000,
-    description: 'Theft of personal information including Social Security numbers, credit card data, and account credentials used to open fraudulent accounts or file false tax returns.',
-    tips: [
-      'Monitor your credit reports regularly at AnnualCreditReport.com.',
-      'Place a credit freeze if you suspect your information was compromised.',
-      'Use unique, strong passwords and enable two-factor authentication.',
-      'Report identity theft at IdentityTheft.gov for a personalized recovery plan.',
-    ],
-    source: 'https://consumer.ftc.gov/articles/identity-theft',
-    govResources: [
-      { label: 'IdentityTheft.gov — Personalized Recovery Plan', url: 'https://www.identitytheft.gov/' },
-      { label: 'SSA — Report Social Security Number Misuse', url: 'https://oig.ssa.gov/report/' },
-      { label: 'IRS — Report Tax Identity Theft', url: 'https://www.irs.gov/identity-theft-central' },
-      { label: 'CFPB — Report Credit Fraud', url: 'https://www.consumerfinance.gov/complaint/' },
-    ],
-  },
-  {
-    rank: 9,
-    title: 'Debt Collection Scams',
-    lossAmount: '$131M',
-    reports: 93000,
-    description: 'Fake debt collectors threaten lawsuits, arrest, or wage garnishment for debts that may not exist or are time-barred. They pressure victims into paying immediately.',
-    tips: [
-      'Legitimate debt collectors must send written validation notices.',
-      'Request debt validation in writing before paying anything.',
-      'Know your rights under the Fair Debt Collection Practices Act (FDCPA).',
-      'Never pay debts via wire transfer, prepaid cards, or cryptocurrency.',
-    ],
-    source: 'https://consumer.ftc.gov/articles/debt-collection',
-    govResources: [
-      { label: 'CFPB — Submit a Debt Collection Complaint', url: 'https://www.consumerfinance.gov/complaint/' },
-      { label: 'CFPB — Know Your Rights: Debt Collection', url: 'https://www.consumerfinance.gov/consumer-tools/debt-collection/' },
-      { label: 'FBI IC3 — Report Fraud', url: 'https://www.ic3.gov/Home/ComplaintChoice' },
-    ],
-  },
-  {
-    rank: 10,
-    title: 'Health Care & Medical Scams',
-    lossAmount: '$178M',
-    reports: 112000,
-    description: 'Fake health insurance, COVID-19 test kit fraud, bogus Medicare supplement plans, unproven treatments, and medical equipment scams targeting seniors.',
-    tips: [
-      'Verify Medicare or insurance offers directly with the provider.',
-      'Do not give Medicare or insurance numbers to unsolicited callers.',
-      'Consult licensed healthcare providers before purchasing any treatment.',
-      'Report Medicare fraud at 1-800-MEDICARE or HHS OIG hotline.',
-    ],
-    source: 'https://consumer.ftc.gov/features/fighting-back-against-scams',
-    govResources: [
-      { label: 'HHS OIG — Report Medicare/Medicaid Fraud', url: 'https://oig.hhs.gov/fraud/report-fraud/' },
-      { label: 'CMS — Medicare Fraud & Abuse', url: 'https://www.cms.gov/priorities/innovation/key-concept/fraud-and-abuse' },
-      { label: 'FDA — Report Health Fraud Products', url: 'https://www.fda.gov/safety/report-problem-fda/reporting-unlawful-sales-medical-products-internet' },
-    ],
-  },
+  }
 ];
 
 export default function FTCScamsPage() {
   const [expanded, setExpanded] = useState<number | null>(null);
-  const { stats } = useFtcStats();
+  // Hardcoded stats based on March 2026 testimony (reporting 2025 data)
+  const stats = {
+    total_loss: '$15.9B',
+    total_reports: '3M',
+    yoy_increase: '32.5%', // Calculated from 12B to 15.9B
+    median_loss: '>$10k (Inv)' // Average individual loss for investment scams
+  };
 
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
@@ -212,9 +75,9 @@ export default function FTCScamsPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Top Scams 2024</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
           <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-            The Federal Trade Commission's most reported consumer fraud categories. Data from the Consumer Sentinel Network.
+            The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>
           <a
             href={FTC_SOURCE}
