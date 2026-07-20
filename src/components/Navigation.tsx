@@ -62,6 +62,7 @@ export default function Navigation() {
             </div>
           </Link>
 
+
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
@@ -78,7 +79,16 @@ export default function Navigation() {
             ))}
           </div>
 
+
           <div className="flex items-center gap-2">
+            <a
+              href="https://endscams.org/donate"
+              className="hidden md:flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Donate
+            </a>
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -106,6 +116,7 @@ export default function Navigation() {
         </div>
       </div>
 
+
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <div className="px-4 py-3 space-y-1">
@@ -123,6 +134,15 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            <a
+              href="https://endscams.org/donate"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm mt-2"
+            >
+              Donate
+            </a>
           </div>
         </div>
       )}
