@@ -233,3 +233,13 @@ For issues with:
 ## License
 
 Proprietary - Cyberscam Watchdog Network
+
+### "Site not found" Netlify Error
+If you migrated from Netlify and are seeing a Netlify "Site not found" or "Looks like you followed a broken link or entered a URL that doesn't exist on Netlify" error page when visiting your domain:
+- **Root Cause**: Your domain's DNS records (A or CNAME records) are still pointing to Netlify's servers instead of your new Dokploy VPS server IP address.
+- **Solution**:
+  1. Go to your Cloudflare dashboard (or DNS provider).
+  2. Locate the DNS records for your domain (e.g., `endscams.org` and `www.endscams.org`).
+  3. Delete the old records pointing to Netlify (often a CNAME or an A record to a Netlify IP).
+  4. Create a new A record pointing to your new Dokploy server IP address.
+  5. Ensure Cloudflare proxy (orange cloud) is enabled.
