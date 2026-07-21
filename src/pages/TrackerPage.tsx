@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
 
@@ -73,7 +73,12 @@ function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): Com
   for (const e of incoming) seen.set(e.id, e);
   return Array.from(seen.values())
     .filter(e => !isFakeNumber(e.digits))
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+    .sort((a, b) => {
+      // Sort by newest number first (descending date)
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
 }
 
 export default function TrackerPage() {

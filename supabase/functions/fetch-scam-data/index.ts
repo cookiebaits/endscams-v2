@@ -67,15 +67,15 @@ function parseCSVRow(row: string): string[] {
     return matches;
 }
 
-// Check if date is within last 30 days
-function isDateWithin30Days(dateStr: string): boolean {
+// Check if date is within last 14 days
+function isDateWithin14Days(dateStr: string): boolean {
     if (!dateStr) return false;
     const reportDate = new Date(dateStr);
     if (isNaN(reportDate.getTime())) return false;
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    // Disallow future dates or dates older than 30 days
-    return reportDate >= thirtyDaysAgo && reportDate <= new Date();
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    // Disallow future dates or dates older than 14 days
+    return reportDate >= fourteenDaysAgo && reportDate <= new Date();
 }
 
 async function validateAndExtractWithGemini(snippets: string, apiKey: string): Promise<{ isScam: boolean, metadata: string }> {
@@ -133,7 +133,7 @@ serve(async (req: Request) => {
     const fetchedEntries: ScamEntry[] = [];
 
     // Phase 1: Pull from the specific Google Sheet
-    let validCsvRows: { phone: string, date: string, category: string }[] = [];
+    const validCsvRows: { phone: string, date: string, category: string }[] = [];
     try {
        const csvUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
        const csvRes = await fetch(csvUrl);
@@ -147,7 +147,7 @@ serve(async (req: Request) => {
              const dateRaw = cols[1] || "";
              const categoryRaw = cols[2] || "Unknown Scam";
 
-             if (isValidPhoneNumber(phoneRaw) && isDateWithin30Days(dateRaw)) {
+             if (isValidPhoneNumber(phoneRaw) && isDateWithin14Days(dateRaw)) {
                  validCsvRows.push({
                      phone: phoneRaw,
                      date: new Date(dateRaw).toISOString().split('T')[0],
@@ -160,7 +160,7 @@ serve(async (req: Request) => {
        console.warn("CSV fetch error", e);
     }
 
-    // Process a random batch of 5 US numbers from the valid CSV rows
+    // Process a random batch of 5 US numbers from the valid CSV rows (under 14 days) to prevent API rate limits
     if (validCsvRows.length > 0) {
        const shuffledRows = validCsvRows.sort(() => 0.5 - Math.random()).slice(0, 5);
        for (const row of shuffledRows) {
