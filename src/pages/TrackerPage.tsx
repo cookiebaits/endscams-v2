@@ -44,15 +44,30 @@ type CombinedEntry = {
 
 const SOURCES = [
   {
-    name: 'US Gov Data — FCC/FTC Reports',
+    name: 'US Gov Data — FCC/FTC Sheet',
     url: 'https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a',
     category: 'Government Data',
   },
   {
-    name: 'Google Search — WhatsApp Scams',
+    name: 'Google Search — WhatsApp / Spellcaster / Crypto Recovery',
     url: 'https://www.google.com/search?q=%22whatsapp%22+%22scam%22',
     category: 'Social Media / WhatsApp Scam',
-  }
+  },
+  {
+    name: 'BBB Scam Tracker — PayPal',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0',
+    category: 'Invoice / Imposter Scam',
+  },
+  {
+    name: 'BBB Scam Tracker — Emergency',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0',
+    category: 'Emergency Scam',
+  },
+  {
+    name: 'BBB Scam Tracker — Million',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0',
+    category: 'Lottery / Prize Scam',
+  },
 ];
 
 const CATEGORIES = [
@@ -71,8 +86,19 @@ function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): Com
   const seen = new Map<string, CombinedEntry>();
   for (const e of existing) seen.set(e.id, e);
   for (const e of incoming) seen.set(e.id, e);
-  return Array.from(seen.values())
-    .filter(e => !isFakeNumber(e.digits))
+
+  // Enforce a strict 31-day cutoff and de-dup by digits (keep newest report).
+  const cutoffMs = Date.now() - 31 * 86400_000;
+  const byDigits = new Map<string, CombinedEntry>();
+  for (const entry of seen.values()) {
+    if (isFakeNumber(entry.digits)) continue;
+    const t = new Date(entry.date).getTime();
+    if (isNaN(t) || t < cutoffMs) continue;
+    const prev = byDigits.get(entry.digits);
+    if (!prev || prev.date < entry.date) byDigits.set(entry.digits, entry);
+  }
+
+  return Array.from(byDigits.values())
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -198,7 +224,7 @@ export default function TrackerPage() {
             <div>
               <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Scam Phone Tracker</h1>
               <p className="text-gray-500 dark:text-gray-400 text-sm">
-                Real non-toll-free scam numbers from verified sources. Retained for 30 days.
+                Real non-toll-free scam numbers from verified sources. Retained for 31 days, auto-refreshed twice daily (6am &amp; 1pm PST).
                 {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
               </p>
             </div>
@@ -365,7 +391,24 @@ function TrackerEntryCard({
           </div>
 
           {entry.description && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{entry.description}</p>
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-3 space-y-1">
+              {entry.description.split(/\s+\|\s+/).slice(0, 4).map((chunk, i) => {
+                const [labelRaw, ...rest] = chunk.split(/:\s*/);
+                const hasLabel = rest.length > 0 && labelRaw.length < 30;
+                return (
+                  <div key={i} className="leading-snug">
+                    {hasLabel ? (
+                      <>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">{labelRaw}:</span>{' '}
+                        <span>{rest.join(': ')}</span>
+                      </>
+                    ) : (
+                      <span>{chunk}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
