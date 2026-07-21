@@ -3,22 +3,26 @@
 ## Original Problem Statement
 > Completely rebuild /tracker, deleting all current entries. Leverage Google API to do searches for scam phone numbers under 2 weeks. Pull metadata and update it into the report itself. Also, pull numbers from a Google Sheet, use Google API to search metadata and information about each phone number. Lastly, do not have duplicates and also remove all numbers older than 31 days. Always sort by newest number first.
 
-Follow-up: "wipe existing data and make sure that all of the data on that page is retained only for 31 days and deleted after". Refresh **twice daily**: 6:00 AM PST and 1:00 PM PST.
+Follow-ups:
+- Wipe existing data + 31-day retention on /tracker.
+- Refresh twice daily: 6 AM PST and 1 PM PST.
+- Secrets must live in **Dokploy Environment tab** for privacy (nothing in Supabase secrets).
 
 ## Scope (per user)
-- Changes are limited to the **/tracker** page and its supporting Supabase edge function + database migration.
-- No changes to Home, Report Scam, FTC Scams, Education, Disclaimer, or Triage pages.
+- Changes limited to `/tracker`, plus one new backend microservice (`tracker-fetcher`).
 
-## Architecture
-- **Frontend**: Vite + React + TypeScript. `/src/pages/TrackerPage.tsx`.
-- **Backend / data pipeline**: Supabase Edge Function `fetch-scam-data` (Deno).
-- **Storage**: Supabase Postgres table `tracker_entries` (+ `scam_reports` for user submissions, unchanged).
-- **Scheduler**: `pg_cron` + `pg_net` running the edge function at 14:00 UTC (6 AM PST) and 21:00 UTC (1 PM PST) daily, plus hourly purge.
+## Architecture (final, iteration 2)
+- **Frontend**: Vite + React + TypeScript, served by Nginx via existing `endscams` container.
+- **tracker-fetcher**: **New** Deno container in `docker-compose.yml`. Owns the /tracker data pipeline. All secrets come from Dokploy env vars. Exposes:
+  - `GET /health`
+  - `POST /refresh` (CORS-restricted to `ALLOWED_ORIGIN`)
+- **Storage**: Supabase Postgres `tracker_entries` (RLS unchanged; fetcher writes via SERVICE_ROLE key).
+- **Scheduler**: Self-contained loop inside fetcher container — fires at 14:00 UTC (6 AM PST) and 21:00 UTC (1 PM PST). No `pg_cron` needed.
+- **Traefik**: Fetcher routed at `https://fetcher.endscams.org` (Let's Encrypt via existing dokploy-network).
 
-## Data Sources (used by the edge function)
-1. **FCC/FTC Google Sheet** (public CSV export)  
-   `https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a`
-2. **Google Custom Search API** (9 queries, `dateRestrict=w2` = last 14 days):
+## Data Sources
+1. **FCC/FTC Google Sheet** (CSV export). Newest 25 phones/run → Google CSE metadata (`dateRestrict=w2`).
+2. **Google Custom Search API** (9 queries, `dateRestrict=w2`):
    - `site:facebook.com "spellcaster" "Whatsapp" "Healing" "Fortune"`
    - `site:facebook.com "illuminati" "Whatsapp"`
    - `site:instagram.com "spellcaster" "Whatsapp"`
@@ -28,61 +32,76 @@ Follow-up: "wipe existing data and make sure that all of the data on that page i
    - `"Whatsapp" "Magic" "Magician"`
    - `"Whatsapp" "Crypto Recovery"`
    - `"guestbook" spell "WhatsApp"`
-3. **BBB Scam Tracker** (direct HTML fetch, no Google quota used):
+3. **BBB Scam Tracker** — direct HTML scrape (no Google quota):
    - `.../lookupscam?q=all%3Dpaypal%26from%3D0`
    - `.../lookupscam?q=all%3Demergency%26from%3D0`
    - `.../lookupscam?q=all%3Dmillion%26from%3D0`
 
-## Google CSE Quota Plan (100 queries/day free tier)
-- Per run: 25 sheet-number lookups + 9 category queries = **34 CSE calls**
-- Two runs per day = **68/day** → within free tier headroom.
-- BBB is scraped directly, so no CSE cost.
+## Google CSE Quota Plan (100/day free tier)
+- Per run: 25 sheet lookups + 9 category queries = **34 calls**
+- Two runs/day = **68/day** — well under 100.
 
 ## Pipeline (per run)
-1. `DELETE FROM tracker_entries WHERE report_date < today − 31 days`.
-2. Fetch sheet CSV, parse dates (`M/D/YY` or `M/D/YYYY`), filter to last 31 days, sort newest first, take 25 newest unique phone numbers.
-3. For each of those 25, call Google CSE `"phone" scam` with `dateRestrict=w2`. Append top-3 snippets as metadata.
-4. Run 9 targeted CSE queries; extract any phone numbers from titles/snippets; store with the matching category.
-5. Fetch 3 BBB pages, strip HTML, extract phone numbers with 120-char context snippet.
-6. Deduplicate by `phone_digits` (keep newest report_date).
-7. Upsert into `tracker_entries` on conflict `(phone_digits, source_name)`; `expires_at = now() + 31 days`.
+1. Purge >31-day rows.
+2. Fetch Sheet CSV → newest 25 unique phones within 31 days.
+3. Enrich each with CSE snippets (`dateRestrict=w2`).
+4. Run 9 targeted CSE queries; extract phones from titles/snippets.
+5. Scrape 3 BBB pages; extract phones with 120-char context.
+6. Dedupe by `phone_digits` (keep newest report_date).
+7. Upsert on `(phone_digits, source_name)`; `expires_at = now() + 31 days`.
 
 ## Frontend behaviour
-- Sorts **newest first** by `report_date DESC`.
-- Client-side hard cutoff: any row with `report_date < now − 31 days` is filtered out even if the DB is stale.
-- Client-side dedupe by `phone_digits` (keeps newest).
-- Description parsed on segment separator `" | "` into labeled rows (`Subject`, `Notes`, `Google (14d)`, etc.).
-- Header copy updated: **"Retained for 31 days, auto-refreshed twice daily (6am & 1pm PST)"**.
+- Sort newest first (`report_date DESC`).
+- Client-side hard cutoff at 31 days + dedupe by digits.
+- Description rendered as labeled rows (`Subject:`, `Notes:`, `Google (14d):`, …).
+- Header: **"Retained for 31 days, auto-refreshed twice daily (6am & 1pm PST)"**.
+- "Check for New Numbers" now POSTs to `${VITE_FETCHER_URL}/refresh` (no more Supabase edge-function URL / anon key on this path).
 
-## What was implemented (2026-07-21)
-- ✅ New migration `20260721060000_rebuild_tracker.sql`: TRUNCATE existing tracker rows, set 31-day default expiry, `purge_old_tracker_entries()` SQL function, three cron jobs (`tracker-refresh-morning-pst`, `tracker-refresh-afternoon-pst`, `tracker-purge-hourly`).
-- ✅ Rewrote `supabase/functions/fetch-scam-data/index.ts` with full new pipeline (CSV → newest 25 → CSE metadata → WhatsApp queries → BBB scrape → dedupe → upsert).
-- ✅ Updated `src/pages/TrackerPage.tsx` — new `mergeAndSort()` with strict 31-day cutoff + dedupe by digits, richer metadata rendering, 5-source SOURCES block.
-- ✅ Verified page renders cleanly (screenshot) — TypeScript compiles.
+## Files changed / added (2026-07-21)
+- **Added** `fetcher/main.ts` — Deno HTTP server, scheduler & pipeline (~450 lines).
+- **Added** `fetcher/Dockerfile` — Deno 1.46 alpine.
+- **Modified** `docker-compose.yml` — added `tracker-fetcher` service with Traefik labels for `fetcher.endscams.org`.
+- **Modified** `Dockerfile` — accepts `VITE_FETCHER_URL` build-arg.
+- **Modified** `src/pages/TrackerPage.tsx` — sort-newest-first, 31-day cutoff, digit-dedupe, richer metadata rendering, "Check for New Numbers" now hits fetcher `/refresh`.
+- **Modified** `supabase/migrations/20260721060000_rebuild_tracker.sql` — TRUNCATE + 31-day default + `purge_old_tracker_entries()` helper. pg_cron removed (scheduler moved to fetcher).
+- **Deleted** `supabase/functions/fetch-scam-data/` (edge function no longer used).
+- **Added** `.env.example` — full Dokploy env-var checklist.
 
-## Deployment requirements (must be done in Supabase dashboard)
-1. **Set edge-function secrets** (Supabase → Edge Functions → `fetch-scam-data` → Secrets):
-   - `GOOGLE_API_KEY = AIzaSyCK6cNZv41ozZvjX_xIAdjGTdT4L_ZWScE`
-   - `GOOGLE_CX = 70ee405777bb74c54`
-   - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — auto-provided by Supabase.
-2. **Enable Custom Search API** in Google Cloud console (project 963249505235). Was returning `API_KEY_SERVICE_BLOCKED` during dev — please confirm it is enabled and propagated.
-3. **Set database GUCs** for the cron jobs (SQL editor):
-   ```sql
-   ALTER DATABASE postgres SET app.supabase_url = 'https://<your-project>.supabase.co';
-   ALTER DATABASE postgres SET app.service_role_key = '<SERVICE_ROLE_JWT>';
-   ```
-4. **Run the migration** `supabase db push` (or apply `20260721060000_rebuild_tracker.sql`).
-5. **Deploy the edge function** `supabase functions deploy fetch-scam-data`.
-6. Trigger it once manually or click **"Check for New Numbers"** on /tracker to seed data.
+## Dokploy Environment tab — required vars
+```
+# Frontend build args
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-jwt>
+VITE_FETCHER_URL=https://fetcher.endscams.org
 
-## Prioritized backlog
-- P1 — Verify cron actually fires after `app.supabase_url` / `app.service_role_key` are set; check `cron.job_run_details`.
-- P1 — If Google CSE returns 403 (`API_KEY_SERVICE_BLOCKED`) after enablement, confirm no HTTP referer restrictions on the key.
-- P2 — Optional: swap synchronous CSE loop for `Promise.all` to shave latency (edge function currently sequential to stay well under Deno cold-start timeouts).
-- P2 — Consider swapping BBB HTML scraping to their official API if one exists (avoids DOM breakage risk).
-- P3 — Expose a per-source count in the tracker header (e.g. `12 from BBB, 25 from Sheet…`).
+# tracker-fetcher runtime (never exposed to browser)
+GOOGLE_API_KEY=AIzaSy...
+GOOGLE_CX=70ee405777bb74c54
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-jwt>
+ALLOWED_ORIGIN=https://endscams.org
+```
+
+## Deployment steps
+1. Point new DNS record `fetcher.endscams.org` at your Dokploy server (proxied in Cloudflare).
+2. Apply migration `20260721060000_rebuild_tracker.sql` on Supabase.
+3. Fill the Environment vars above in Dokploy.
+4. Redeploy the compose project → two services (`endscams`, `tracker-fetcher`) come up.
+5. Verify: `curl https://fetcher.endscams.org/health` → `{ "ok": true, ... }`.
+6. Open `/tracker` and click "Check for New Numbers".
+
+## Known blocker (2026-07-21)
+- Google CSE still returns `API_KEY_SERVICE_BLOCKED`. The API is enabled but the API **key** has API restrictions that don't include Custom Search API. User must edit the key in Google Cloud console → Credentials → "API restrictions" → either "Don't restrict key" or add Custom Search API.
+
+## Backlog
+- P1 — Confirm CSE works end-to-end after user unrestricts the API key.
+- P2 — If Deno cold-start > 5s becomes an issue, parallelise CSE calls with `Promise.all` + concurrency cap of 3.
+- P2 — Add basic secret to `/refresh` (HMAC signature or shared bearer token) so only the frontend + Dokploy admin can trigger it.
+- P3 — Show per-source counts in the tracker header ("12 from BBB, 25 from Sheet, 8 from Google").
+- P3 — Auto-generate OG images per number for a "Share this scammer" button (community amplification / SEO).
 
 ## Next Actions
-1. User to confirm Custom Search API is enabled + secrets set in Supabase.
-2. User to apply migration + deploy edge function in Supabase.
-3. Click "Check for New Numbers" on /tracker to verify end-to-end. Confirm numbers appear sorted newest-first and older-than-31-day rows are gone.
+1. **User**: Unrestrict Google API key (see "Known blocker" above).
+2. **User**: Add DNS record for `fetcher.endscams.org` in Cloudflare.
+3. **User**: Fill env vars in Dokploy per the block above.
+4. **User**: Apply migration + `docker-compose up -d --build`.

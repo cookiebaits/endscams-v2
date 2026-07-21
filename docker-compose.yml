@@ -8,6 +8,7 @@ services:
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://rnrqvdwtbehilaoyzfgf.supabase.co}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucnF2ZHd0YmVoaWxhb3l6ZmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0OTk3MDcsImV4cCI6MjA4OTA3NTcwN30.UMn_5tcDhBcdalUg_Z-b_y0M-BmRxhoHvv-GrhAYvwQ}
+        VITE_FETCHER_URL: ${VITE_FETCHER_URL:-https://fetcher.endscams.org}
     restart: always
     expose:
       - "80"
@@ -21,6 +22,37 @@ services:
       - "traefik.http.routers.endscams.entrypoints=websecure"
       - "traefik.http.routers.endscams.tls.certResolver=letsencrypt"
       - "traefik.http.services.endscams.loadbalancer.server.port=80"
+
+  # ----------------------------------------------------------------
+  # tracker-fetcher: owns the /tracker data pipeline.
+  # All secrets come from Dokploy → Environment tab (see .env.example).
+  # Exposes:
+  #   GET  /health
+  #   POST /refresh
+  # Runs internal cron @ 14:00 UTC (6am PST) & 21:00 UTC (1pm PST).
+  # ----------------------------------------------------------------
+  tracker-fetcher:
+    build:
+      context: ./fetcher
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GOOGLE_CX: ${GOOGLE_CX}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://endscams.org}
+      PORT: "8000"
+    expose:
+      - "8000"
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tracker-fetcher.rule=Host(`fetcher.endscams.org`)"
+      - "traefik.http.routers.tracker-fetcher.entrypoints=websecure"
+      - "traefik.http.routers.tracker-fetcher.tls.certResolver=letsencrypt"
+      - "traefik.http.services.tracker-fetcher.loadbalancer.server.port=8000"
 
 networks:
   dokploy-network:

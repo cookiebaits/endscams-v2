@@ -177,19 +177,19 @@ export default function TrackerPage() {
     setReloading(true);
     setNewCount(0);
     try {
-      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-scam-data`;
-      const res = await fetch(fnUrl, {
+      const fetcherBase = (import.meta.env.VITE_FETCHER_URL as string | undefined) || '';
+      if (!fetcherBase) throw new Error('VITE_FETCHER_URL not set');
+      const res = await fetch(`${fetcherBase.replace(/\/$/, '')}/refresh`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
         const json = await res.json().catch(() => ({}));
         if (json.inserted) setNewCount(json.inserted);
       }
-    } catch {}
+    } catch (e) {
+      console.warn('refresh failed', e);
+    }
     await fetchData();
   };
 
