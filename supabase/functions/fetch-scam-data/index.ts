@@ -17,13 +17,22 @@ interface ScamEntry {
   description: string;
 }
 
-// Function to extract phone numbers
+// Extract and format numbers
 function extractPhoneNumbers(text: string): string[] {
   if (!text) return [];
   const phoneRegex = /(?:\+?(?:1|44|27|234))?[\s\-.]*\(?[0-9]{3}\)?[\s\-.]*[0-9]{3,4}[\s\-.]*[0-9]{3,4}/g;
   const rawMatches = text.match(phoneRegex) || [];
   const formatted = rawMatches.map(m => m.replace(/\D/g, ''));
-  return formatted.filter(f => f.length >= 10 && f.length <= 14);
+  return formatted.filter(f => isValidPhoneNumber(f));
+}
+
+function isValidPhoneNumber(digits: string): boolean {
+  if (digits.length < 10 || digits.length > 14) return false;
+  // Reject nonsense numbers (all repeating digits like 1111111111 or 0000000000)
+  if (/^([0-9])\1+$/.test(digits)) return false;
+  // Reject 555 numbers
+  if (digits.length === 10 && digits.startsWith('555')) return false;
+  return true;
 }
 
 function formatPhoneDisplay(digits: string): string {
@@ -47,12 +56,33 @@ function formatPhoneDisplay(digits: string): string {
   return `+${digits}`;
 }
 
-// Helper to ask Gemini for metadata
-async function extractMetadataWithGemini(snippets: string, apiKey: string): Promise<string> {
-   if (!apiKey || !snippets.trim()) return "";
+// Parse CSV respecting quotes
+function parseCSVRow(row: string): string[] {
+    const regex = /(".*?"|[^",]+)(?=\s*,|\s*$)/g;
+    const matches: string[] = [];
+    let match;
+    while ((match = regex.exec(row)) !== null) {
+        matches.push(match[1].replace(/(^"|"$)/g, ''));
+    }
+    return matches;
+}
+
+// Check if date is within last 30 days
+function isDateWithin30Days(dateStr: string): boolean {
+    if (!dateStr) return false;
+    const reportDate = new Date(dateStr);
+    if (isNaN(reportDate.getTime())) return false;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Disallow future dates or dates older than 30 days
+    return reportDate >= thirtyDaysAgo && reportDate <= new Date();
+}
+
+async function validateAndExtractWithGemini(snippets: string, apiKey: string): Promise<{ isScam: boolean, metadata: string }> {
+   if (!apiKey || !snippets.trim()) return { isScam: true, metadata: "" }; // If no API key, assume true to not block population
    try {
      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-     const prompt = `Analyze the following search results about a scam phone number. Extract the most important metadata (e.g., Company names impersonated, Names of scammers, specific threats, or if WhatsApp is mentioned). Keep it extremely concise, format as a short comma-separated list like "Company: Amazon, Name: Dr Love, Vector: WhatsApp". Return ONLY the metadata string and nothing else. If nothing relevant is found, return exactly "No specific metadata found."\n\nSearch Results:\n${snippets}`;
+     const prompt = `Analyze the following search results about a specific phone number.\n1. Is this number actively associated with a scam, fraud, or spam? Answer exactly "YES" or "NO".\n2. If YES, extract a concise list of metadata (e.g., Company: Amazon, Name: Dr Love, Vector: WhatsApp). Do not write sentences.\n\nSearch Results:\n${snippets}`;
 
      const res = await fetch(url, {
        method: 'POST',
@@ -64,13 +94,17 @@ async function extractMetadataWithGemini(snippets: string, apiKey: string): Prom
        const data = await res.json();
        let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
        text = text.trim();
-       if (text === "No specific metadata found.") return "";
-       return text;
+
+       const isScam = text.toUpperCase().startsWith("YES");
+       let metadata = text.replace(/^(YES|NO)[\s\-:]*/i, '').trim();
+       if (metadata.toLowerCase().includes("no specific metadata") || metadata === "") metadata = "";
+
+       return { isScam, metadata };
      }
    } catch (e) {
      console.warn("Gemini API error:", e);
    }
-   return "";
+   return { isScam: true, metadata: "" };
 }
 
 serve(async (req: Request) => {
@@ -84,80 +118,91 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Delete reports older than 31 days
+    // Delete reports older than 31 days from the database
     const thirtyOneDaysAgo = new Date();
     thirtyOneDaysAgo.setDate(thirtyOneDaysAgo.getDate() - 31);
     await supabase
         .from("tracker_entries")
         .delete()
-        .lt("created_at", thirtyOneDaysAgo.toISOString());
+        .lt("report_date", thirtyOneDaysAgo.toISOString().split('T')[0]);
 
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
     const GOOGLE_CX = Deno.env.get("GOOGLE_CX") || "c32149b14c3304543";
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
     const fetchedEntries: ScamEntry[] = [];
 
-    // Phase 1: Pull some CSV data
-    let csvRows: string[] = [];
+    // Phase 1: Pull from the specific Google Sheet
+    let validCsvRows: { phone: string, date: string, category: string }[] = [];
     try {
        const csvUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
        const csvRes = await fetch(csvUrl);
        if (csvRes.ok) {
          const text = await csvRes.text();
-         csvRows = text.split("\n").slice(1).filter(r => r.trim().length > 0);
+         const rows = text.split("\n").slice(1).filter(r => r.trim().length > 0);
+
+         for (const row of rows) {
+             const cols = parseCSVRow(row);
+             const phoneRaw = (cols[0] || "").replace(/\D/g, "");
+             const dateRaw = cols[1] || "";
+             const categoryRaw = cols[2] || "Unknown Scam";
+
+             if (isValidPhoneNumber(phoneRaw) && isDateWithin30Days(dateRaw)) {
+                 validCsvRows.push({
+                     phone: phoneRaw,
+                     date: new Date(dateRaw).toISOString().split('T')[0],
+                     category: categoryRaw
+                 });
+             }
+         }
        }
     } catch (e) {
        console.warn("CSV fetch error", e);
     }
 
-    // Process a random batch of 3 US numbers from the CSV to avoid timeouts
-    if (csvRows.length > 0) {
-       const shuffledRows = csvRows.sort(() => 0.5 - Math.random()).slice(0, 3);
+    // Process a random batch of 5 US numbers from the valid CSV rows
+    if (validCsvRows.length > 0) {
+       const shuffledRows = validCsvRows.sort(() => 0.5 - Math.random()).slice(0, 5);
        for (const row of shuffledRows) {
-          const cols = row.split(",");
-          const phoneRaw = cols[0]?.trim() || "";
-          const subject = cols[2]?.trim() || "Scam";
+          const query = `"${row.phone}" ${row.category}`;
+          let desc = `Number reported in FTC/FCC violation database on ${row.date}.`;
+          let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
+          let isValidScam = true;
 
-          if (phoneRaw.length >= 10) {
-             const query = `"${phoneRaw}" ${subject}`;
-             const searchUrl = `https://customsearch.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(query)}&dateRestrict=w2`;
+          if (GOOGLE_API_KEY) {
+              const searchUrl = `https://customsearch.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(query)}&dateRestrict=w2`;
+              try {
+                 const searchRes = await fetch(searchUrl);
+                 if (searchRes.ok) {
+                    const sData = await searchRes.json();
+                    const items = sData.items || [];
+                    if (items.length > 0) {
+                       foundUrl = items[0].link;
+                       const allSnippets = items.map((i: Record<string, unknown>) => `${(i.title as string) || ''} ${(i.snippet as string) || ''}`).join(" \n ");
 
-             let desc = "Number reported in FTC/FCC violation database.";
-             let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
+                       // Verify via Gemini
+                       if (GEMINI_API_KEY) {
+                          const geminiData = await validateAndExtractWithGemini(allSnippets, GEMINI_API_KEY);
+                          isValidScam = geminiData.isScam;
+                          if (isValidScam && geminiData.metadata) desc += ` | AI Analysis: ${geminiData.metadata}`;
+                       } else {
+                          desc += ` | Mentioned online in relation to: ${row.category}`;
+                       }
+                    }
+                 }
+              } catch (e) {
+                 console.warn("Google Search failed for CSV number", e);
+              }
+          }
 
-             try {
-                const searchRes = await fetch(searchUrl);
-                if (searchRes.ok) {
-                   const sData = await searchRes.json();
-                   const items = sData.items || [];
-                   if (items.length > 0) {
-                      foundUrl = items[0].link;
-                      const allSnippets = items.map((i: Record<string, unknown>) => `${i.title} ${i.snippet}`).join(" \n ");
-
-                      // Check if the EXACT number is in the results
-                      if (allSnippets.replace(/\D/g, '').includes(phoneRaw)) {
-                          if (GEMINI_API_KEY) {
-                             const metadata = await extractMetadataWithGemini(allSnippets, GEMINI_API_KEY);
-                             if (metadata) desc += ` | AI Analysis: ${metadata}`;
-                          } else {
-                             desc += ` | Mentioned online in relation to: ${subject}`;
-                          }
-                      }
-                   }
-                }
-             } catch (e) {
-                console.warn("Google Search failed for CSV number", e);
-             }
-
-             // Insert whether we found search results or not ("leave it as-is")
+          if (isValidScam && !fetchedEntries.some(e => e.phone_digits === row.phone)) {
              fetchedEntries.push({
-                phone_number: formatPhoneDisplay(phoneRaw),
-                phone_digits: phoneRaw,
-                source_name: `US Gov Data — ${subject}`,
+                phone_number: formatPhoneDisplay(row.phone),
+                phone_digits: row.phone,
+                source_name: `US Gov Data — ${row.category}`,
                 source_url: foundUrl,
-                report_date: new Date().toISOString().split('T')[0],
-                category: subject,
+                report_date: row.date,
+                category: row.category,
                 description: desc
              });
           }
@@ -165,54 +210,60 @@ serve(async (req: Request) => {
     }
 
     // Phase 2: Search for WhatsApp/International scams dynamically
-    const whatsappQueries = [
-      '"spellcaster" "whatsapp" site:facebook.com',
-      '"crypto recovery" "whatsapp" site:instagram.com',
-      '"investment" "whatsapp" "guaranteed" scam'
-    ];
-    const randomWaQuery = whatsappQueries[Math.floor(Math.random() * whatsappQueries.length)];
-    const waSearchUrl = `https://customsearch.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(randomWaQuery)}&dateRestrict=w2`;
+    if (GOOGLE_API_KEY) {
+        const whatsappQueries = [
+          '"spellcaster" "whatsapp" site:facebook.com',
+          '"crypto recovery" "whatsapp" site:instagram.com',
+          '"investment" "whatsapp" "guaranteed" scam'
+        ];
+        const randomWaQuery = whatsappQueries[Math.floor(Math.random() * whatsappQueries.length)];
+        const waSearchUrl = `https://customsearch.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(randomWaQuery)}&dateRestrict=w2`;
 
-    try {
-        const waRes = await fetch(waSearchUrl);
-        if (waRes.ok) {
-          const waData = await waRes.json();
-          const items = waData.items || [];
+        try {
+            const waRes = await fetch(waSearchUrl);
+            if (waRes.ok) {
+              const waData = await waRes.json();
+              const items = waData.items || [];
 
-          for (const item of items) {
-            const rawItem = item as { title?: string; snippet?: string; link?: string };
-            const textToSearch = (rawItem.title || "") + " " + (rawItem.snippet || "");
-            const foundDigits = extractPhoneNumbers(textToSearch);
+              for (const item of items) {
+                const rawItem = item as { title?: string; snippet?: string; link?: string };
+                const textToSearch = (rawItem.title || "") + " " + (rawItem.snippet || "");
+                const foundDigits = extractPhoneNumbers(textToSearch);
 
-            for (const digits of foundDigits) {
-              if (!fetchedEntries.some(e => e.phone_digits === digits)) {
-                let desc = rawItem.snippet ? rawItem.snippet.substring(0, 150) : "WhatsApp scam identified via search.";
+                for (const digits of foundDigits) {
+                  if (!fetchedEntries.some(e => e.phone_digits === digits)) {
+                    let isValidScam = true;
+                    let desc = rawItem.snippet ? rawItem.snippet.substring(0, 150) : "WhatsApp scam identified via search.";
 
-                if (GEMINI_API_KEY) {
-                   const metadata = await extractMetadataWithGemini(textToSearch, GEMINI_API_KEY);
-                   if (metadata) desc += ` | AI Analysis: ${metadata}`;
-                } else if (textToSearch.toLowerCase().includes('whatsapp')) {
-                   desc += " | Metadata: WhatsApp contact confirmed";
+                    if (GEMINI_API_KEY) {
+                       const geminiData = await validateAndExtractWithGemini(textToSearch, GEMINI_API_KEY);
+                       isValidScam = geminiData.isScam;
+                       if (isValidScam && geminiData.metadata) desc += ` | AI Analysis: ${geminiData.metadata}`;
+                    } else if (textToSearch.toLowerCase().includes('whatsapp')) {
+                       desc += " | Metadata: WhatsApp contact confirmed";
+                    }
+
+                    if (isValidScam) {
+                        fetchedEntries.push({
+                          phone_number: formatPhoneDisplay(digits),
+                          phone_digits: digits,
+                          source_name: "Google Search — WhatsApp Scams",
+                          source_url: rawItem.link || "https://www.google.com",
+                          report_date: new Date().toISOString().split('T')[0],
+                          category: "Social Media / WhatsApp Scam",
+                          description: desc
+                        });
+                    }
+                  }
                 }
-
-                fetchedEntries.push({
-                  phone_number: formatPhoneDisplay(digits),
-                  phone_digits: digits,
-                  source_name: "Google Search — WhatsApp Scams",
-                  source_url: rawItem.link || "https://www.google.com",
-                  report_date: new Date().toISOString().split('T')[0],
-                  category: "Social Media / WhatsApp Scam",
-                  description: desc
-                });
               }
             }
-          }
+        } catch (e) {
+            console.warn("WhatsApp search failed", e);
         }
-    } catch (e) {
-        console.warn("WhatsApp search failed", e);
     }
 
-    // Fallback if absolutely nothing works (e.g. API keys dead and CSV fails)
+    // Fallback if absolutely nothing works (e.g. APIs fail and CSV is empty)
     if (fetchedEntries.length === 0) {
       const randomDigits = "234" + Math.floor(7000000000 + Math.random() * 2000000000).toString();
       fetchedEntries.push({
@@ -222,7 +273,7 @@ serve(async (req: Request) => {
          source_url: "https://www.google.com",
          report_date: new Date().toISOString().split('T')[0],
          category: "Unknown",
-         description: "System testing fallback entry."
+         description: "System testing fallback entry. No live API results returned."
       });
     }
 
