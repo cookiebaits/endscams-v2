@@ -177,7 +177,7 @@ export default function TrackerPage() {
     setReloading(true);
     setNewCount(0);
     try {
-      const fetcherBase = (import.meta.env.VITE_FETCHER_URL as string | undefined) || '';
+      const fetcherBase = (import.meta.env.VITE_FETCHER_URL as string | undefined) || 'https://fetcher.endscams.org';
       if (!fetcherBase) throw new Error('VITE_FETCHER_URL not set');
       const res = await fetch(`${fetcherBase.replace(/\/$/, '')}/refresh`, {
         method: 'POST',
