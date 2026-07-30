@@ -14,7 +14,12 @@ export function normalizePhone(phone: string): string {
   return digits;
 }
 
-export function formatPhoneDisplay(digits: string): string {
+export function formatPhoneDisplay(phoneDigits: string): string {
+  // Preserve numbers that already have international formatting
+  if (phoneDigits.startsWith('+')) return phoneDigits;
+
+  const digits = phoneDigits.replace(/\D/g, '');
+
   if (digits.length === 10) {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
@@ -52,14 +57,40 @@ export function formatPhoneDisplay(digits: string): string {
 }
 
 export function isTollFree(digits: string): boolean {
-  if (digits.length !== 10) return false;
-  const areaCode = digits.slice(0, 3);
+  // Strip a leading US '1' if present for accurate area code checking
+  const coreDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (coreDigits.length !== 10) return false;
+  
+  const areaCode = coreDigits.slice(0, 3);
   return ['800', '833', '844', '855', '866', '877', '888'].includes(areaCode);
 }
 
 export function isFakeNumber(digits: string): boolean {
-  if (digits.length < 7 || digits.length > 15) return true;
-  if (/^0+$/.test(digits) || /^1+$/.test(digits)) return true;
-  if (digits.length === 10 && digits.startsWith('555')) return true;
+  // E.164 standards: valid numbers are generally between 8 and 15 digits
+  if (digits.length < 8 || digits.length > 15) return true;
+  
+  // Filter numbers made of a single repeated digit (e.g., 000-000-0000, 111-111-1111)
+  if (/^(\d)\1+$/.test(digits)) return true;
+  
+  // Specific common fake/sequential strings
+  const fakes = ['1234567890', '123456789', '0123456789'];
+  if (fakes.some(fake => digits.includes(fake))) return true;
+
+  // Filter 555 numbers (both 555-XXX-XXXX and XXX-555-XXXX formats)
+  const coreDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (coreDigits.length === 10 && (coreDigits.startsWith('555') || coreDigits.slice(3, 6) === '555')) {
+    return true; 
+  }
+
   return false;
+}
+
+// Unified wrapper function used by the Tracker Page to filter out garbage data
+export function isValidScamNumber(phoneDigits: string): boolean {
+  const digitsOnly = phoneDigits.replace(/\D/g, '');
+  
+  if (isFakeNumber(digitsOnly)) return false;
+  if (isTollFree(digitsOnly)) return false;
+  
+  return true;
 }
