@@ -10,54 +10,40 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return digits;
+  return phone.replace(/\D/g, '');
 }
 
+/**
+ * Formats phone numbers for display, handling North American & International formats (+xx, +xxx)
+ */
 export function formatPhoneDisplay(phoneDigits: string): string {
-  // Preserve numbers that already have international formatting
+  if (!phoneDigits) return '';
   if (phoneDigits.startsWith('+')) return phoneDigits;
 
   const digits = phoneDigits.replace(/\D/g, '');
 
+  // Standard US / NANP (10 digits or 11 digits starting with 1)
   if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    return `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
-  if (digits.length === 11) {
-    if (digits.startsWith('1')) {
-      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-    }
-    if (digits.startsWith('27')) {
-      return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
-    }
-    if (digits.startsWith('44')) {
-      return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;
-    }
-  }
-  if (digits.length === 12) {
-    if (digits.startsWith('44')) {
-      return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;
-    }
-  }
-  if (digits.length === 13) {
-    if (digits.startsWith('234')) {
-      return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`;
-    }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
 
-  // Generic fallback for anything else, preserving country code structure if it has one
-  if (digits.length > 10) {
-      if (digits.startsWith('234')) return `+234 ${digits.slice(3)}`;
-      if (digits.startsWith('27')) return `+27 ${digits.slice(2)}`;
-      if (digits.startsWith('44')) return `+44 ${digits.slice(2)}`;
-      if (digits.startsWith('1')) return `+1 ${digits.slice(1)}`;
-  }
+  // Common country codes formatted explicitly
+  if (digits.startsWith('234')) return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`; // Nigeria
+  if (digits.startsWith('44'))  return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;                           // UK
+  if (digits.startsWith('27'))  return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;      // S. Africa
+  if (digits.startsWith('91'))  return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;                           // India
 
+  // Generic international fallback (+xx / +xxx)
   return `+${digits}`;
 }
 
+/**
+ * Filters out US Toll-Free prefixes (800, 833, 844, 855, 866, 877, 888)
+ */
 export function isTollFree(digits: string): boolean {
-  // Strip a leading US '1' if present for accurate area code checking
   const coreDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
   if (coreDigits.length !== 10) return false;
   
@@ -65,32 +51,44 @@ export function isTollFree(digits: string): boolean {
   return ['800', '833', '844', '855', '866', '877', '888'].includes(areaCode);
 }
 
+/**
+ * Filters out dummy, fake, test, and placeholder phone numbers
+ */
 export function isFakeNumber(digits: string): boolean {
-  // E.164 standards: valid numbers are generally between 8 and 15 digits
-  if (digits.length < 8 || digits.length > 15) return true;
-  
-  // Filter numbers made of a single repeated digit (e.g., 000-000-0000, 111-111-1111)
-  if (/^(\d)\1+$/.test(digits)) return true;
-  
-  // Specific common fake/sequential strings
-  const fakes = ['1234567890', '123456789', '0123456789'];
-  if (fakes.some(fake => digits.includes(fake))) return true;
+  const clean = digits.replace(/\D/g, '');
 
-  // Filter 555 numbers (both 555-XXX-XXXX and XXX-555-XXXX formats)
-  const coreDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
-  if (coreDigits.length === 10 && (coreDigits.startsWith('555') || coreDigits.slice(3, 6) === '555')) {
+  // Valid E.164 international numbers are 8 to 15 digits
+  if (clean.length < 8 || clean.length > 15) return true;
+  
+  // Repeated single digits (e.g., 0000000000, 1111111111, 9999999999)
+  if (/^(\d)\1+$/.test(clean)) return true;
+  
+  // Common sequential or dummy patterns
+  const knownFakes = [
+    '1234567890',
+    '0123456789',
+    '123456789',
+    '9876543210',
+    '00000000',
+    '12345678'
+  ];
+  if (knownFakes.some(fake => clean.includes(fake))) return true;
+
+  // US 555 exchange check (e.g. 555-0199 or 800-555-0199)
+  const core = clean.length === 11 && clean.startsWith('1') ? clean.slice(1) : clean;
+  if (core.length === 10 && (core.startsWith('555') || core.slice(3, 6) === '555')) {
     return true; 
   }
 
   return false;
 }
 
-// Unified wrapper function used by the Tracker Page to filter out garbage data
+/**
+ * Combined validator for phone numbers
+ */
 export function isValidScamNumber(phoneDigits: string): boolean {
   const digitsOnly = phoneDigits.replace(/\D/g, '');
-  
   if (isFakeNumber(digitsOnly)) return false;
   if (isTollFree(digitsOnly)) return false;
-  
   return true;
 }
