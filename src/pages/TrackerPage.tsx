@@ -42,10 +42,8 @@ type CombinedEntry = {
   reportedDown: boolean;
 };
 
-// SerpAPI Configuration
 const SERP_API_KEY = '372a90ce358f16044b8ced93722ad1b20b10a46d892f3116a90481b0273f2805';
 
-// Search Parameters & Sources
 const SEARCH_TARGETS = [
   { name: 'Facebook — Spellcaster Scams', query: 'site:facebook.com "spellcaster" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
   { name: 'Facebook — Illuminati Scams', query: 'site:facebook.com "illuminati" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
@@ -182,7 +180,7 @@ export default function TrackerPage() {
 
     try {
       for (const target of SEARCH_TARGETS) {
-        const serpUrl = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(target.query)}&api_key=${SERP_API_KEY}`;
+        const serpUrl = `/serpapi/search.json?engine=google&q=${encodeURIComponent(target.query)}&api_key=${SERP_API_KEY}`;
         
         const response = await fetch(serpUrl);
         if (!response.ok) continue;
