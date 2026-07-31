@@ -34,7 +34,6 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const SERP_API_KEY = env("SERP_API_KEY");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
@@ -154,34 +153,50 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  Google Search via SerpAPI                                        */
+/*  DuckDuckGo Lite Scraper                                          */
 /* ================================================================ */
-interface CseItem { title?: string; snippet?: string; link?: string; }
+interface SearchItem { title?: string; snippet?: string; link?: string; }
 
-async function googleSearch(q: string, num = 5): Promise<CseItem[]> {
-  if (!SERP_API_KEY) return [];
-  const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(q)}&num=${num}&api_key=${encodeURIComponent(SERP_API_KEY)}`;
+async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
+  const url = `https://lite.duckduckgo.com/lite/`;
+  const body = new URLSearchParams({ q });
+
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn(`SerpAPI ${res.status} q=${q}: ${t.slice(0, 200)}`);
-      return [];
+    // using curl here helps bypass DDG's node/deno fetch bot detection
+    const process = new Deno.Command("curl", {
+      args: [
+        "-s",
+        "-d", body.toString(),
+        "-H", "User-Agent: w3m/0.5.3",
+        url
+      ],
+      stdout: "piped"
+    });
+    const { stdout } = await process.output();
+    const html = new TextDecoder().decode(stdout);
+
+    const snippets = [...html.matchAll(/class='result-snippet'[^>]*>([\s\S]*?)<\/td>/gi)];
+    const links = [...html.matchAll(/class='result-url'[^>]*href="([^"]+)"/gi)];
+    const titles = [...html.matchAll(/class='result-link'[^>]*>([\s\S]*?)<\/a>/gi)];
+
+    const results: SearchItem[] = [];
+    const limit = Math.min(5, snippets.length);
+    for (let i = 0; i < limit; i++) {
+        results.push({
+            title: titles[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
+            snippet: snippets[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
+            link: links[i]?.[1] || ""
+        });
     }
-    const data = await res.json();
-    const results = data.organic_results || [];
-    return results.map((r: any) => ({
-        title: r.title,
-        snippet: r.snippet,
-        link: r.link
-    }));
+
+    return results;
   } catch (e) {
-    console.warn(`SerpAPI err q=${q}`, e);
+    console.warn(`DDG Lite err q=${q}`, e);
     return [];
   }
 }
 
-function summarizeSnippets(items: CseItem[], maxChars = 240): string {
+function summarizeSnippets(items: SearchItem[], maxChars = 240): string {
   const bits: string[] = [];
   for (const it of items.slice(0, 3)) {
     const s = (it.snippet || it.title || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
@@ -263,13 +278,13 @@ async function fetchBBB(url: string): Promise<{ digits: string; snippet: string 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
 const WHATSAPP_QUERIES = [
-  { q: 'site:facebook.com "spellcaster" "Whatsapp"', category: "Spiritual / Spellcaster Scam", label: "Facebook — Spellcaster" },
-  { q: 'site:facebook.com "illuminati" "Whatsapp"',  category: "Spiritual / Spellcaster Scam", label: "Facebook — Illuminati" },
-  { q: 'site:instagram.com "spellcaster" "Whatsapp"',category: "Spiritual / Spellcaster Scam", label: "Instagram — Spellcaster" },
-  { q: 'inurl:"guestbook" spell whatsapp',           category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
-  { q: 'site:facebook.com "btc recovery" "Whatsapp"',category: "Crypto Recovery Scam",         label: "Facebook — BTC Recovery" },
-  { q: 'site:instagram.com "btc recovery" "Whatsapp"',category: "Crypto Recovery Scam",         label: "Instagram — BTC Recovery" },
-  { q: '"book publisher" "amazon" "chat"',           category: "Publisher Scam",               label: "Web — Book Publisher" },
+  { q: 'facebook spellcaster Whatsapp', category: "Spiritual / Spellcaster Scam", label: "Facebook — Spellcaster" },
+  { q: 'facebook illuminati Whatsapp',  category: "Spiritual / Spellcaster Scam", label: "Facebook — Illuminati" },
+  { q: 'instagram spellcaster Whatsapp',category: "Spiritual / Spellcaster Scam", label: "Instagram — Spellcaster" },
+  { q: 'guestbook spell whatsapp',      category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
+  { q: 'facebook btc recovery Whatsapp',category: "Crypto Recovery Scam",         label: "Facebook — BTC Recovery" },
+  { q: 'instagram btc recovery Whatsapp',category: "Crypto Recovery Scam",         label: "Instagram — BTC Recovery" },
+  { q: 'book publisher amazon chat',    category: "Publisher Scam",               label: "Web — Book Publisher" },
 ];
 
 const BBB_QUERIES = [
@@ -345,13 +360,13 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        if (SERP_API_KEY) {
-          const items = await googleSearch(`"${row.digits}" scam`, 5);
-          csvGoogle++;
-          if (items.length > 0) {
-            foundUrl = items[0].link || foundUrl;
-            metaSnippet = summarizeSnippets(items);
-          }
+        // Let's delay half a second to respect DDG rate limits
+        await new Promise(r => setTimeout(r, 500));
+        const items = await duckDuckGoLiteSearch(`${row.digits} scam`);
+        csvGoogle++;
+        if (items.length > 0) {
+          foundUrl = items[0].link || foundUrl;
+          metaSnippet = summarizeSnippets(items);
         }
 
         const parts: string[] = [`FCC/FTC report ${toIsoDate(row.date!)}`];
@@ -374,28 +389,28 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto SERP queries */
+  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
-  if (SERP_API_KEY) {
-    for (const q of WHATSAPP_QUERIES) {
-      const items = await googleSearch(q.q, 8);
-      cseUsed++;
-      for (const item of items) {
-        const text = `${item.title || ""} ${item.snippet || ""}`;
-        const nums = extractPhoneNumbers(text);
-        for (const digits of nums) {
-          if (collected.some(c => c.phone_digits === digits)) continue;
-          collected.push({
-            phone_number: formatPhoneDisplay(digits),
-            phone_digits: digits,
-            source_name: `Google Search — ${q.label}`,
-            source_url: item.link || "https://www.google.com",
-            report_date: todayIso,
-            category: q.category,
-            description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
-          });
-        }
+
+  for (const q of WHATSAPP_QUERIES) {
+    await new Promise(r => setTimeout(r, 1000)); // 1s delay to prevent DDG block
+    const items = await duckDuckGoLiteSearch(q.q);
+    cseUsed++;
+    for (const item of items) {
+      const text = `${item.title || ""} ${item.snippet || ""}`;
+      const nums = extractPhoneNumbers(text);
+      for (const digits of nums) {
+        if (collected.some(c => c.phone_digits === digits)) continue;
+        collected.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: `Web Search — ${q.label}`,
+          source_url: item.link || "https://duckduckgo.com",
+          report_date: todayIso,
+          category: q.category,
+          description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
+        });
       }
     }
   }
