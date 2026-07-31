@@ -18,11 +18,11 @@ const SCAM_TYPES = [
       'Demands immediate payment via gift card, wire transfer, or crypto',
       'Threatens arrest, license suspension, lawsuit, or account closure',
       'Caller ID shows a government or bank number (easily spoofed)',
-      'Text includes a link to a website — that site exists only to steal your data',
+      'Text includes a link to a website  that site exists only to steal your data',
       'Asks you to "press 1" or call back a specific number',
     ],
     whatToDo: [
-      'Hang up or delete the text — do not click any links',
+      'Hang up or delete the text  do not click any links',
       'Never call back numbers left in suspicious voicemails or texts',
       'Look up the agency\'s real number independently and call that instead',
       'Report to the FTC at ReportFraud.ftc.gov',
@@ -30,7 +30,7 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Unwanted Calls', url: 'https://consumer.ftc.gov/articles/dealing-unwanted-calls' },
     images: [
-      { src: '/images/Toll_Road_Scam_Text.png', caption: 'Real toll road scam text — fake "CA FasTrak Final Notice" from a spoofed number. The link goes to a fake site designed to steal your payment information. Legitimate toll agencies do not threaten license suspension via text.', objectFit: 'contain' as const },
+      { src: '/images/Toll_Road_Scam_Text.png', caption: 'Real toll road scam text  fake "CA FasTrak Final Notice" from a spoofed number. The link goes to a fake site designed to steal your payment information. Legitimate toll agencies do not threaten license suspension via text.', objectFit: 'contain' as const },
     ],
   },
   {
@@ -48,14 +48,14 @@ const SCAM_TYPES = [
       'Links that redirect to lookalike websites',
     ],
     whatToDo: [
-      'Log in to the actual company website directly — never through email links',
+      'Log in to the actual company website directly  never through email links',
       'Call the company\'s official support number found on their real website',
       'Report phishing emails to the company and to reportphishing@apwg.org',
       'Do not click links or call numbers in suspicious emails',
     ],
     resource: { label: 'FTC: Imposter Scams', url: 'https://consumer.ftc.gov/features/scam-alerts' },
     images: [
-      { src: '/images/Invoice.png', caption: 'Fake PayPal billing invoice — note the fraudulent order ID, bitcoin purchase, and auto-debit threat. The toll-free number is a scammer line. Never call numbers listed in unsolicited invoices.' },
+      { src: '/images/Invoice.png', caption: 'Fake PayPal billing invoice  note the fraudulent order ID, bitcoin purchase, and auto-debit threat. The toll-free number is a scammer line. Never call numbers listed in unsolicited invoices.' },
       { src: '/images/fake_invoice.png', caption: 'Example of a fake PayPal invoice scam email. Note the fake phone number and auto-debit threat designed to create panic.' },
     ],
   },
@@ -72,17 +72,17 @@ const SCAM_TYPES = [
       'Caller claims to be from Microsoft, Apple, Amazon, or your internet provider',
       'Request to install remote access software (AnyDesk, TeamViewer)',
       'Request to pay with gift cards or wire transfer for "repairs"',
-      'Any website mentioned in these texts or pop-ups is a data-harvesting trap — never visit or enter information',
+      'Any website mentioned in these texts or pop-ups is a data-harvesting trap  never visit or enter information',
     ],
     whatToDo: [
-      'Close the browser tab or delete the text — do not call any number',
+      'Close the browser tab or delete the text  do not call any number',
       'Never give anyone remote access to your computer unsolicited',
       'If in doubt, look up the company\'s official number and call them directly',
       'Report at ReportFraud.ftc.gov',
     ],
     resource: { label: 'FTC: Tech Support Scams', url: 'https://consumer.ftc.gov/articles/tech-support-scams' },
     images: [
-      { src: '/images/Fake_Text.jpg', caption: 'Tech support scam texts — fake order confirmations from Norton, Apple Pay, and Amazon with callback numbers. Never call these numbers. Delete the messages immediately.', objectFit: 'contain' as const },
+      { src: '/images/Fake_Text.jpg', caption: 'Tech support scam texts  fake order confirmations from Norton, Apple Pay, and Amazon with callback numbers. Never call these numbers. Delete the messages immediately.', objectFit: 'contain' as const },
     ],
   },
   {
@@ -101,7 +101,7 @@ const SCAM_TYPES = [
       'Pressure to keep winnings secret until the "check clears"',
     ],
     whatToDo: [
-      'Real prizes never require upfront payment of any kind — full stop',
+      'Real prizes never require upfront payment of any kind  full stop',
       'Never send money via PayPal, Zelle, CashApp, Apple Pay, wire, or gift cards',
       'Never generate or photograph a Walmart, CVS, or other store money barcode for anyone',
       'Real Publishers Clearing House winners are notified only by certified mail',
@@ -109,8 +109,8 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Prize & Lottery Scams', url: 'https://consumer.ftc.gov/articles/prize-sweepstakes-lottery-scams' },
     images: [
-      { src: '/images/Paypal_Request.png', caption: 'Fake PayPal money request — scammers send real PayPal requests labeled "Apple Inc." or any name. The legitimate PayPal interface makes it look real. Ignore and report.' },
-      { src: '/images/Walmart_Barcode.jpeg', caption: 'Walmart Money Services barcode — scammers instruct victims to open this screen in-store and show the code to a cashier to deposit cash. Sharing this is the same as handing over cash. Never do it for a stranger.' },
+      { src: '/images/Paypal_Request.png', caption: 'Fake PayPal money request  scammers send real PayPal requests labeled "Apple Inc." or any name. The legitimate PayPal interface makes it look real. Ignore and report.' },
+      { src: '/images/Walmart_Barcode.jpeg', caption: 'Walmart Money Services barcode  scammers instruct victims to open this screen in-store and show the code to a cashier to deposit cash. Sharing this is the same as handing over cash. Never do it for a stranger.' },
     ],
   },
   {
@@ -122,10 +122,10 @@ const SCAM_TYPES = [
     summary: 'Fake online partners build trust over weeks or months then request money for emergencies or "investments".',
     warningsSigns: [
       'Met online and progresses very fast emotionally',
-      'Claims to be overseas — military, oil rig, doctor working abroad',
+      'Claims to be overseas  military, oil rig, doctor working abroad',
       'Always has a reason they can\'t video chat or meet in person',
       'Asks for money for travel, medical bills, or investment opportunities',
-      'Profile photos look too perfect — may be stolen from another person',
+      'Profile photos look too perfect  may be stolen from another person',
     ],
     whatToDo: [
       'Reverse image search profile photos using Google Images or TinEye',
@@ -158,7 +158,8 @@ const SCAM_TYPES = [
     ],
     resource: { label: 'FTC: Psychic & Fortune Teller Scams', url: 'https://consumer.ftc.gov/articles/psychics-astrologers-and-crystal-ball-readers' },
     images: [
-      { src: '/images/Fake_Money_With_Candles.jpeg', caption: 'Staged ritual imagery with fake money and candles used in spellcaster ads — photos like these are specifically curated to appear authentic and build false trust with victims.' },
+      { src: '/images/Fake_Money_With_Candles.jpeg', caption: 'Staged ritual imagery with fake money and candles used in spellcaster ads  photos like these are specifically curated to appear authentic and build false trust with victims.' },
+      { src: '/images/Stupid Spell Stuff 2.jpeg', caption: 'Another example of staged spellcaster imagery used to deceive victims into paying for fake spiritual services.' },
     ],
   },
   {
@@ -171,7 +172,7 @@ const SCAM_TYPES = [
     warningsSigns: [
       'Website has extremely low prices with no reviews or company history',
       'No physical address, only a contact form or email',
-      'Limited payment options — only wire transfer, Zelle, or crypto',
+      'Limited payment options  only wire transfer, Zelle, or crypto',
       'Seller pressures you to pay outside the platform',
       'Stock photos are used instead of actual product images',
     ],
@@ -212,7 +213,7 @@ const SCAM_TYPES = [
 ];
 
 const EMERGENCY_RESOURCES = [
-  { label: 'FTC — Report Fraud', url: 'https://reportfraud.ftc.gov/', desc: 'File a consumer fraud complaint' },
+  { label: 'FTC  Report Fraud', url: 'https://reportfraud.ftc.gov/', desc: 'File a consumer fraud complaint' },
   { label: 'FBI Internet Crime Complaint Center (IC3)', url: 'https://www.ic3.gov', desc: 'Report internet and cybercrime' },
   { label: 'Identity Theft.gov', url: 'https://www.identitytheft.gov', desc: 'Personalized recovery plan for identity theft' },
   { label: 'BBB Scam Tracker', url: 'https://www.bbb.org/scamtracker', desc: 'Report and look up scams' },
@@ -221,13 +222,13 @@ const EMERGENCY_RESOURCES = [
 ];
 
 const GIFT_CARD_GALLERY = [
-  { src: '/images/Gift_Card_Rack.jpg', label: 'Gift Card Display Rack', caption: 'A full gift card display rack in a store — scammers send victims here to buy untraceable payment. If anyone tells you to go buy gift cards, stop and call a trusted person first.' },
-  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10–$500) — scammers love these for their wide availability and instant redemption.' },
-  { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards — often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
-  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot / MoneyPak', caption: 'Green Dot reloadable cards and MoneyPak — the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
-  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', caption: 'Apple Gift Cards — frequently demanded by tech support scammers impersonating Apple, the IRS, or Social Security.' },
-  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex / Mastercard', caption: 'Credit card-branded gift cards (Visa, American Express, Mastercard) — accepted everywhere and completely untraceable once used. Often sold at pharmacy and grocery checkout lanes.' },
-  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', caption: 'Google Play Gift Cards — commonly used in prize scams, utility shutoff threats, and tech support fraud.' },
+  { src: '/images/Gift_Card_Rack.jpg', label: 'Gift Card Display Rack', caption: 'A full gift card display rack in a store  scammers send victims here to buy untraceable payment. If anyone tells you to go buy gift cards, stop and call a trusted person first.' },
+  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10$500)  scammers love these for their wide availability and instant redemption.' },
+  { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards  often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
+  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot / MoneyPak', caption: 'Green Dot reloadable cards and MoneyPak  the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
+  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', caption: 'Apple Gift Cards  frequently demanded by tech support scammers impersonating Apple, the IRS, or Social Security.' },
+  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex / Mastercard', caption: 'Credit card-branded gift cards (Visa, American Express, Mastercard)  accepted everywhere and completely untraceable once used. Often sold at pharmacy and grocery checkout lanes.' },
+  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', caption: 'Google Play Gift Cards  commonly used in prize scams, utility shutoff threats, and tech support fraud.' },
 ];
 
 export default function EducationPage() {
@@ -333,7 +334,7 @@ export default function EducationPage() {
               If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
             </p>
             <p className="text-gray-600 dark:text-amber-300/80 text-sm">
-              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.
+              Deputies can help you confirm whether a call, text, or situation is legitimate  before you take any action.
             </p>
           </div>
           <a
@@ -394,7 +395,7 @@ export default function EducationPage() {
               'Legitimate businesses don\'t ask for remote access to your devices.',
               'If a deal seems too good to be true, it almost certainly is.',
               'Verify unexpected offers by contacting the company directly using their official number.',
-              'Protect your SSN, bank account, and passwords — never share them unsolicited.',
+              'Protect your SSN, bank account, and passwords  never share them unsolicited.',
               'Talk to a trusted person before making any large or unusual payment.',
             ].map((rule, i) => (
               <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -413,14 +414,14 @@ export default function EducationPage() {
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
+                If you suspect you're being targeted  even if you haven't sent money yet  contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
               </p>
             </div>
           </div>
           <div className="grid sm:grid-cols-3 gap-4 mb-5">
             {[
               { step: '1', title: 'Don\'t hang up or delete anything', desc: 'Save texts, emails, and voicemails as evidence before reporting.' },
-              { step: '2', title: 'Call the non-emergency line', desc: 'Not 911 — use the non-emergency number for your county sheriff or local police.' },
+              { step: '2', title: 'Call the non-emergency line', desc: 'Not 911  use the non-emergency number for your county sheriff or local police.' },
               { step: '3', title: 'Report to the FTC too', desc: 'Filing at ReportFraud.ftc.gov creates a federal record and helps investigators track patterns.' },
             ].map(item => (
               <div key={item.step} className="bg-white dark:bg-gray-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
@@ -481,7 +482,7 @@ const GIFT_CARD_THUMBNAILS = [
 function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
     { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
-    { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash — accepted everywhere' },
+    { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash  accepted everywhere' },
     { name: 'Green Dot MoneyPak', note: 'Government impersonation scams' },
     { name: 'Steam / Walmart / Target', note: 'Broad availability, no ID required to buy' },
   ];
@@ -538,7 +539,7 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
         <div className="flex flex-col justify-between">
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.
+              No legitimate agency or business will ever ask you to pay with a gift card. If someone does  it is a scam, no exceptions.
             </p>
             <div className="space-y-1.5">
               {COMMON_CARDS.map((card, i) => (
@@ -546,7 +547,7 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 flex-shrink-0" />
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     <span className="font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
-                    {' '}— {card.note}
+                    {' '} {card.note}
                   </p>
                 </div>
               ))}
@@ -567,8 +568,8 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
 
 function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) => void }) {
   const points = [
-    'Payments are irreversible — once sent, gone permanently',
-    'ATMs charge 5–20% fees on top of the loss itself',
+    'Payments are irreversible  once sent, gone permanently',
+    'ATMs charge 520% fees on top of the loss itself',
     'Found in liquor stores and gas stations, not banks',
     'Sending from a wallet app is equally dangerous',
     'Scammers provide a QR code or wallet address to scan',
@@ -596,7 +597,7 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
         <div className="flex flex-col justify-between">
           <div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.
+              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous  and irreversible.
             </p>
             <ul className="space-y-1.5">
               {points.map((p, i) => (
@@ -621,7 +622,7 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
 }
 
 function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
-  const displayLabel = label ?? caption.split(' — ')[0];
+  const displayLabel = label ?? caption.split('  ')[0];
   return (
     <div
       className={`relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}

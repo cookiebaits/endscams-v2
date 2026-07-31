@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall } from 'lucide-react';
-import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
+import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall, Clock } from 'lucide-react';
+import { supabase, formatPhoneDisplay, isValidScamNumber, normalizePhone } from '../lib/supabase';
 
 type Entry = {
   id: string;
@@ -42,64 +42,58 @@ type CombinedEntry = {
   reportedDown: boolean;
 };
 
-const SOURCES = [
-  {
-    name: 'US Gov Data — FCC/FTC Sheet',
-    url: 'https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a',
-    category: 'Government Data',
-  },
-  {
-    name: 'Google Search — WhatsApp / Spellcaster / Crypto Recovery',
-    url: 'https://www.google.com/search?q=%22whatsapp%22+%22scam%22',
-    category: 'Social Media / WhatsApp Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — PayPal',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0',
-    category: 'Invoice / Imposter Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Emergency',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0',
-    category: 'Emergency Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Million',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0',
-    category: 'Lottery / Prize Scam',
-  },
+const SERP_API_KEY = '372a90ce358f16044b8ced93722ad1b20b10a46d892f3116a90481b0273f2805';
+
+const SEARCH_TARGETS = [
+  { name: 'Facebook — Spellcaster Scams', query: 'site:facebook.com "spellcaster" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Facebook — Illuminati Scams', query: 'site:facebook.com "illuminati" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Instagram — Spellcaster Scams', query: 'site:instagram.com "spellcaster" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Guestbook Scams', query: 'inurl:"guestbook" spell whatsapp', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Facebook — BTC Recovery Scams', query: 'site:facebook.com "btc recovery" "Whatsapp"', category: 'Crypto Recovery Scam' },
+  { name: 'Instagram — BTC Recovery Scams', query: 'site:instagram.com "btc recovery" "Whatsapp"', category: 'Crypto Recovery Scam' },
+  { name: 'Amazon — Book Publisher Scams', query: '"book publisher" "amazon" "chat"', category: 'Publisher Scam' },
+  { name: 'PetScams — Puppy Scammer List', query: 'site:petscams.com/category/puppy-scammer-list/', category: 'Pet / Puppy Scam' },
 ];
 
 const CATEGORIES = [
   'All',
-  'Invoice / Imposter Scam',
-  'Emergency Scam',
-  'Lottery / Prize Scam',
-  'Government Impersonation',
   'Spiritual / Spellcaster Scam',
   'Crypto Recovery Scam',
+  'Publisher Scam',
+  'Pet / Puppy Scam',
+  'Invoice / Imposter Scam',
   'User Report',
   'Number Down',
 ];
+
+type TimeFilter = '7days' | '31days';
+
+function extractPhoneNumbers(text: string): string[] {
+  const regex = /(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{4}/g;
+  const matches = text.match(regex) || [];
+  return matches.map(m => normalizePhone(m)).filter(d => d.length >= 8);
+}
 
 function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): CombinedEntry[] {
   const seen = new Map<string, CombinedEntry>();
   for (const e of existing) seen.set(e.id, e);
   for (const e of incoming) seen.set(e.id, e);
 
-  // Enforce a strict 31-day cutoff and de-dup by digits (keep newest report).
-  const cutoffMs = Date.now() - 31 * 86400_000;
+  const cutoff31Days = Date.now() - 31 * 86400_000;
   const byDigits = new Map<string, CombinedEntry>();
+
   for (const entry of seen.values()) {
-    if (isFakeNumber(entry.digits)) continue;
-    const t = new Date(entry.date).getTime();
-    if (isNaN(t) || t < cutoffMs) continue;
+    if (!isValidScamNumber(entry.digits)) continue;
+    const entryTime = new Date(entry.date).getTime();
+    if (isNaN(entryTime) || entryTime < cutoff31Days) continue;
+
     const prev = byDigits.get(entry.digits);
-    if (!prev || prev.date < entry.date) byDigits.set(entry.digits, entry);
+    if (!prev || prev.date < entry.date) {
+      byDigits.set(entry.digits, entry);
+    }
   }
 
-  return Array.from(byDigits.values())
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  return Array.from(byDigits.values()).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
 export default function TrackerPage() {
@@ -108,6 +102,7 @@ export default function TrackerPage() {
   const [reloading, setReloading] = useState(false);
   const [newCount, setNewCount] = useState(0);
   const [category, setCategory] = useState('All');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('7days');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -144,19 +139,24 @@ export default function TrackerPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      const cutoffIso = new Date(Date.now() - 31 * 86400_000).toISOString();
+
+      await supabase.from('tracker_entries').delete().lt('report_date', cutoffIso);
+      await supabase.from('scam_reports').delete().lt('incident_date', cutoffIso);
+
       const [trackerRes, reportsRes] = await Promise.all([
         supabase
           .from('tracker_entries')
           .select('id,phone_number,phone_digits,source_name,source_url,report_date,category,description,created_at,reported_down')
-          .gt('expires_at', new Date().toISOString())
+          .gte('report_date', cutoffIso)
           .order('report_date', { ascending: false })
-          .limit(200),
+          .limit(300),
         supabase
           .from('scam_reports')
           .select('id,phone_number,phone_digits,category,description,incident_date,source,source_url,file_url,created_at')
-          .gt('expires_at', new Date().toISOString())
+          .gte('incident_date', cutoffIso)
           .order('incident_date', { ascending: false })
-          .limit(200),
+          .limit(300),
       ]);
 
       const incoming = buildEntries(trackerRes.data || [], reportsRes.data || []);
@@ -176,20 +176,59 @@ export default function TrackerPage() {
   const handleReload = async () => {
     setReloading(true);
     setNewCount(0);
+    let addedTrackerCount = 0;
+
     try {
-      const fetcherBase = (import.meta.env.VITE_FETCHER_URL as string | undefined) || '';
-      if (!fetcherBase) throw new Error('VITE_FETCHER_URL not set');
-      const res = await fetch(`${fetcherBase.replace(/\/$/, '')}/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}));
-        if (json.inserted) setNewCount(json.inserted);
+      for (const target of SEARCH_TARGETS) {
+        const serpUrl = `/serpapi/search.json?engine=google&q=${encodeURIComponent(target.query)}&api_key=${SERP_API_KEY}`;
+        
+        const response = await fetch(serpUrl);
+        if (!response.ok) continue;
+        
+        const data = await response.json();
+        const organicResults = data.organic_results || [];
+
+        for (const resItem of organicResults) {
+          const snippetText = `${resItem.title || ''} ${resItem.snippet || ''}`;
+          const phoneDigitsList = extractPhoneNumbers(snippetText);
+
+          for (const digits of phoneDigitsList) {
+            if (!isValidScamNumber(digits)) continue;
+
+            const formattedPhone = formatPhoneDisplay(digits);
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const { data: existing } = await supabase
+              .from('tracker_entries')
+              .select('id')
+              .eq('phone_digits', digits)
+              .maybeSingle();
+
+            if (!existing) {
+              const { error } = await supabase.from('tracker_entries').insert({
+                phone_number: formattedPhone,
+                phone_digits: digits,
+                source_name: target.name,
+                source_url: resItem.link,
+                report_date: todayStr,
+                category: target.category,
+                description: resItem.snippet || 'Scam phone listing detected via search parameters.',
+                reported_down: false,
+              });
+
+              if (!error) {
+                addedTrackerCount++;
+              }
+            }
+          }
+        }
       }
+
+      setNewCount(addedTrackerCount);
     } catch (e) {
-      console.warn('refresh failed', e);
+      console.warn('SERP API extraction encountered an error:', e);
     }
+
     await fetchData();
   };
 
@@ -202,19 +241,25 @@ export default function TrackerPage() {
         .update({ reported_down: !entry.reportedDown })
         .eq('id', entry.id);
       setEntries(prev =>
-        prev.map(e => e.id === entry.id ? { ...e, reportedDown: !entry.reportedDown } : e)
+        prev.map(e => (e.id === entry.id ? { ...e, reportedDown: !entry.reportedDown } : e))
       );
     } finally {
       setTogglingId(null);
     }
   };
 
-  const filtered = (() => {
-    if (category === 'Number Down') return entries.filter(e => e.reportedDown);
-    if (category === 'User Report') return entries.filter(e => e.type === 'user' && !e.reportedDown);
-    if (category === 'All') return entries.filter(e => !e.reportedDown);
-    return entries.filter(e => e.category === category && !e.reportedDown);
-  })();
+  const filtered = entries.filter(e => {
+    if (timeFilter === '7days') {
+      const cutoff7Days = Date.now() - 7 * 86400_000;
+      const t = new Date(e.date).getTime();
+      if (isNaN(t) || t < cutoff7Days) return false;
+    }
+
+    if (category === 'Number Down') return e.reportedDown;
+    if (category === 'User Report') return e.type === 'user' && !e.reportedDown;
+    if (category === 'All') return !e.reportedDown;
+    return e.category === category && !e.reportedDown;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
@@ -224,8 +269,8 @@ export default function TrackerPage() {
             <div>
               <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Scam Phone Tracker</h1>
               <p className="text-gray-500 dark:text-gray-400 text-sm">
-                Real non-toll-free scam numbers from verified sources. Retained for 31 days, auto-refreshed twice daily (6am &amp; 1pm PST).
-                {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+                Live SERP tracking for verified international scam numbers. Auto-purged after 31 days.
+                {lastUpdated && <span> Last checked: {lastUpdated.toLocaleTimeString()}</span>}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1.5 self-start md:self-auto">
@@ -235,19 +280,36 @@ export default function TrackerPage() {
                 className="btn-primary flex items-center gap-2"
               >
                 <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
-                {reloading ? 'Checking for new numbers...' : 'Check for New Numbers'}
+                {reloading ? 'Scanning via SERP API...' : 'Check for New Numbers'}
               </button>
-              {reloading && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
-                  Existing numbers stay visible while we search...
-                </p>
-              )}
               {!reloading && newCount > 0 && (
                 <p className="text-xs text-green-500 font-semibold text-right">
                   {newCount} new number{newCount !== 1 ? 's' : ''} added
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-4 bg-gray-200 dark:bg-gray-800 p-1 rounded-lg w-fit">
+            <span className="text-xs font-semibold px-2 text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> Timeframe:
+            </span>
+            <button
+              onClick={() => setTimeFilter('7days')}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                timeFilter === '7days' ? 'bg-brand-500 text-white shadow' : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Last 7 Days
+            </button>
+            <button
+              onClick={() => setTimeFilter('31days')}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                timeFilter === '31days' ? 'bg-brand-500 text-white shadow' : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Last 31 Days
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-6">
@@ -257,46 +319,32 @@ export default function TrackerPage() {
                 onClick={() => setCategory(cat)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                   cat === 'Number Down'
-                    ? category === cat
-                      ? 'bg-slate-600 text-white'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
-                    : category === cat
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                    ? category === cat ? 'bg-slate-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600'
+                    : category === cat ? 'bg-brand-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-600'
                 }`}
               >
                 {cat === 'Number Down' ? (
                   <span className="flex items-center gap-1">
-                    <PhoneOff className="w-3 h-3" />
-                    {cat}
+                    <PhoneOff className="w-3 h-3" /> {cat}
                   </span>
-                ) : cat}
+                ) : (
+                  cat
+                )}
               </button>
             ))}
           </div>
 
-          {category === 'Number Down' && (
-            <div className="card p-4 mb-6 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                These numbers have been community-reported as no longer active. Click <strong>Number Still Up</strong> on any entry to restore it to the main list.
-              </p>
-            </div>
-          )}
-
           <div className="card p-4 mb-6">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold">Active Source References</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold">Active Search Queries & Sources</p>
             <div className="flex flex-wrap gap-2">
-              {SOURCES.map(s => (
-                <a
+              {SEARCH_TARGETS.map(s => (
+                <div
                   key={s.name}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-brand-500 hover:text-brand-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-brand-500 bg-brand-500/5 px-2 py-1 rounded border border-brand-500/10"
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <Tag className="w-3 h-3" />
                   {s.name}
-                </a>
+                </div>
               ))}
             </div>
           </div>
@@ -305,33 +353,21 @@ export default function TrackerPage() {
         {loading ? (
           <div className="text-center py-20">
             <Loader2 className="w-10 h-10 text-brand-500 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-500 dark:text-gray-400">Loading scam tracker data...</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading scam tracker records...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 card p-10">
             <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              {category === 'Number Down' ? 'No numbers reported down' : 'No entries yet'}
-            </h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No entries found</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              {category === 'Number Down'
-                ? 'When a number is flagged as no longer active, it will appear here.'
-                : 'The database is empty. Reports submitted via the form and data fetched from external sources will appear here.'}
+              There are no reports matching the selected category for the {timeFilter === '7days' ? 'last 7 days' : 'last 31 days'}.
             </p>
-            {category !== 'Number Down' && (
-              <div className="space-y-3 text-sm text-gray-400 dark:text-gray-500">
-                <p className="font-semibold text-gray-600 dark:text-gray-300">Check these sources directly:</p>
-                {SOURCES.slice(0, 4).map(s => (
-                  <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-brand-500 hover:underline">
-                    <ExternalLink className="w-4 h-4" />{s.name}
-                  </a>
-                ))}
-              </div>
-            )}
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{filtered.length} entries found</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Showing {filtered.length} entries ({timeFilter === '7days' ? 'Last 7 Days' : 'Last 31 Days'})
+            </p>
             {filtered.map(entry => (
               <TrackerEntryCard
                 key={entry.id}
@@ -360,17 +396,16 @@ function TrackerEntryCard({
   showingDown: boolean;
 }) {
   const categoryColors: Record<string, string> = {
-    'Invoice / Imposter Scam': 'text-orange-500 bg-orange-500/10',
-    'Emergency Scam': 'text-red-500 bg-red-500/10',
-    'Lottery / Prize Scam': 'text-yellow-500 bg-yellow-500/10',
-    'Government Impersonation': 'text-blue-500 bg-blue-500/10',
     'Spiritual / Spellcaster Scam': 'text-teal-500 bg-teal-500/10',
     'Crypto Recovery Scam': 'text-cyan-500 bg-cyan-500/10',
+    'Publisher Scam': 'text-purple-500 bg-purple-500/10',
+    'Pet / Puppy Scam': 'text-amber-500 bg-amber-500/10',
+    'Invoice / Imposter Scam': 'text-orange-500 bg-orange-500/10',
   };
   const colorClass = categoryColors[entry.category] || 'text-gray-500 bg-gray-500/10';
 
   return (
-    <div className={`card p-5 hover:border-brand-500/30 transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-300 dark:border-slate-700' : ''}`}>
+    <div className={`card p-5 hover:border-brand-500/30 transition-all duration-200 ${entry.reportedDown ? 'opacity-75 border-slate-300 dark:border-slate-700' : ''}`}>
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -384,41 +419,23 @@ function TrackerEntryCard({
             )}
             {entry.reportedDown && (
               <span className="text-xs px-2 py-1 rounded font-semibold text-slate-500 bg-slate-500/10 flex items-center gap-1">
-                <PhoneOff className="w-3 h-3" />
-                Number Down
+                <PhoneOff className="w-3 h-3" /> Number Down
               </span>
             )}
           </div>
 
           {entry.description && (
             <div className="text-sm text-gray-600 dark:text-gray-400 mb-3 space-y-1">
-              {entry.description.split(/\s+\|\s+/).slice(0, 4).map((chunk, i) => {
-                const [labelRaw, ...rest] = chunk.split(/:\s*/);
-                const hasLabel = rest.length > 0 && labelRaw.length < 30;
-                return (
-                  <div key={i} className="leading-snug">
-                    {hasLabel ? (
-                      <>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">{labelRaw}:</span>{' '}
-                        <span>{rest.join(': ')}</span>
-                      </>
-                    ) : (
-                      <span>{chunk}</span>
-                    )}
-                  </div>
-                );
-              })}
+              <p>{entry.description}</p>
             </div>
           )}
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
             <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              Report date: {entry.date}
+              <Calendar className="w-3 h-3" /> Report date: {entry.date}
             </span>
             <span className="flex items-center gap-1">
-              <Tag className="w-3 h-3" />
-              {entry.sourceName}
+              <Tag className="w-3 h-3" /> {entry.sourceName}
             </span>
           </div>
         </div>
@@ -431,8 +448,7 @@ function TrackerEntryCard({
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 rounded-lg text-sm font-semibold transition-all"
             >
-              <ExternalLink className="w-4 h-4" />
-              View Report
+              <ExternalLink className="w-4 h-4" /> View Source
             </a>
           )}
           {entry.fileUrl && (
@@ -440,40 +456,26 @@ function TrackerEntryCard({
               href={entry.fileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-semibold transition-all"
             >
-              <Paperclip className="w-4 h-4" />
-              Uploaded Resource
+              <Paperclip className="w-4 h-4" /> Attachment
             </a>
           )}
           {entry.type === 'tracker' && (
-            showingDown ? (
-              <button
-                onClick={() => onToggleDown(entry)}
-                disabled={toggling}
-                className="flex items-center gap-2 px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-              >
-                {toggling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <PhoneCall className="w-4 h-4" />
-                )}
-                Number Still Up
-              </button>
-            ) : (
-              <button
-                onClick={() => onToggleDown(entry)}
-                disabled={toggling}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-              >
-                {toggling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <PhoneOff className="w-4 h-4" />
-                )}
-                Report Number Down
-              </button>
-            )
+            <button
+              onClick={() => onToggleDown(entry)}
+              disabled={toggling}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-gray-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
+            >
+              {toggling ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : showingDown ? (
+                <PhoneCall className="w-4 h-4 text-green-500" />
+              ) : (
+                <PhoneOff className="w-4 h-4" />
+              )}
+              {showingDown ? 'Number Still Up' : 'Report Number Down'}
+            </button>
           )}
         </div>
       </div>
