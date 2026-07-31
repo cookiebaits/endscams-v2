@@ -34,11 +34,13 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const SERP_API_KEY = env("SERP_API_KEY");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ALLOWED_ORIGIN2 = "http://localhost:5173";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ALLOWED_ORIGIN3 = "http://localhost:5174";
 const PORT = parseInt(env("PORT") || "8000", 10);
 
@@ -154,29 +156,61 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  Google Search via SerpAPI                                        */
+/*  DuckDuckGo Lite Scraper                                          */
 /* ================================================================ */
 interface CseItem { title?: string; snippet?: string; link?: string; }
 
-async function googleSearch(q: string, num = 5): Promise<CseItem[]> {
-  if (!SERP_API_KEY) return [];
-  const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(q)}&num=${num}&api_key=${encodeURIComponent(SERP_API_KEY)}`;
+async function duckduckgoSearch(q: string, num = 5): Promise<CseItem[]> {
+  const url = 'https://lite.duckduckgo.com/lite/';
+  const body = new URLSearchParams({ q });
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      },
+      body
+    });
     if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn(`SerpAPI ${res.status} q=${q}: ${t.slice(0, 200)}`);
+      console.warn(`DDG Lite ${res.status} q=${q}`);
       return [];
     }
-    const data = await res.json();
-    const results = data.organic_results || [];
-    return results.map((r: any) => ({
-        title: r.title,
-        snippet: r.snippet,
-        link: r.link
-    }));
+    const html = await res.text();
+    const results: CseItem[] = [];
+
+    const linkRegex = /<a[^>]*href="([^"]+)"[^>]*class="result-url"[^>]*>([\s\S]*?)<\/a>/g;
+    const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/g;
+
+    const links: {link: string, title: string}[] = [];
+    let linkMatch;
+    while ((linkMatch = linkRegex.exec(html)) !== null) {
+      links.push({
+        link: linkMatch[1],
+        title: linkMatch[2].replace(/<[^>]+>/g, '').trim()
+      });
+    }
+
+    const snippets: string[] = [];
+    let snippetMatch;
+    while ((snippetMatch = snippetRegex.exec(html)) !== null) {
+      if (!snippetMatch[1].includes('class="result-url"')) {
+        snippets.push(snippetMatch[1].replace(/<[^>]+>/g, '').trim());
+      }
+    }
+
+    for (let i = 0; i < Math.min(links.length, snippets.length, num); i++) {
+      results.push({
+        link: links[i].link,
+        title: links[i].title,
+        snippet: snippets[i]
+      });
+    }
+
+    return results;
   } catch (e) {
-    console.warn(`SerpAPI err q=${q}`, e);
+    console.warn(`DDG err q=${q}`, e);
     return [];
   }
 }
@@ -345,13 +379,11 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        if (SERP_API_KEY) {
-          const items = await googleSearch(`"${row.digits}" scam`, 5);
-          csvGoogle++;
-          if (items.length > 0) {
-            foundUrl = items[0].link || foundUrl;
-            metaSnippet = summarizeSnippets(items);
-          }
+        const items = await duckduckgoSearch(`"${row.digits}" scam`, 5);
+        csvGoogle++;
+        if (items.length > 0) {
+          foundUrl = items[0].link || foundUrl;
+          metaSnippet = summarizeSnippets(items);
         }
 
         const parts: string[] = [`FCC/FTC report ${toIsoDate(row.date!)}`];
@@ -374,28 +406,26 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto SERP queries */
+  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
-  if (SERP_API_KEY) {
-    for (const q of WHATSAPP_QUERIES) {
-      const items = await googleSearch(q.q, 8);
-      cseUsed++;
-      for (const item of items) {
-        const text = `${item.title || ""} ${item.snippet || ""}`;
-        const nums = extractPhoneNumbers(text);
-        for (const digits of nums) {
-          if (collected.some(c => c.phone_digits === digits)) continue;
-          collected.push({
-            phone_number: formatPhoneDisplay(digits),
-            phone_digits: digits,
-            source_name: `Google Search — ${q.label}`,
-            source_url: item.link || "https://www.google.com",
-            report_date: todayIso,
-            category: q.category,
-            description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
-          });
-        }
+  for (const q of WHATSAPP_QUERIES) {
+    const items = await duckduckgoSearch(q.q, 8);
+    cseUsed++;
+    for (const item of items) {
+      const text = `${item.title || ""} ${item.snippet || ""}`;
+      const nums = extractPhoneNumbers(text);
+      for (const digits of nums) {
+        if (collected.some(c => c.phone_digits === digits)) continue;
+        collected.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: `DuckDuckGo Search — ${q.label}`,
+          source_url: item.link || "https://duckduckgo.com",
+          report_date: todayIso,
+          category: q.category,
+          description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
+        });
       }
     }
   }
