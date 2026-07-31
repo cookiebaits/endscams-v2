@@ -34,8 +34,7 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const GOOGLE_API_KEY = env("GOOGLE_API_KEY");
-const GOOGLE_CX = env("GOOGLE_CX");
+const SERP_API_KEY = env("SERP_API_KEY");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
@@ -155,24 +154,29 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  Google CSE                                                       */
+/*  Google Search via SerpAPI                                        */
 /* ================================================================ */
 interface CseItem { title?: string; snippet?: string; link?: string; }
 
-async function googleSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
-  if (!GOOGLE_API_KEY) return [];
-  const url = `https://customsearch.googleapis.com/customsearch/v1?key=${encodeURIComponent(GOOGLE_API_KEY)}&cx=${encodeURIComponent(GOOGLE_CX)}&q=${encodeURIComponent(q)}&num=${num}&dateRestrict=${dateRestrict}`;
+async function googleSearch(q: string, num = 5): Promise<CseItem[]> {
+  if (!SERP_API_KEY) return [];
+  const url = `https://serpapi.com/search.json?engine=google&q=${encodeURIComponent(q)}&num=${num}&api_key=${encodeURIComponent(SERP_API_KEY)}`;
   try {
     const res = await fetch(url);
     if (!res.ok) {
       const t = await res.text().catch(() => "");
-      console.warn(`CSE ${res.status} q=${q}: ${t.slice(0, 200)}`);
+      console.warn(`SerpAPI ${res.status} q=${q}: ${t.slice(0, 200)}`);
       return [];
     }
     const data = await res.json();
-    return (data.items || []) as CseItem[];
+    const results = data.organic_results || [];
+    return results.map((r: any) => ({
+        title: r.title,
+        snippet: r.snippet,
+        link: r.link
+    }));
   } catch (e) {
-    console.warn(`CSE err q=${q}`, e);
+    console.warn(`SerpAPI err q=${q}`, e);
     return [];
   }
 }
@@ -341,8 +345,8 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        if (GOOGLE_API_KEY) {
-          const items = await googleSearch(`"${row.digits}" scam`, "w2", 5);
+        if (SERP_API_KEY) {
+          const items = await googleSearch(`"${row.digits}" scam`, 5);
           csvGoogle++;
           if (items.length > 0) {
             foundUrl = items[0].link || foundUrl;
@@ -370,12 +374,12 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto CSE queries */
+  /* 3. WhatsApp / Spellcaster / Crypto SERP queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
-  if (GOOGLE_API_KEY) {
+  if (SERP_API_KEY) {
     for (const q of WHATSAPP_QUERIES) {
-      const items = await googleSearch(q.q, "w2", 8);
+      const items = await googleSearch(q.q, 8);
       cseUsed++;
       for (const item of items) {
         const text = `${item.title || ""} ${item.snippet || ""}`;
