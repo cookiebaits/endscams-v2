@@ -188,6 +188,39 @@ function summarizeSnippets(items: CseItem[], maxChars = 240): string {
 }
 
 /* ================================================================ */
+/*  PetScams scraper                                                 */
+/* ================================================================ */
+async function fetchPetScams(url: string): Promise<{ digits: string; snippet: string }[]> {
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; EndScamsBot/1.0)" } });
+    if (!res.ok) { console.warn(`PetScams ${res.status}: ${url}`); return []; }
+    const html = await res.text();
+    const stripped = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/\s+/g, " ");
+    const digits = extractPhoneNumbers(stripped);
+    return digits.map(d => {
+      const forms = [d, d.length === 10 ? `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}` : "", d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : ""].filter(Boolean);
+      let snippet = "";
+      for (const f of forms) {
+        const idx = stripped.indexOf(f);
+        if (idx >= 0) {
+          snippet = stripped.slice(Math.max(0, idx - 80), Math.min(stripped.length, idx + f.length + 120)).trim();
+          break;
+        }
+      }
+      return { digits: d, snippet };
+    });
+  } catch (e) {
+    console.warn(`PetScams err ${url}`, e);
+    return [];
+  }
+}
+
+/* ================================================================ */
 /*  BBB scraper                                                      */
 /* ================================================================ */
 async function fetchBBB(url: string): Promise<{ digits: string; snippet: string }[]> {
@@ -226,21 +259,23 @@ async function fetchBBB(url: string): Promise<{ digits: string; snippet: string 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
 const WHATSAPP_QUERIES = [
-  { q: 'site:facebook.com "spellcaster" "Whatsapp" "Healing" "Fortune"', category: "Spiritual / Spellcaster Scam", label: "Facebook — Spellcaster/Healing" },
-  { q: 'site:facebook.com "illuminati" "Whatsapp"',                     category: "Spiritual / Spellcaster Scam", label: "Facebook — Illuminati" },
-  { q: 'site:instagram.com "spellcaster" "Whatsapp"',                   category: "Spiritual / Spellcaster Scam", label: "Instagram — Spellcaster" },
-  { q: 'site:facebook.com "btc recovery" "Whatsapp"',                   category: "Crypto Recovery Scam",         label: "Facebook — BTC Recovery" },
-  { q: 'site:instagram.com "btc recovery" "Whatsapp"',                  category: "Crypto Recovery Scam",         label: "Instagram — BTC Recovery" },
-  { q: '"Whatsapp" "Fortune" "Fortune Telling"',                        category: "Spiritual / Spellcaster Scam", label: "Web — Fortune Telling" },
-  { q: '"Whatsapp" "Magic" "Magician"',                                 category: "Spiritual / Spellcaster Scam", label: "Web — Magic/Magician" },
-  { q: '"Whatsapp" "Crypto Recovery"',                                  category: "Crypto Recovery Scam",         label: "Web — Crypto Recovery" },
-  { q: '"guestbook" spell "WhatsApp"',                                  category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
+  { q: 'site:facebook.com "spellcaster" "Whatsapp"', category: "Spiritual / Spellcaster Scam", label: "Facebook — Spellcaster" },
+  { q: 'site:facebook.com "illuminati" "Whatsapp"',  category: "Spiritual / Spellcaster Scam", label: "Facebook — Illuminati" },
+  { q: 'site:instagram.com "spellcaster" "Whatsapp"',category: "Spiritual / Spellcaster Scam", label: "Instagram — Spellcaster" },
+  { q: 'inurl:"guestbook" spell whatsapp',           category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
+  { q: 'site:facebook.com "btc recovery" "Whatsapp"',category: "Crypto Recovery Scam",         label: "Facebook — BTC Recovery" },
+  { q: 'site:instagram.com "btc recovery" "Whatsapp"',category: "Crypto Recovery Scam",         label: "Instagram — BTC Recovery" },
+  { q: '"book publisher" "amazon" "chat"',           category: "Publisher Scam",               label: "Web — Book Publisher" },
 ];
 
 const BBB_QUERIES = [
   { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0",    category: "Invoice / Imposter Scam", label: "BBB — PayPal" },
   { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0", category: "Emergency Scam",          label: "BBB — Emergency" },
   { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0",   category: "Lottery / Prize Scam",    label: "BBB — Million" },
+];
+
+const PETSCAMS_URLS = [
+  { url: "https://petscams.com/category/puppy-scammer-list/", category: "Pet / Puppy Scam", label: "PetScams — Puppy Scammer List" }
 ];
 
 function normalizeCategory(raw: string): string {
@@ -380,7 +415,26 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   }
 
-  /* 5. Dedupe by digits, keep newest */
+  /* 5. PetScams HTML */
+  let petscamsFound = 0;
+  for (const p of PETSCAMS_URLS) {
+    const items = await fetchPetScams(p.url);
+    for (const f of items) {
+      if (collected.some(c => c.phone_digits === f.digits)) continue;
+      collected.push({
+        phone_number: formatPhoneDisplay(f.digits),
+        phone_digits: f.digits,
+        source_name: p.label,
+        source_url: p.url,
+        report_date: todayIso,
+        category: p.category,
+        description: (f.snippet ? `PetScams Tracker: ${f.snippet}` : `PetScams Tracker (${p.label})`).slice(0, 900),
+      });
+      petscamsFound++;
+    }
+  }
+
+  /* 6. Dedupe by digits, keep newest */
   const byDigits = new Map<string, ScamEntry>();
   for (const e of collected) {
     const prev = byDigits.get(e.phone_digits);
@@ -388,7 +442,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   }
   const finalEntries = Array.from(byDigits.values());
 
-  /* 6. Upsert */
+  /* 7. Upsert */
   let inserted = 0;
   const errors: string[] = [];
   for (const entry of finalEntries) {
@@ -418,6 +472,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     csv_google_queries: csvGoogle,
     cse_queries: cseUsed,
     bbb_found: bbbFound,
+    petscams_found: petscamsFound,
     total_candidates: collected.length,
     deduped: finalEntries.length,
     inserted,

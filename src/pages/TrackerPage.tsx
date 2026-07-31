@@ -43,15 +43,14 @@ type CombinedEntry = {
 };
 
 const SEARCH_TARGETS = [
-  { name: 'Facebook — Spellcaster/Healing', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Facebook — Spellcaster', category: 'Spiritual / Spellcaster Scam' },
   { name: 'Facebook — Illuminati', category: 'Spiritual / Spellcaster Scam' },
   { name: 'Instagram — Spellcaster', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Web — Guestbook Spell', category: 'Spiritual / Spellcaster Scam' },
   { name: 'Facebook — BTC Recovery', category: 'Crypto Recovery Scam' },
   { name: 'Instagram — BTC Recovery', category: 'Crypto Recovery Scam' },
-  { name: 'Web — Fortune Telling', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Web — Magic/Magician', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Web — Crypto Recovery', category: 'Crypto Recovery Scam' },
-  { name: 'Web — Guestbook Spell', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Web — Book Publisher', category: 'Publisher Scam' },
+  { name: 'PetScams — Puppy Scammer List', category: 'Pet / Puppy Scam' },
   { name: 'BBB — PayPal', category: 'Invoice / Imposter Scam' },
   { name: 'BBB — Emergency', category: 'Emergency Scam' },
   { name: 'BBB — Million', category: 'Lottery / Prize Scam' },
