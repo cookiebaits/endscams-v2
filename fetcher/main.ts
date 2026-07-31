@@ -176,7 +176,7 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
     const html = new TextDecoder().decode(stdout);
 
     const snippets = [...html.matchAll(/class='result-snippet'[^>]*>([\s\S]*?)<\/td>/gi)];
-    const links = [...html.matchAll(/class='result-url'[^>]*href="([^"]+)"/gi)];
+    const links = [...html.matchAll(/href="([^"]+)"\s*class='result-link'|class='result-link'[^>]*href="([^"]+)"/gi)];
     const titles = [...html.matchAll(/class='result-link'[^>]*>([\s\S]*?)<\/a>/gi)];
 
     const results: SearchItem[] = [];
@@ -185,7 +185,7 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
         results.push({
             title: titles[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
             snippet: snippets[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
-            link: links[i]?.[1] || ""
+            link: links[i]?.[1] || links[i]?.[2] || ""
         });
     }
 
