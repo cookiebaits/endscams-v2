@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall, Clock } from 'lucide-react';
-import { supabase, formatPhoneDisplay, isValidScamNumber, normalizePhone } from '../lib/supabase';
+import { supabase, formatPhoneDisplay, isValidScamNumber } from '../lib/supabase';
 
 type Entry = {
   id: string;
@@ -42,17 +42,20 @@ type CombinedEntry = {
   reportedDown: boolean;
 };
 
-const SERP_API_KEY = '372a90ce358f16044b8ced93722ad1b20b10a46d892f3116a90481b0273f2805';
-
 const SEARCH_TARGETS = [
-  { name: 'Facebook — Spellcaster Scams', query: 'site:facebook.com "spellcaster" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Facebook — Illuminati Scams', query: 'site:facebook.com "illuminati" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Instagram — Spellcaster Scams', query: 'site:instagram.com "spellcaster" "Whatsapp"', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Guestbook Scams', query: 'inurl:"guestbook" spell whatsapp', category: 'Spiritual / Spellcaster Scam' },
-  { name: 'Facebook — BTC Recovery Scams', query: 'site:facebook.com "btc recovery" "Whatsapp"', category: 'Crypto Recovery Scam' },
-  { name: 'Instagram — BTC Recovery Scams', query: 'site:instagram.com "btc recovery" "Whatsapp"', category: 'Crypto Recovery Scam' },
-  { name: 'Amazon — Book Publisher Scams', query: '"book publisher" "amazon" "chat"', category: 'Publisher Scam' },
-  { name: 'PetScams — Puppy Scammer List', query: 'site:petscams.com/category/puppy-scammer-list/', category: 'Pet / Puppy Scam' },
+  { name: 'Facebook — Spellcaster/Healing', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Facebook — Illuminati', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Instagram — Spellcaster', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Facebook — BTC Recovery', category: 'Crypto Recovery Scam' },
+  { name: 'Instagram — BTC Recovery', category: 'Crypto Recovery Scam' },
+  { name: 'Web — Fortune Telling', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Web — Magic/Magician', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'Web — Crypto Recovery', category: 'Crypto Recovery Scam' },
+  { name: 'Web — Guestbook Spell', category: 'Spiritual / Spellcaster Scam' },
+  { name: 'BBB — PayPal', category: 'Invoice / Imposter Scam' },
+  { name: 'BBB — Emergency', category: 'Emergency Scam' },
+  { name: 'BBB — Million', category: 'Lottery / Prize Scam' },
+  { name: 'US Gov Data — FCC/FTC', category: 'Various' },
 ];
 
 const CATEGORIES = [
@@ -67,12 +70,6 @@ const CATEGORIES = [
 ];
 
 type TimeFilter = '7days' | '31days';
-
-function extractPhoneNumbers(text: string): string[] {
-  const regex = /(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{4}/g;
-  const matches = text.match(regex) || [];
-  return matches.map(m => normalizePhone(m)).filter(d => d.length >= 8);
-}
 
 function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): CombinedEntry[] {
   const seen = new Map<string, CombinedEntry>();
@@ -176,57 +173,21 @@ export default function TrackerPage() {
   const handleReload = async () => {
     setReloading(true);
     setNewCount(0);
-    let addedTrackerCount = 0;
 
     try {
-      for (const target of SEARCH_TARGETS) {
-        const serpUrl = `/serpapi/search.json?engine=google&q=${encodeURIComponent(target.query)}&api_key=${SERP_API_KEY}`;
-        
-        const response = await fetch(serpUrl);
-        if (!response.ok) continue;
-        
-        const data = await response.json();
-        const organicResults = data.organic_results || [];
+      const fetcherUrl = import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org';
+      const res = await fetch(`${fetcherUrl}/refresh`, { method: 'POST' });
 
-        for (const resItem of organicResults) {
-          const snippetText = `${resItem.title || ''} ${resItem.snippet || ''}`;
-          const phoneDigitsList = extractPhoneNumbers(snippetText);
-
-          for (const digits of phoneDigitsList) {
-            if (!isValidScamNumber(digits)) continue;
-
-            const formattedPhone = formatPhoneDisplay(digits);
-            const todayStr = new Date().toISOString().split('T')[0];
-
-            const { data: existing } = await supabase
-              .from('tracker_entries')
-              .select('id')
-              .eq('phone_digits', digits)
-              .maybeSingle();
-
-            if (!existing) {
-              const { error } = await supabase.from('tracker_entries').insert({
-                phone_number: formattedPhone,
-                phone_digits: digits,
-                source_name: target.name,
-                source_url: resItem.link,
-                report_date: todayStr,
-                category: target.category,
-                description: resItem.snippet || 'Scam phone listing detected via search parameters.',
-                reported_down: false,
-              });
-
-              if (!error) {
-                addedTrackerCount++;
-              }
-            }
-          }
+      if (!res.ok) {
+        console.warn('Fetcher returned status:', res.status);
+      } else {
+        const stats = await res.json();
+        if (stats.inserted !== undefined) {
+          setNewCount(stats.inserted);
         }
       }
-
-      setNewCount(addedTrackerCount);
     } catch (e) {
-      console.warn('SERP API extraction encountered an error:', e);
+      console.warn('Error refreshing tracker data:', e);
     }
 
     await fetchData();
@@ -280,7 +241,7 @@ export default function TrackerPage() {
                 className="btn-primary flex items-center gap-2"
               >
                 <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
-                {reloading ? 'Scanning via SERP API...' : 'Check for New Numbers'}
+                {reloading ? 'Scanning via Fetcher...' : 'Check for New Numbers'}
               </button>
               {!reloading && newCount > 0 && (
                 <p className="text-xs text-green-500 font-semibold text-right">
