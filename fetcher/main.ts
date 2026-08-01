@@ -153,45 +153,50 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  DuckDuckGo Lite Scraper                                          */
+/*  Yahoo Search Scraper                                             */
 /* ================================================================ */
 interface SearchItem { title?: string; snippet?: string; link?: string; }
 
-async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
-  const url = `https://lite.duckduckgo.com/lite/`;
-  const body = new URLSearchParams({ q });
+async function yahooSearch(q: string): Promise<SearchItem[]> {
+  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`;
 
   try {
-    // using curl here helps bypass DDG's node/deno fetch bot detection
-    const process = new Deno.Command("curl", {
-      args: [
-        "-s",
-        "-d", body.toString(),
-        "-H", "User-Agent: w3m/0.5.3",
-        url
-      ],
-      stdout: "piped"
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+      }
     });
-    const { stdout } = await process.output();
-    const html = new TextDecoder().decode(stdout);
+    const html = await res.text();
 
-    const snippets = [...html.matchAll(/class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/gi)];
-    const links = [...html.matchAll(/class=['"]result-link['"][^>]*href=['"]([^'"]+)['"]|href=['"]([^'"]+)['"][^>]*class=['"]result-link['"]/gi)];
-    const titles = [...html.matchAll(/class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/gi)];
-
+    const parts = html.split('<div class="compTitle');
     const results: SearchItem[] = [];
-    const limit = Math.min(5, snippets.length);
-    for (let i = 0; i < limit; i++) {
-        results.push({
-            title: titles[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
-            snippet: snippets[i]?.[1]?.replace(/<[^>]+>/g, '').trim() || "",
-            link: links[i]?.[1] || links[i]?.[2] || ""
-        });
+
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      const h3Match = part.match(/<h3[^>]*class="title[^"]*"[^>]*>([\s\S]*?)<\/h3>/i);
+      if (!h3Match) continue;
+
+      const h3Inner = h3Match[1];
+      const linkMatch = part.match(/href="([^"]+)"/i);
+      if (!linkMatch) continue;
+
+      let link = linkMatch[1];
+      const ruMatch = link.match(/\/RU=([^/]+)/);
+      if (ruMatch) {
+          try { link = decodeURIComponent(ruMatch[1]); } catch(e) {}
+      }
+
+      const title = h3Inner.replace(/<[^>]+>/g, '').trim();
+      const snippetMatch = part.match(/<div class="compText[^>]*>([\s\S]*?)<\/div>/i);
+      const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+
+      results.push({ title, link, snippet });
+      if (results.length >= 5) break;
     }
 
     return results;
   } catch (e) {
-    console.warn(`DDG Lite err q=${q}`, e);
+    console.warn(`Yahoo Search err q=${q}`, e);
     return [];
   }
 }
@@ -360,9 +365,9 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        // Let's delay half a second to respect DDG rate limits
+        // Let's delay half a second to respect rate limits
         await new Promise(r => setTimeout(r, 500));
-        const items = await duckDuckGoLiteSearch(`${row.digits} scam`);
+        const items = await yahooSearch(`${row.digits} scam`);
         csvGoogle++;
         if (items.length > 0) {
           foundUrl = items[0].link || foundUrl;
@@ -389,13 +394,13 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
+  /* 3. WhatsApp / Spellcaster / Crypto Web queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
 
   for (const q of WHATSAPP_QUERIES) {
-    await new Promise(r => setTimeout(r, 1000)); // 1s delay to prevent DDG block
-    const items = await duckDuckGoLiteSearch(q.q);
+    await new Promise(r => setTimeout(r, 1000)); // 1s delay to prevent block
+    const items = await yahooSearch(q.q);
     cseUsed++;
     for (const item of items) {
       const text = `${item.title || ""} ${item.snippet || ""}`;
