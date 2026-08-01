@@ -153,12 +153,12 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  DuckDuckGo Lite Scraper                                          */
+/*  DuckDuckGo Scraper                                               */
 /* ================================================================ */
 interface SearchItem { title?: string; snippet?: string; link?: string; }
 
 async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
-  const url = `https://lite.duckduckgo.com/lite/`;
+  const url = `https://html.duckduckgo.com/html/`;
   const body = new URLSearchParams({ q });
 
   try {
@@ -167,7 +167,7 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
       args: [
         "-s",
         "-d", body.toString(),
-        "-H", "User-Agent: w3m/0.5.3",
+        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         url
       ],
       stdout: "piped"
@@ -175,9 +175,9 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
     const { stdout } = await process.output();
     const html = new TextDecoder().decode(stdout);
 
-    const snippets = [...html.matchAll(/class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/gi)];
-    const links = [...html.matchAll(/class=['"]result-link['"][^>]*href=['"]([^'"]+)['"]|href=['"]([^'"]+)['"][^>]*class=['"]result-link['"]/gi)];
-    const titles = [...html.matchAll(/class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/gi)];
+    const snippets = [...html.matchAll(/class=['"]result__snippet[^>]*>([\s\S]*?)<\/a>/gi)];
+    const links = [...html.matchAll(/class=['"]result__url[^>]*href=['"]([^'"]+)['"]/gi)];
+    const titles = [...html.matchAll(/class=['"]result__a[^>]*>([\s\S]*?)<\/a>/gi)];
 
     const results: SearchItem[] = [];
     const limit = Math.min(5, snippets.length);
@@ -191,7 +191,7 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
 
     return results;
   } catch (e) {
-    console.warn(`DDG Lite err q=${q}`, e);
+    console.warn(`DDG err q=${q}`, e);
     return [];
   }
 }
