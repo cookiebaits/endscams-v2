@@ -174,7 +174,7 @@ export default function TrackerPage() {
     setNewCount(0);
 
     try {
-      const fetcherUrl = import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org';
+      const fetcherUrl = import.meta.env.VITE_FETCHER_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'https://fetcher.endscams.org');
       const res = await fetch(`${fetcherUrl}/refresh`, { method: 'POST' });
 
       if (!res.ok) {

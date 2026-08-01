@@ -175,9 +175,9 @@ async function duckDuckGoLiteSearch(q: string): Promise<SearchItem[]> {
     const { stdout } = await process.output();
     const html = new TextDecoder().decode(stdout);
 
-    const snippets = [...html.matchAll(/class='result-snippet'[^>]*>([\s\S]*?)<\/td>/gi)];
-    const links = [...html.matchAll(/href="([^"]+)"\s*class='result-link'|class='result-link'[^>]*href="([^"]+)"/gi)];
-    const titles = [...html.matchAll(/class='result-link'[^>]*>([\s\S]*?)<\/a>/gi)];
+    const snippets = [...html.matchAll(/class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/gi)];
+    const links = [...html.matchAll(/class=['"]result-link['"][^>]*href=['"]([^'"]+)['"]|href=['"]([^'"]+)['"][^>]*class=['"]result-link['"]/gi)];
+    const titles = [...html.matchAll(/class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/gi)];
 
     const results: SearchItem[] = [];
     const limit = Math.min(5, snippets.length);
