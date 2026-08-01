@@ -116,7 +116,7 @@ export default function HomePage() {
           className="absolute inset-0 opacity-30 dark:opacity-20"
           style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-gray-50/90 to-gray-50 dark:from-gray-950/80 dark:via-gray-950/90 dark:to-gray-950" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-gray-50/90 to-gray-50 dark:from-gray-950/80 dark:via-gray-950/90 dark:to-gray-950" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
