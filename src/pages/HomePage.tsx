@@ -116,7 +116,7 @@ export default function HomePage() {
           className="absolute inset-0 opacity-30 dark:opacity-20"
           style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-gray-50/90 to-gray-50 dark:from-black/90 dark:via-gray-900/90 dark:to-black/90" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-gray-50/90 to-gray-50 dark:from-gray-950/80 dark:via-gray-950/90 dark:to-gray-950" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
@@ -124,7 +124,7 @@ export default function HomePage() {
             CyberScam Watch Dog Network
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6 text-gray-900 dark:text-white leading-tight font-mono tracking-tighter uppercase">
+          <h1 className="text-5xl md:text-7xl font-black mb-6 text-gray-900 dark:text-white leading-tight tracking-tight">
             End Scams Through<br />
             <span className="text-brand-500">Education</span>
           </h1>
@@ -349,7 +349,7 @@ function ImpactCard({ icon: Icon, value, label, description, color, bgColor }: {
       <div className={`w-16 h-16 rounded-full ${bgColor} flex items-center justify-center mx-auto mb-4`}>
         <Icon className={`w-8 h-8 ${color}`} />
       </div>
-      <div className={`text-4xl font-black font-mono ${color} mb-2`}>{value}</div>
+      <div className={`text-4xl font-black ${color} mb-2`}>{value}</div>
       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{label}</h3>
       <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </div>
