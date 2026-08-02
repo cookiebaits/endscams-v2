@@ -74,7 +74,7 @@ export default function HomePage() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
           <Radar className="w-8 h-8 text-brand-500 animate-pulse" />
         </div>
-        <h1 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight uppercase">Threat Database Search</h1>
+        <h1 className="text-2xl md:text-4xl font-black text-white mb-4 tracking-tight uppercase">Threat Database Search</h1>
         <p className="text-gray-400 font-mono text-sm md:text-base max-w-2xl mx-auto">
           Cross-reference suspicious indicators against our real-time community threat database.
         </p>
@@ -89,7 +89,7 @@ export default function HomePage() {
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             placeholder="(555) 123-4567"
-            className="flex-1 bg-black border-2 border-gray-800 text-brand-500 font-mono text-2xl rounded-sm px-6 py-5 focus:ring-0 focus:border-brand-500 outline-none transition-colors shadow-inner text-center md:text-left tracking-widest"
+            className="flex-1 bg-black border-2 border-gray-800 text-brand-500 font-mono text-lg rounded-sm px-6 py-5 focus:ring-0 focus:border-brand-500 outline-none transition-colors shadow-inner text-center md:text-left tracking-widest"
             disabled={isSearching}
           />
           <button
@@ -190,17 +190,17 @@ export default function HomePage() {
           <div className="bg-[#111] border-t-2 border-brand-500 p-6 text-center shadow-lg relative overflow-hidden group">
             <div className="absolute inset-0 bg-brand-500/5 group-hover:bg-brand-500/10 transition-colors"></div>
             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2">Reported Losses</p>
-            <p className="text-3xl font-black font-mono text-brand-500 drop-shadow-sm">{impactStats.total_loss_short}</p>
+            <p className="text-2xl font-black font-mono text-brand-500 drop-shadow-sm">{impactStats.total_loss_short}</p>
           </div>
           <div className="bg-[#111] border-t-2 border-brand-500 p-6 text-center shadow-lg relative overflow-hidden group">
             <div className="absolute inset-0 bg-brand-500/5 group-hover:bg-brand-500/10 transition-colors"></div>
             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2">Victims (YoY)</p>
-            <p className="text-3xl font-black font-mono text-white">{impactStats.yoy_increase}</p>
+            <p className="text-2xl font-black font-mono text-white">{impactStats.yoy_increase}</p>
           </div>
           <div className="bg-[#111] border-t-2 border-brand-500 p-6 text-center shadow-lg relative overflow-hidden group">
             <div className="absolute inset-0 bg-brand-500/5 group-hover:bg-brand-500/10 transition-colors"></div>
             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-2">Identity Theft</p>
-            <p className="text-3xl font-black font-mono text-white">{impactStats.identity_theft_victims}</p>
+            <p className="text-2xl font-black font-mono text-white">{impactStats.identity_theft_victims}</p>
           </div>
         </div>
       )}

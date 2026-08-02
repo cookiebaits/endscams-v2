@@ -188,7 +188,7 @@ export default function FTCScamsPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
+          <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
           <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>

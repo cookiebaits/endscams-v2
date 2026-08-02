@@ -380,7 +380,7 @@ export default function TriagePage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <Shield className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Scam Detection Questionnaire</h1>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-3">Scam Detection Questionnaire</h1>
           <p className="text-gray-500 dark:text-gray-400">
             Answer a few quick questions to help determine if you\'re dealing with a scam.
           </p>
@@ -416,13 +416,13 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(1, 'yes')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(1, 'no')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No</span>
               </button>
@@ -441,13 +441,13 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(2, 'yes')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(2, 'no')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No</span>
               </button>
@@ -466,19 +466,19 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(3, 'yes')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes, they know my personal details</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'partial')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">They only know my name/email</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'no')}
-                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
+                className="w-full p-6 text-center text-base font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No, they don\'t know any of my information</span>
               </button>

@@ -47,9 +47,9 @@ export default function Navigation() {
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 z-40 shadow-md">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-24">
+        <div className="flex items-center justify-between h-20">
           <Link to="/" className="flex items-center group shrink-0">
-            <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="h-20 w-auto object-contain" />
+            <img src="/logo.png" alt="Cyberscam Watchdog Network" className="h-16 w-auto object-contain" />
           </Link>
 
           <div className="hidden md:flex items-center gap-2 overflow-x-auto ml-8">
@@ -57,7 +57,7 @@ export default function Navigation() {
               <Link
                 key={link.to}
                 to={link.to}
-                className={`px-5 py-3 rounded-lg font-bold text-base whitespace-nowrap transition-all ${
+                className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white shadow-md'
                     : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand-500'
