@@ -416,13 +416,13 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(1, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(1, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No</span>
               </button>
@@ -441,13 +441,13 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(2, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(2, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No</span>
               </button>
@@ -466,19 +466,19 @@ export default function TriagePage() {
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(3, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">Yes, they know my personal details</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'partial')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">They only know my name/email</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-6 text-center text-lg font-bold border-2 rounded-sm transition-all transform hover:-translate-y-1 hover:shadow-lg bg-gray-50 dark:bg-black dark:border-gray-800 hover:border-brand-500 dark:hover:border-brand-500"
               >
                 <span className="font-medium text-gray-900 dark:text-white">No, they don\'t know any of my information</span>
               </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
 
@@ -175,7 +175,7 @@ export default function TrackerPage() {
           'Content-Type': 'application/json',
         },
       });
-    } catch {}
+    } catch { /* do nothing */ }
     await fetchData();
   };
 
@@ -203,7 +203,7 @@ export default function TrackerPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-gray-50 dark:bg-black pt-24 pb-16">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -250,14 +250,14 @@ export default function TrackerPage() {
           </div>
 
           {category === 'Number Down' && (
-            <div className="card p-4 mb-6 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+            <div className="bg-gray-50 dark:bg-[#111] rounded-sm shadow-md border-l-4 border-l-slate-500 border border-gray-200 dark:border-gray-800 p-4 mb-6">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 These numbers have been community-reported as no longer active. Click <strong>Number Still Up</strong> on any entry to restore it to the main list.
               </p>
             </div>
           )}
 
-          <div className="card p-4 mb-6">
+          <div className="bg-gray-50 dark:bg-[#111] rounded-sm shadow-md border-l-4 border-l-brand-500 border border-gray-200 dark:border-gray-800 p-4 mb-6">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold">Active Source References</p>
             <div className="flex flex-wrap gap-2">
               {SOURCES.map(s => (

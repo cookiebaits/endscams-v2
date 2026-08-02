@@ -263,9 +263,9 @@ Email: report@endscams.org
 `;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center p-4">
       <div className="max-w-4xl mx-auto px-4 py-12">
-        <div className="card p-8">
+        <div className="max-w-4xl w-full bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-800 rounded-sm shadow-2xl flex flex-col p-8">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 bg-brand-500/10 rounded-full flex items-center justify-center">
               <Shield className="w-8 h-8 text-brand-500" />

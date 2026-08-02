@@ -319,7 +319,7 @@ export default function ReportScamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-gray-50 dark:bg-black pt-24 pb-16">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
@@ -331,7 +331,7 @@ export default function ReportScamPage() {
           </p>
         </div>
 
-        <div className="mb-6 rounded-xl border border-amber-800/40 bg-[#1a1200] p-5">
+        <div className="mb-6 rounded-sm border border-brand-500/40 bg-brand-500/10 p-5">
           <div className="flex items-center gap-2 mb-3">
             <ExternalLink className="w-4 h-4 text-amber-400 flex-shrink-0" />
             <h3 className="text-sm font-bold text-amber-400">Report to Federal Agencies</h3>
@@ -393,7 +393,7 @@ export default function ReportScamPage() {
           </div>
         )}
 
-        <div className="card p-6 md:p-8">
+        <div className="bg-white dark:bg-[#111] rounded-sm shadow-2xl p-6 md:p-10 border border-gray-200 dark:border-gray-800 max-w-4xl mx-auto relative">
           <form onSubmit={handleSubmit} className="space-y-5">
             <Field label="Scam Phone Number" icon={Phone} required error={errors.phoneNumber}>
               <input
@@ -467,7 +467,7 @@ export default function ReportScamPage() {
 
             <Field label="Upload Evidence (Optional)" icon={Upload} error={errors.file}>
               <div
-                className={`relative border-2 border-dashed rounded-xl p-5 transition-colors ${
+                className={`relative border-2 border-dashed border-gray-700 hover:border-brand-500 rounded-sm p-5 transition-colors ${
                   errors.file
                     ? 'border-red-500/50 bg-red-500/5'
                     : 'border-gray-300 dark:border-gray-700 hover:border-brand-500/50 bg-gray-50 dark:bg-gray-900/50'

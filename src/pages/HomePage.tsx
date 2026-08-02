@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Shield, AlertTriangle, ExternalLink, Loader2, DollarSign, Radar, BookOpen, ArrowRight } from 'lucide-react';
+import { Search, Shield, AlertTriangle, ExternalLink, Loader2, Radar, BookOpen, ArrowRight, TrendingUp } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import { supabase, normalizePhone, formatPhoneDisplay } from '../lib/supabase';
 import { Link } from 'react-router-dom';
@@ -67,10 +67,11 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#1A1C23] flex flex-col">
-      {/* Hero Section - KnowBe4 Inspired (Dark Blue-Gray, Orange CTA) */}
-      <div className="bg-corporate-900 dark:bg-black text-white py-20 px-4">
-        <div className="max-w-5xl mx-auto text-center flex flex-col items-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col mt-8">
+      {/* Hero Section - CrowdStrike Inspired */}
+      <div className="bg-gradient-to-br from-black via-gray-900 to-corporate-900 text-white py-24 px-6 border-b border-brand-500 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-brand-500"></div>
+        <div className="max-w-5xl mx-auto text-center flex flex-col items-center relative z-10">
           <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight leading-tight">
             Secure Your Digital World: <br className="hidden md:block"/> Human + Intelligence
           </h1>
@@ -93,32 +94,34 @@ export default function HomePage() {
 
         {/* Left Column: Organization Identity & Partners */}
         <div className="w-full md:w-1/4 flex-shrink-0 flex flex-col gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded shadow-md border-t-4 border-brand-500 p-6 flex flex-col items-center text-center">
-             <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-gray-100 shadow-sm bg-white" />
-             <h2 className="text-xl font-bold text-gray-900 dark:text-white leading-tight mb-1">
+          <div className="bg-white dark:bg-gray-900 rounded-sm shadow-xl border border-gray-200 dark:border-gray-800 p-6 flex flex-col items-center text-center relative overflow-hidden">
+             <div className="absolute top-0 left-0 w-full h-1 bg-brand-500"></div>
+             <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="w-auto h-24 object-contain mb-4 bg-transparent" />
+             <h2 className="text-xl font-black text-gray-900 dark:text-white leading-tight mb-1 uppercase tracking-tight">
                Cyberscam Watchdog Network
              </h2>
-             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">EndScams.org</p>
+             <p className="text-sm text-gray-500 dark:text-brand-500 mb-6 font-mono font-bold tracking-widest uppercase">EndScams.org</p>
 
-             <div className="w-full pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400 font-medium">Community Reports</span>
-                <span className="font-bold text-corporate-900 dark:text-white">12K+</span>
+             <div className="w-full pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between text-sm items-center">
+                <span className="text-gray-600 dark:text-gray-400 font-bold uppercase text-xs">Community Reports</span>
+                <span className="font-mono font-black text-lg text-brand-500">12K+</span>
              </div>
-             <div className="w-full pt-2 flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400 font-medium">Scams Tracked</span>
-                <span className="font-bold text-corporate-900 dark:text-white">8.5K+</span>
+             <div className="w-full pt-2 flex justify-between text-sm items-center">
+                <span className="text-gray-600 dark:text-gray-400 font-bold uppercase text-xs">Scams Tracked</span>
+                <span className="font-mono font-black text-lg text-brand-500">8.5K+</span>
              </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-5 border border-gray-100 dark:border-gray-700">
-             <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
+          <div className="bg-white dark:bg-gray-900 rounded-sm shadow-xl p-5 border border-gray-200 dark:border-gray-800 relative">
+             <div className="absolute top-0 left-0 w-1 h-full bg-gray-400 dark:bg-gray-600"></div>
+             <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-800 pb-2 pl-2">
                Partnered With
              </h3>
-             <div className="grid gap-4">
-                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors">
+             <div className="grid gap-4 pl-2">
+                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-black rounded-sm border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors shadow-inner">
                   <img src="/partner-1.png" alt="Partner 1" className="h-16 object-contain" />
                 </div>
-                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors">
+                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-black rounded-sm border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors shadow-inner">
                   <img src="/partner-2.png" alt="Partner 2" className="h-8 object-contain" />
                 </div>
              </div>
@@ -128,32 +131,32 @@ export default function HomePage() {
         {/* Center Column: Search & Feed */}
         <div className="flex-1 flex flex-col gap-6">
           {/* Search Box */}
-          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-6 lg:p-8 border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
-            <div className="flex items-center gap-3 mb-2">
-              <Shield className="w-6 h-6 text-brand-500" />
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Threat Database Search</h2>
+          <div className="bg-white dark:bg-[#111] rounded-sm shadow-[0_0_20px_rgba(255,107,0,0.15)] p-6 lg:p-8 border border-gray-200 dark:border-gray-800 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-brand-500 shadow-[0_0_10px_#FF6B00]"></div>
+            <div className="flex items-center gap-3 mb-3">
+              <Radar className="w-7 h-7 text-brand-500 animate-pulse" />
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight uppercase">Threat Intel Search</h2>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm">
-              Cross-reference suspicious phone numbers against our real-time community reports.
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm font-medium">
+              Cross-reference suspicious indicators against our real-time community threat database.
             </p>
 
-            <form onSubmit={handleSearch} className="flex gap-2">
+            <form onSubmit={handleSearch} className="flex gap-3">
               <input
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="(555) 123-4567"
-                className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-lg rounded px-4 py-3 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-shadow"
+                className="flex-1 bg-gray-50 dark:bg-black border-2 border-gray-300 dark:border-gray-800 text-gray-900 dark:text-brand-500 font-mono text-xl rounded-sm px-4 py-4 focus:ring-0 focus:border-brand-500 outline-none transition-colors shadow-inner"
                 disabled={isSearching}
               />
               <button
                 type="submit"
                 disabled={isSearching || phoneNumber.length < 10}
-                className="bg-corporate-900 hover:bg-corporate-800 dark:bg-brand-500 dark:hover:bg-brand-600 text-white px-6 py-3 rounded font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="bg-corporate-900 hover:bg-black dark:bg-brand-500 dark:hover:bg-brand-600 text-white px-8 py-4 rounded-sm font-black uppercase tracking-wider transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg"
               >
-                {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                <span className="hidden sm:inline">Search</span>
+                {isSearching ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
+                <span className="hidden sm:inline">Analyze</span>
               </button>
             </form>
           </div>
@@ -225,35 +228,36 @@ export default function HomePage() {
 
         {/* Right Column: Impact & Resources */}
         <div className="w-full md:w-[300px] flex-shrink-0 flex flex-col gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded shadow-md border-t-4 border-corporate-900 p-5">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-500" /> Platform Impact
+          <div className="bg-white dark:bg-[#111] rounded-sm shadow-xl border border-gray-200 dark:border-gray-800 p-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-brand-500/10 rounded-bl-full"></div>
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-800 pb-2 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-brand-500" /> Global Impact
             </h3>
             {impactStats ? (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Reported Losses</p>
-                  <p className="text-2xl font-black text-brand-500">{impactStats.total_loss_short}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-widest mb-1">Reported Losses</p>
+                  <p className="text-3xl font-black font-mono text-brand-500 drop-shadow-sm">{impactStats.total_loss_short}</p>
                 </div>
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Victims (YoY)</p>
-                  <p className="text-xl font-bold text-corporate-900 dark:text-white">{impactStats.yoy_increase}</p>
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-widest mb-1">Victims (YoY)</p>
+                  <p className="text-2xl font-black font-mono text-gray-900 dark:text-white">{impactStats.yoy_increase}</p>
                 </div>
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Identity Theft</p>
-                  <p className="text-xl font-bold text-corporate-900 dark:text-white">{impactStats.identity_theft_victims}</p>
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-bold tracking-widest mb-1">Identity Theft</p>
+                  <p className="text-2xl font-black font-mono text-gray-900 dark:text-white">{impactStats.identity_theft_victims}</p>
                 </div>
               </div>
             ) : (
-              <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+              <div className="py-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand-500" /></div>
             )}
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-5 border border-gray-100 dark:border-gray-700">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
+          <div className="bg-white dark:bg-[#111] rounded-sm shadow-xl p-5 border border-gray-200 dark:border-gray-800">
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-800 pb-2">
               Quick Links
             </h3>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Link to="/tracker" className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded group transition-colors">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-brand-500 flex items-center gap-2"><Radar className="w-4 h-4"/> Tracker</span>
                 <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500" />

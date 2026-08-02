@@ -203,7 +203,7 @@ export default function FTCScamsPage() {
           </a>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-12">
           <StatCard icon={DollarSign} label="Total Consumer Losses" value={stats.total_loss} color="text-red-500" />
           <StatCard icon={Users} label="Total Reports Filed" value={stats.total_reports} color="text-blue-500" />
           <StatCard icon={TrendingUp} label="YoY Increase" value={stats.yoy_increase} color="text-yellow-500" />

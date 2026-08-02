@@ -424,7 +424,7 @@ export default function EducationPage() {
               { step: '2', title: 'Call the non-emergency line', desc: 'Not 911  use the non-emergency number for your county sheriff or local police.' },
               { step: '3', title: 'Report to the FTC too', desc: 'Filing at ReportFraud.ftc.gov creates a federal record and helps investigators track patterns.' },
             ].map(item => (
-              <div key={item.step} className="bg-white dark:bg-gray-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
+              <div key={item.step} className="bg-gray-50 dark:bg-[#111] rounded-sm shadow-lg border-l-4 border-l-blue-500 border border-gray-200 dark:border-gray-800 p-5">
                 <div className="w-7 h-7 rounded-full bg-blue-500/15 flex items-center justify-center mb-3">
                   <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">{item.step}</span>
                 </div>
@@ -488,7 +488,7 @@ function GiftCardSection({ onGallery }: { onZoom: (src: string, caption: string)
   ];
 
   return (
-    <div className="card p-5 h-full flex flex-col">
+    <div className="bg-white dark:bg-[#111] rounded-sm shadow-xl border-t-4 border-t-brand-500 p-6 flex flex-col h-full">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
           <AlertTriangle className="w-4 h-4 text-red-500" />
@@ -575,7 +575,7 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
     'Scammers provide a QR code or wallet address to scan',
   ];
   return (
-    <div className="card p-5 h-full flex flex-col">
+    <div className="bg-white dark:bg-[#111] rounded-sm shadow-xl border-t-4 border-t-brand-500 p-6 flex flex-col h-full">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-9 h-9 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
           <Bitcoin className="w-4 h-4 text-yellow-500" />

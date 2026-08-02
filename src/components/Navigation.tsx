@@ -45,23 +45,22 @@ export default function Navigation() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center gap-2 group">
-            <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="h-10 object-contain" />
+    <nav className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 z-40 shadow-md">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between h-24">
+          <Link to="/" className="flex items-center group shrink-0">
+            <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="h-20 w-auto object-contain" />
           </Link>
 
-
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-2 overflow-x-auto ml-8">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                className={`px-5 py-3 rounded-lg font-bold text-base whitespace-nowrap transition-all ${
                   isActive(link.to)
-                    ? 'bg-brand-500 text-white'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    ? 'bg-brand-500 text-white shadow-md'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand-500'
                 }`}
               >
                 {link.label}
@@ -73,7 +72,7 @@ export default function Navigation() {
           <div className="flex items-center gap-2">
             <a
               href="https://endscams.org/donate"
-              className="hidden md:flex items-center justify-center px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
+              className="hidden md:flex items-center justify-center px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-bold text-base transition-colors shadow-sm ml-4"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -81,25 +80,25 @@ export default function Navigation() {
             </a>
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-2"
               aria-label="Toggle dark mode"
             >
               {darkMode ? (
-                <Sun className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <Sun className="w-6 h-6 text-gray-600 dark:text-gray-300" />
               ) : (
-                <Moon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <Moon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
               )}
             </button>
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="md:hidden p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-2"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? (
-                <X className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+                <X className="w-8 h-8 text-gray-600 dark:text-gray-300" />
               ) : (
-                <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+                <Menu className="w-8 h-8 text-gray-600 dark:text-gray-300" />
               )}
             </button>
           </div>
@@ -108,17 +107,17 @@ export default function Navigation() {
 
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <div className="px-4 py-3 space-y-1">
+        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 shadow-lg">
+          <div className="px-6 py-4 space-y-2">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-lg font-medium text-sm transition-all ${
+                className={`block px-5 py-4 rounded-lg font-bold text-lg transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               >
                 {link.label}
@@ -129,7 +128,7 @@ export default function Navigation() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-brand-500 hover:bg-brand-600 transition-colors shadow-sm mt-2"
+              className="block px-5 py-4 rounded-lg font-bold text-lg text-center text-white bg-brand-500 hover:bg-brand-600 transition-colors shadow-sm mt-4"
             >
               Donate
             </a>
