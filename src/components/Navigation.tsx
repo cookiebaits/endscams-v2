@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Menu, X, Sun, Moon } from 'lucide-react';
+import { Menu, X, Sun, Moon } from 'lucide-react';
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -49,17 +49,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center group-hover:bg-brand-500/20 transition-colors">
-              <Shield className="w-6 h-6 text-brand-500" />
-            </div>
-            <div className="hidden sm:block">
-              <div className="font-black text-gray-900 dark:text-white text-lg leading-tight">
-                EndScams.org
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Cyberscam Watchdog Network
-              </div>
-            </div>
+            <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="h-10 object-contain" />
           </Link>
 
 
@@ -83,7 +73,7 @@ export default function Navigation() {
           <div className="flex items-center gap-2">
             <a
               href="https://endscams.org/donate"
-              className="hidden md:flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
+              className="hidden md:flex items-center justify-center px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -139,7 +129,7 @@ export default function Navigation() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm mt-2"
+              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-brand-500 hover:bg-brand-600 transition-colors shadow-sm mt-2"
             >
               Donate
             </a>

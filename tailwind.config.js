@@ -6,9 +6,13 @@ export default {
     extend: {
       colors: {
         brand: {
-          500: 'hsl(220, 38%, 55%)',
-          600: 'hsl(220, 38%, 45%)',
+          500: '#FF6B00', // Vibrant Orange
+          600: '#E65D00',
         },
+        corporate: {
+          900: '#1A1C23', // Deep blue-gray for hero/backgrounds
+          800: '#252830',
+        }
       },
     },
   },

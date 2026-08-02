@@ -1,87 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { Search, Shield, AlertTriangle, ExternalLink, Loader2, DollarSign, Radar, BookOpen, ArrowRight } from 'lucide-react';
+import { useFtcStats } from '../hooks/useFtcStats';
+import { supabase, normalizePhone, formatPhoneDisplay } from '../lib/supabase';
 import { Link } from 'react-router-dom';
-import { Search, Phone, Shield, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
-import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 
-type ImpactStats = {
-  money_saved: number;
-  scammer_hours_wasted: number;
-  resources_shutdown: number;
-};
-
-function normalizeInput(raw: string): string {
-  return raw.replace(/\D/g, '').slice(0, 10);
+function buildSearchUrl(engine: 'google' | 'bing' | 'brave', digits: string): string {
+  const q = encodeURIComponent(`"${digits}"`);
+  switch (engine) {
+    case 'google': return `https://www.google.com/search?q=${q}`;
+    case 'bing': return `https://www.bing.com/search?q=${q}`;
+    case 'brave': return `https://search.brave.com/search?q=${q}`;
+  }
 }
-
-function formatTyping(value: string): string {
-  const d = value.replace(/\D/g, '').slice(0, 10);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-}
-
-type SearchResult = {
-  found: boolean;
-  reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }>;
-  trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }>;
-};
 
 export default function HomePage() {
-  const [input, setInput] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [result, setResult] = useState<SearchResult | null>(null);
-  const [searched, setSearched] = useState(false);
-  const [searchedDigits, setSearchedDigits] = useState('');
-  const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
-
-  useEffect(() => {
-    const fetchImpactStats = async () => {
-      const { data } = await supabase
-        .from('impact_statistics')
-        .select('money_saved, scammer_hours_wasted, resources_shutdown')
-        .order('last_updated', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        setImpactStats(data);
-      }
-    };
-
-    const updateStats = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-impact-stats`,
-          {
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            },
-          }
-        );
-        await response.json();
-      } catch (error) {
-        console.error('Failed to update stats:', error);
-      }
-    };
-
-    fetchImpactStats();
-    updateStats();
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(formatTyping(e.target.value));
-    setResult(null);
-    setSearched(false);
-  };
+  const { stats: impactStats } = useFtcStats();
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState<{
+    searched: boolean;
+    found: boolean;
+    reports: { id: string; category: string; incident_date?: string; report_date?: string; description: string; source?: string; source_name?: string; source_url?: string; }[];
+    trackerEntries: { id: string; category: string; incident_date?: string; report_date?: string; description: string; source?: string; source_name?: string; source_url?: string; }[];
+    searchDigits: string;
+  } | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const digits = normalizeInput(input);
-    if (digits.length < 10) return;
+    const digits = normalizePhone(phoneNumber);
 
-    setSearching(true);
-    setSearched(false);
-    setSearchedDigits(digits);
+    if (digits.length < 10) {
+      alert('Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    setIsSearching(true);
+    setResult(null);
 
     try {
       const [reportsRes, trackerRes] = await Promise.all([
@@ -91,267 +45,232 @@ export default function HomePage() {
 
       const reports = reportsRes.data || [];
       const trackerEntries = trackerRes.data || [];
-      setResult({ found: reports.length > 0 || trackerEntries.length > 0, reports, trackerEntries });
+
+      setResult({
+        searched: true,
+        found: reports.length > 0 || trackerEntries.length > 0,
+        reports,
+        trackerEntries,
+        searchDigits: digits
+      });
     } catch {
-      setResult({ found: false, reports: [], trackerEntries: [] });
+      setResult({
+        searched: true,
+        found: false,
+        reports: [],
+        trackerEntries: [],
+        searchDigits: digits
+      });
     } finally {
-      setSearching(false);
-      setSearched(true);
+      setIsSearching(false);
     }
   };
 
-  const buildSearchUrl = (engine: string, digits: string) => {
-    const formatted = formatPhoneDisplay(digits);
-    const dashes = `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
-    const q = encodeURIComponent(`"${formatted}" OR "${dashes}" OR "${digits}" scam`);
-    if (engine === 'google') return `https://www.google.com/search?q=${q}`;
-    if (engine === 'bing') return `https://www.bing.com/search?q=${q}`;
-    return `https://search.brave.com/search?q=${q}`;
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <section className="relative pt-24 pb-20 overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-30 dark:opacity-20"
-          style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-gray-50/90 to-gray-50 dark:from-gray-950/80 dark:via-gray-950/90 dark:to-gray-950" />
+    <div className="min-h-screen bg-gray-50 dark:bg-[#1A1C23] flex flex-col">
+      {/* Hero Section - KnowBe4 Inspired (Dark Blue-Gray, Orange CTA) */}
+      <div className="bg-corporate-900 dark:bg-black text-white py-20 px-4">
+        <div className="max-w-5xl mx-auto text-center flex flex-col items-center">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight leading-tight">
+            Secure Your Digital World: <br className="hidden md:block"/> Human + Intelligence
+          </h1>
+          <p className="text-lg md:text-xl text-gray-300 mb-8 max-w-2xl leading-relaxed">
+            Everything you need to identify, track, and report phone scams—all in one community-driven platform. Protect yourself and others today.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Link to="/education" className="px-8 py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded text-lg transition-colors shadow-lg">
+              Get Educated Now
+            </Link>
+            <Link to="/report" className="px-8 py-3 bg-transparent border-2 border-white hover:border-gray-300 hover:text-gray-300 font-bold rounded text-lg transition-colors">
+              Report a Scam
+            </Link>
+          </div>
+        </div>
+      </div>
 
-        <div className="relative max-w-4xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
-            <Shield className="w-4 h-4" />
-            CyberScam Watch Dog Network
+      {/* Main Content Area - 3 Column Layout */}
+      <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row gap-6 p-4 md:p-8 -mt-8">
+
+        {/* Left Column: Organization Identity & Partners */}
+        <div className="w-full md:w-1/4 flex-shrink-0 flex flex-col gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md border-t-4 border-brand-500 p-6 flex flex-col items-center text-center">
+             <img src="/cwn-logo.png" alt="Cyberscam Watchdog Network" className="w-24 h-24 rounded-full object-cover mb-4 border-2 border-gray-100 shadow-sm bg-white" />
+             <h2 className="text-xl font-bold text-gray-900 dark:text-white leading-tight mb-1">
+               Cyberscam Watchdog Network
+             </h2>
+             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">EndScams.org</p>
+
+             <div className="w-full pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400 font-medium">Community Reports</span>
+                <span className="font-bold text-corporate-900 dark:text-white">12K+</span>
+             </div>
+             <div className="w-full pt-2 flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400 font-medium">Scams Tracked</span>
+                <span className="font-bold text-corporate-900 dark:text-white">8.5K+</span>
+             </div>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6 text-gray-900 dark:text-white leading-tight tracking-tight">
-            End Scams Through<br />
-            <span className="text-brand-500">Education</span>
-          </h1>
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-5 border border-gray-100 dark:border-gray-700">
+             <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
+               Partnered With
+             </h3>
+             <div className="grid gap-4">
+                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors">
+                  <img src="/partner-1.png" alt="Partner 1" className="h-16 object-contain" />
+                </div>
+                <div className="flex items-center justify-center p-3 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800 hover:border-brand-500 transition-colors">
+                  <img src="/partner-2.png" alt="Partner 2" className="h-8 object-contain" />
+                </div>
+             </div>
+          </div>
+        </div>
 
-          <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto">
-            Search any phone number in our database. We cross-reference reports from multiple sources to help you stay protected.
-          </p>
+        {/* Center Column: Search & Feed */}
+        <div className="flex-1 flex flex-col gap-6">
+          {/* Search Box */}
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-6 lg:p-8 border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
+            <div className="flex items-center gap-3 mb-2">
+              <Shield className="w-6 h-6 text-brand-500" />
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Threat Database Search</h2>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm">
+              Cross-reference suspicious phone numbers against our real-time community reports.
+            </p>
 
-          <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-6">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="(555) 123-4567"
-                  value={input}
-                  onChange={handleChange}
-                  maxLength={14}
-                  className="input-field pl-12 h-14 text-lg rounded-xl"
-                />
-              </div>
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="(555) 123-4567"
+                className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-lg rounded px-4 py-3 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-shadow"
+                disabled={isSearching}
+              />
               <button
                 type="submit"
-                disabled={normalizeInput(input).length < 10 || searching}
-                className="btn-primary h-14 px-8 rounded-xl text-base"
+                disabled={isSearching || phoneNumber.length < 10}
+                className="bg-corporate-900 hover:bg-corporate-800 dark:bg-brand-500 dark:hover:bg-brand-600 text-white px-6 py-3 rounded font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5 mr-2 inline-block" />Search</>}
+                {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                <span className="hidden sm:inline">Search</span>
               </button>
-            </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-left pl-1">
-              Accepts: (555) 123-4567 &nbsp;|&nbsp; 555-123-4567 &nbsp;|&nbsp; 5551234567
-            </p>
-          </form>
+            </form>
+          </div>
 
-          {searching && (
-            <div className="max-w-2xl mx-auto mt-6 p-6 card text-center animate-fade-in">
-              <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-600 dark:text-gray-400">Searching our database...</p>
-            </div>
-          )}
+          {/* Search Results */}
+          {result && (
+            <div className="bg-white dark:bg-gray-800 rounded shadow-md p-6 border border-gray-100 dark:border-gray-700">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-2">
+                <span>Search Results</span>
+                <span className="text-brand-500 text-sm">{formatPhoneDisplay(result.searchDigits)}</span>
+              </h3>
 
-          {searched && !searching && result && (
-            <div className="max-w-2xl mx-auto mt-6 animate-slide-up space-y-4">
               {result.found ? (
-                <div className="card p-6 border-2 border-brand-500/50 bg-red-50 dark:bg-red-950/20">
-                  <div className="flex items-center gap-3 mb-4">
-                    <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
-                    <div className="text-left">
-                      <p className="font-bold text-red-600 dark:text-red-400 text-lg">Warning — This number has been reported</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Found {result.reports.length + result.trackerEntries.length} report(s) for {formatPhoneDisplay(searchedDigits)}
-                      </p>
+                <div className="space-y-4">
+                  <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded text-red-800 dark:text-red-200 text-sm mb-6 flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong>Warning:</strong> We found {(result.reports.length + result.trackerEntries.length)} report{(result.reports.length + result.trackerEntries.length) > 1 ? 's' : ''} for this number. Exercise extreme caution.
                     </div>
                   </div>
-
-                  {result.reports.map(r => (
-                    <ReportCard key={r.id} label={r.category} date={r.incident_date} description={r.description} sourceName="User Report" sourceUrl={r.source_url} />
-                  ))}
-                  {result.trackerEntries.map(t => (
-                    <ReportCard key={t.id} label={t.category || 'Scam'} date={t.report_date} description={t.description || ''} sourceName={t.source_name} sourceUrl={t.source_url} />
+                  {[...result.reports, ...result.trackerEntries].map((record) => (
+                    <div key={record.id} className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded">
+                          {record.category}
+                        </span>
+                        <span className="text-xs text-gray-500">{new Date(record.incident_date || record.report_date || '').toLocaleDateString()}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">{record.description}</p>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                         <span className="text-xs text-gray-400">Source: {record.source || record.source_name}</span>
+                         {record.source_url && (
+                          <a href={record.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" />
+                            View Source
+                          </a>
+                         )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <div className="card p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <CheckCircle className="w-8 h-8 text-green-500 flex-shrink-0" />
-                    <div className="text-left">
-                      <p className="font-bold text-green-600 dark:text-green-400 text-lg">Not found in our database</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        We could not match any records for {formatPhoneDisplay(searchedDigits)} in our database. For a deeper search, check the sources below.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid sm:grid-cols-3 gap-3 mt-4">
-                    {(['google', 'bing', 'brave'] as const).map(engine => (
-                      <a
-                        key={engine}
-                        href={buildSearchUrl(engine, searchedDigits)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium text-sm text-gray-700 dark:text-gray-300 transition-all"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
-                      </a>
-                    ))}
-                  </div>
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                  <Shield className="w-12 h-12 text-green-500 mx-auto mb-3 opacity-50" />
+                  <p className="font-semibold text-gray-700 dark:text-gray-300 mb-1">No records found</p>
+                  <p className="text-sm">We don't have this number in our database yet.</p>
                 </div>
               )}
 
-              {result.found && (
-                <div className="card p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Search deeper with external sources:</p>
-                  <div className="grid sm:grid-cols-3 gap-3">
-                    {(['google', 'bing', 'brave'] as const).map(engine => (
-                      <a
-                        key={engine}
-                        href={buildSearchUrl(engine, searchedDigits)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium text-sm text-gray-700 dark:text-gray-300 transition-all"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
-                      </a>
-                    ))}
-                  </div>
+              <div className="mt-8 pt-4 border-t border-gray-100 dark:border-gray-700">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">External Deep Search</p>
+                <div className="flex flex-wrap gap-2">
+                  {(["google", "bing", "brave"] as const).map((engine) => (
+                    <a
+                      key={engine}
+                      href={buildSearchUrl(engine, result.searchDigits)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 min-w-[100px] flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs font-medium text-gray-600 dark:text-gray-300 transition-colors"
+                    >
+                      Search {engine.charAt(0).toUpperCase() + engine.slice(1)} <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
-      </section>
 
-      <section className="py-20 bg-white dark:bg-gray-900">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="section-title text-center mb-4">Our Impact</h2>
-          <p className="section-subtitle text-center mb-12">
-            Together, we're making a real difference in the fight against scammers.
-          </p>
-          {impactStats ? (
-            <div className="grid md:grid-cols-3 gap-6">
-              <ImpactCard
-                icon={DollarSign}
-                value={`$${impactStats.money_saved.toLocaleString('en-US')}`}
-                label="Estimated Money Saved"
-                description="Total dollars protected from scammer hands"
-                color="text-green-500"
-                bgColor="bg-green-500/10"
-              />
-              <ImpactCard
-                icon={Clock}
-                value={`${impactStats.scammer_hours_wasted.toLocaleString('en-US')} hrs`}
-                label="Scammer Time Wasted"
-                description="Hours of scammer resources exhausted"
-                color="text-blue-500"
-                bgColor="bg-blue-500/10"
-              />
-              <ImpactCard
-                icon={XOctagon}
-                value={impactStats.resources_shutdown.toLocaleString()}
-                label="Resources Shutdown"
-                description="Number of confirmed website, phone and finance shutdown"
-                color="text-red-500"
-                bgColor="bg-red-500/10"
-              />
-            </div>
-          ) : (
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading impact statistics...</p>
-            </div>
-          )}
-        </div>
-      </section>
+        {/* Right Column: Impact & Resources */}
+        <div className="w-full md:w-[300px] flex-shrink-0 flex flex-col gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md border-t-4 border-corporate-900 p-5">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-500" /> Platform Impact
+            </h3>
+            {impactStats ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Reported Losses</p>
+                  <p className="text-2xl font-black text-brand-500">{impactStats.total_loss_short}</p>
+                </div>
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Victims (YoY)</p>
+                  <p className="text-xl font-bold text-corporate-900 dark:text-white">{impactStats.yoy_increase}</p>
+                </div>
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-medium">Identity Theft</p>
+                  <p className="text-xl font-bold text-corporate-900 dark:text-white">{impactStats.identity_theft_victims}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+            )}
+          </div>
 
-      <section className="py-20 bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="section-title text-center mb-4">Scam Resources & Tools</h2>
-          <p className="section-subtitle text-center mb-12">
-            Access our comprehensive database and educational materials to stay protected.
-          </p>
-          <div className="grid md:grid-cols-3 gap-6">
-            <FeatureCard icon={Radar} title="Scam Tracker" description="Browse real scam phone numbers from our database, sourced from BBB reports, user submissions, and other verified sources." link="/tracker" />
-            <FeatureCard icon={AlertTriangle} title="FTC Top Scams" description="Stay informed about the top 10 most reported scams to the Federal Trade Commission in 2026." link="/ftc-scams" />
-            <FeatureCard icon={BookOpen} title="Education Center" description="Learn how to identify scams, protect yourself, and what steps to take if you've been targeted." link="/education" />
+          <div className="bg-white dark:bg-gray-800 rounded shadow-md p-5 border border-gray-100 dark:border-gray-700">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
+              Quick Links
+            </h3>
+            <div className="space-y-1">
+              <Link to="/tracker" className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded group transition-colors">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-brand-500 flex items-center gap-2"><Radar className="w-4 h-4"/> Tracker</span>
+                <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500" />
+              </Link>
+              <Link to="/ftc-scams" className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded group transition-colors">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-brand-500 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> FTC Top Scams</span>
+                <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500" />
+              </Link>
+              <Link to="/education" className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-900 rounded group transition-colors">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-brand-500 flex items-center gap-2"><BookOpen className="w-4 h-4"/> Education</span>
+                <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-brand-500" />
+              </Link>
+            </div>
           </div>
         </div>
-      </section>
 
-      <section className="py-20 bg-white dark:bg-gray-900">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="section-title mb-4">Been Targeted? Report It</h2>
-          <p className="section-subtitle mb-8">
-            Your report helps protect others in the community. Add the scammer's number to our database.
-          </p>
-          <Link to="/report" className="btn-primary inline-flex items-center gap-2 text-lg px-8 py-4">
-            <AlertTriangle className="w-5 h-5" />
-            Report a Scam Now
-          </Link>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
-  return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-3 text-left">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold px-2 py-1 bg-brand-500/10 text-brand-500 rounded">{label}</span>
-        <span className="text-xs text-gray-400">{date}</span>
       </div>
-      {description && <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 line-clamp-3">{description}</p>}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">Source: {sourceName}</span>
-        {sourceUrl && (
-          <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" />View Report
-          </a>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function FeatureCard({ icon: Icon, title, description, link }: { icon: React.ElementType; title: string; description: string; link: string }) {
-  return (
-    <Link to={link} className="card p-6 hover:border-brand-500/50 transition-all duration-300 hover:shadow-md group block">
-      <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
-        <Icon className="w-6 h-6 text-brand-500" />
-      </div>
-      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">{description}</p>
-    </Link>
-  );
-}
-
-function ImpactCard({ icon: Icon, value, label, description, color, bgColor }: { icon: React.ElementType; value: string; label: string; description: string; color: string; bgColor: string }) {
-  return (
-    <div className="card p-8 text-center hover:border-brand-500/30 transition-all duration-300 hover:shadow-lg">
-      <div className={`w-16 h-16 rounded-full ${bgColor} flex items-center justify-center mx-auto mb-4`}>
-        <Icon className={`w-8 h-8 ${color}`} />
-      </div>
-      <div className={`text-4xl font-black ${color} mb-2`}>{value}</div>
-      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{label}</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
     </div>
   );
 }

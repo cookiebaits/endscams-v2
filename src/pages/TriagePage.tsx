@@ -1,6 +1,6 @@
 'use strict';
-import React, { useState } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Info, Shield, Zap, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap } from 'lucide-react';
 
 type QuestionnaireAnswers = {
   ownsService: string | null;

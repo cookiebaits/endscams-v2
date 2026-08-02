@@ -9,7 +9,7 @@ export interface FtcStats {
   yoy_increase: string;
   median_loss: string;
   identity_theft_victims: string;
-  report_year: 2024;
+  report_year: string;
   last_updated: string | null;
 }
 
