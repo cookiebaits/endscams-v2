@@ -351,7 +351,7 @@ export default function EducationPage() {
         <div className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
           <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value={stats.total_reports_short} color="text-yellow-500" />
-          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_visits} color="text-blue-500" />
+          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_victims} color="text-blue-500" />
         </div>
 
         <div className="mb-10">
@@ -479,7 +479,7 @@ const GIFT_CARD_THUMBNAILS = [
   { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot', idx: 3 },
 ];
 
-function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
+function GiftCardSection({ onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
     { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
     { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash  accepted everywhere' },

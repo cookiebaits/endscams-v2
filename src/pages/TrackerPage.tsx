@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall, Clock } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isValidScamNumber, normalizePhone } from '../lib/supabase';
 

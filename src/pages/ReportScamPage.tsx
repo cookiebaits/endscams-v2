@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Info, Paperclip } from 'lucide-react';
+import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 
 type FormData = {
@@ -212,6 +212,7 @@ export default function ReportScamPage() {
         }),
       });
     } catch {
+      // do nothing
     }
   };
 
