@@ -73,7 +73,7 @@ export default function Navigation() {
           <div className="flex items-center gap-2">
             <a
               href="https://endscams.org/donate"
-              className="hidden md:flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
+              className="hidden md:flex items-center justify-center px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -129,7 +129,7 @@ export default function Navigation() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
-              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm mt-2"
+              className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-brand-500 hover:bg-brand-600 transition-colors shadow-sm mt-2"
             >
               Donate
             </a>

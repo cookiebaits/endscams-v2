@@ -38,6 +38,12 @@ const GOOGLE_API_KEY = env("GOOGLE_API_KEY");
 const GOOGLE_CX = env("GOOGLE_CX");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ALLOWED_ORIGIN2 = "http://localhost:5173";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ALLOWED_ORIGIN3 = "http://localhost:5174";
 const PORT = parseInt(env("PORT") || "8000", 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
