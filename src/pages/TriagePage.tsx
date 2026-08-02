@@ -1,6 +1,6 @@
 'use strict';
 import React, { useState } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Info, Shield, Zap, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
 
 type QuestionnaireAnswers = {
   ownsService: string | null;
@@ -164,7 +164,7 @@ export default function TriagePage() {
 
   if (resultType) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+      <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
         <div className="max-w-2xl mx-auto px-4">
           {resultType === 'very-likely' && (
             <div className="animate-slide-up">
@@ -172,8 +172,8 @@ export default function TriagePage() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-5">
                   <AlertTriangle className="w-8 h-8 text-red-500" />
                 </div>
-                <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">VERY LIKELY A SCAM</h1>
-                <p className="text-gray-500 dark:text-gray-400">Immediate action recommended</p>
+                <h1 className="text-4xl font-black text-white mb-3">VERY LIKELY A SCAM</h1>
+                <p className="text-slate-500 dark:text-slate-400">Immediate action recommended</p>
               </div>
 
               <div className="mb-6 rounded-xl border-2 border-red-500/30 bg-red-500/5 p-6">
@@ -190,7 +190,7 @@ export default function TriagePage() {
               </div>
 
               <div className="card p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-red-500" />
                   Major Red Flags Detected
                 </h3>
@@ -198,7 +198,7 @@ export default function TriagePage() {
                   {resultData.flags.map((flag, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="text-red-500 font-bold mt-1">⚠️</span>
-                      <span className="text-gray-700 dark:text-gray-300">{flag}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{flag}</span>
                     </li>
                   ))}
                 </ul>
@@ -210,7 +210,7 @@ export default function TriagePage() {
               </div>
 
               <div className="card p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Immediate Steps to Take</h3>
+                <h3 className="text-lg font-bold text-white mb-4">Immediate Steps to Take</h3>
                 <ul className="space-y-2">
                   {[
                     'Stop all communication immediately',
@@ -222,7 +222,7 @@ export default function TriagePage() {
                   ].map((step, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="text-green-500 font-bold">✓</span>
-                      <span className="text-gray-700 dark:text-gray-300">{step}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{step}</span>
                     </li>
                   ))}
                 </ul>
@@ -260,12 +260,12 @@ export default function TriagePage() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 mb-5">
                   <AlertTriangle className="w-8 h-8 text-amber-500" />
                 </div>
-                <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">LIKELY A SCAM</h1>
-                <p className="text-gray-500 dark:text-gray-400">Exercise extreme caution</p>
+                <h1 className="text-4xl font-black text-white mb-3">LIKELY A SCAM</h1>
+                <p className="text-slate-500 dark:text-slate-400">Exercise extreme caution</p>
               </div>
 
               <div className="card p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-amber-500" />
                   Warning Signs Detected
                 </h3>
@@ -273,7 +273,7 @@ export default function TriagePage() {
                   {resultData.flags.map((flag, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="text-amber-500 font-bold">⚠️</span>
-                      <span className="text-gray-700 dark:text-gray-300">{flag}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{flag}</span>
                     </li>
                   ))}
                 </ul>
@@ -285,7 +285,7 @@ export default function TriagePage() {
               </div>
 
               <div className="card p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Recommended Actions</h3>
+                <h3 className="text-lg font-bold text-white mb-4">Recommended Actions</h3>
                 <ul className="space-y-2">
                   {[
                     'Verify the company independently through official channels',
@@ -296,7 +296,7 @@ export default function TriagePage() {
                   ].map((step, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="text-amber-500 font-bold">→</span>
-                      <span className="text-gray-700 dark:text-gray-300">{step}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{step}</span>
                     </li>
                   ))}
                 </ul>
@@ -325,8 +325,8 @@ export default function TriagePage() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-5">
                   <CheckCircle className="w-8 h-8 text-green-500" />
                 </div>
-                <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">NOT LIKELY A SCAM</h1>
-                <p className="text-gray-500 dark:text-gray-400">But still exercise caution</p>
+                <h1 className="text-4xl font-black text-white mb-3">NOT LIKELY A SCAM</h1>
+                <p className="text-slate-500 dark:text-slate-400">But still exercise caution</p>
               </div>
 
               <div className="card p-6 mb-6 bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900/50">
@@ -335,7 +335,7 @@ export default function TriagePage() {
               </div>
 
               <div className="card p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Continue to Exercise Caution</h3>
+                <h3 className="text-lg font-bold text-white mb-4">Continue to Exercise Caution</h3>
                 <ul className="space-y-2">
                   {[
                     'Always verify requests independently',
@@ -346,7 +346,7 @@ export default function TriagePage() {
                   ].map((step, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="text-green-500 font-bold">✓</span>
-                      <span className="text-gray-700 dark:text-gray-300">{step}</span>
+                      <span className="text-slate-700 dark:text-slate-300">{step}</span>
                     </li>
                   ))}
                 </ul>
@@ -374,24 +374,24 @@ export default function TriagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <Shield className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Scam Detection Questionnaire</h1>
-          <p className="text-gray-500 dark:text-gray-400">
+          <h1 className="text-4xl font-black text-white mb-3">Scam Detection Questionnaire</h1>
+          <p className="text-slate-500 dark:text-slate-400">
             Answer a few quick questions to help determine if you\'re dealing with a scam.
           </p>
         </div>
 
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">Question {currentQuestion} of 6</span>
-            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">{Math.round(progress)}%</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Question {currentQuestion} of 6</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{Math.round(progress)}%</span>
           </div>
-          <div className="w-full h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-300"
               style={{ width: `${progress}%` }}
@@ -406,91 +406,91 @@ export default function TriagePage() {
         </div>
 
         {currentQuestion === 1 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">1</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-2xl font-bold text-white">
                 Do you own this service, have an account with, or own the product they're contacting you about?
               </h2>
             </div>
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(1, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">Yes</span>
+                <span className="font-medium text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(1, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">No</span>
+                <span className="font-medium text-white">No</span>
               </button>
             </div>
           </div>
         )}
 
         {currentQuestion === 2 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">2</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-2xl font-bold text-white">
                 Are they asking you to download any software, apps, or files?
               </h2>
             </div>
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(2, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">Yes</span>
+                <span className="font-medium text-white">Yes</span>
               </button>
               <button
                 onClick={() => handleAnswer(2, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">No</span>
+                <span className="font-medium text-white">No</span>
               </button>
             </div>
           </div>
         )}
 
         {currentQuestion === 3 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">3</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-2xl font-bold text-white">
                 Do they know your address or any personal information besides your name?
               </h2>
             </div>
             <div className="space-y-3 mt-6">
               <button
                 onClick={() => handleAnswer(3, 'yes')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">Yes, they know my personal details</span>
+                <span className="font-medium text-white">Yes, they know my personal details</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'partial')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">They only know my name/email</span>
+                <span className="font-medium text-white">They only know my name/email</span>
               </button>
               <button
                 onClick={() => handleAnswer(3, 'no')}
-                className="w-full p-4 text-left bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
               >
-                <span className="font-medium text-gray-900 dark:text-white">No, they don\'t know any of my information</span>
+                <span className="font-medium text-white">No, they don\'t know any of my information</span>
               </button>
             </div>
           </div>
         )}
 
         {currentQuestion === 4 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">4</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">How much money are they asking for? (Include Dollar and Cents)</h2>
+              <h2 className="text-2xl font-bold text-white">How much money are they asking for? (Include Dollar and Cents)</h2>
             </div>
             <div className="mt-6">
               <input
@@ -515,10 +515,10 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 5 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">5</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">What payment method are they requesting?</h2>
+              <h2 className="text-2xl font-bold text-white">What payment method are they requesting?</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
               <button
@@ -526,10 +526,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'credit-card'
                     ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-green-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-green-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">💳 Credit Card</span>
+                <span className="font-medium text-white">💳 Credit Card</span>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-1">Safer option</p>
               </button>
               <button
@@ -537,10 +537,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'debit-card'
                     ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-amber-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-amber-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">💳 Debit Card</span>
+                <span className="font-medium text-white">💳 Debit Card</span>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Limited protection</p>
               </button>
               <button
@@ -548,10 +548,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'paypal'
                     ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-amber-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-amber-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">💰 PayPal</span>
+                <span className="font-medium text-white">💰 PayPal</span>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Limited protection</p>
               </button>
               <button
@@ -559,10 +559,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'bitcoin'
                     ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-red-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-red-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">₿ Bitcoin/Crypto</span>
+                <span className="font-medium text-white">₿ Bitcoin/Crypto</span>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">High risk</p>
               </button>
               <button
@@ -570,10 +570,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'gift-card'
                     ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-red-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-red-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">🎁 Gift Cards</span>
+                <span className="font-medium text-white">🎁 Gift Cards</span>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">High risk</p>
               </button>
               <button
@@ -581,10 +581,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'zelle'
                     ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-red-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-red-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">💸 Zelle</span>
+                <span className="font-medium text-white">💸 Zelle</span>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">High risk</p>
               </button>
               <button
@@ -592,10 +592,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'cash-app'
                     ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-red-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-red-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">💵 Cash App</span>
+                <span className="font-medium text-white">💵 Cash App</span>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">High risk</p>
               </button>
               <button
@@ -603,10 +603,10 @@ export default function TriagePage() {
                 className={`p-4 rounded-xl border-2 transition-all ${
                   answers.paymentMethod === 'wire-transfer'
                     ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
-                    : 'border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-red-500'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 hover:border-red-500'
                 }`}
               >
-                <span className="font-medium text-gray-900 dark:text-white">🏦 Wire Transfer</span>
+                <span className="font-medium text-white">🏦 Wire Transfer</span>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">High risk</p>
               </button>
             </div>
@@ -614,10 +614,10 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 6 && (
-          <div className="card p-6 md:p-8 animate-slide-up">
+          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">6</div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">What company name do they claim to be from?</h2>
+              <h2 className="text-2xl font-bold text-white">What company name do they claim to be from?</h2>
             </div>
             <div className="mt-6">
               <input
