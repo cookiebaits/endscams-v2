@@ -1,8 +1,0 @@
-style: redesign UI with cybersecurity aesthetic
-
-- Updated index.css to use a neon cyan and slate color palette with glassmorphism
-- Refactored HomePage to resemble an OSINT terminal tool
-- Redesigned TrackerPage into a Threat Intelligence Dashboard with monospace formatting and glowing dot indicators
-- Redesigned EducationPage and FTCScamsPage into Security Advisory Centers
-- Restructured ReportScamPage and TriagePage into Secure Intake Portals
-- Replaced text logo in Navigation with an image logo
