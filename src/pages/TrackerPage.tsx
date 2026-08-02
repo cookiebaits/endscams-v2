@@ -222,7 +222,7 @@ export default function TrackerPage() {
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Scam Phone Tracker</h1>
+              <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2 font-mono uppercase">Scam Phone Tracker</h1>
               <p className="text-gray-500 dark:text-gray-400 text-sm">
                 Real non-toll-free scam numbers from verified sources. Retained for 31 days, auto-refreshed twice daily (6am &amp; 1pm PST).
                 {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
@@ -378,12 +378,12 @@ function TrackerEntryCard({
               <Phone className="w-4 h-4 text-brand-500" />
               {entry.phone}
             </div>
-            <span className={`text-xs px-2 py-1 rounded font-semibold ${colorClass}`}>{entry.category}</span>
+            <span className={`text-xs px-2 py-1 rounded-sm font-mono font-semibold ${colorClass}`}>{entry.category}</span>
             {entry.type === 'user' && (
-              <span className="text-xs px-2 py-1 rounded font-semibold text-green-500 bg-green-500/10">Community Report</span>
+              <span className="text-xs px-2 py-1 rounded-sm font-mono font-semibold text-green-500 bg-green-500/10">Community Report</span>
             )}
             {entry.reportedDown && (
-              <span className="text-xs px-2 py-1 rounded font-semibold text-slate-500 bg-slate-500/10 flex items-center gap-1">
+              <span className="text-xs px-2 py-1 rounded-sm font-mono font-semibold text-slate-500 bg-slate-500/10 flex items-center gap-1">
                 <PhoneOff className="w-3 h-3" />
                 Number Down
               </span>

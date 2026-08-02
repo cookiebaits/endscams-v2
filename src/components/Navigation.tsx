@@ -47,19 +47,9 @@ export default function Navigation() {
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center group-hover:bg-brand-500/20 transition-colors">
-              <Shield className="w-6 h-6 text-brand-500" />
-            </div>
-            <div className="hidden sm:block">
-              <div className="font-black text-gray-900 dark:text-white text-lg leading-tight">
-                EndScams.org
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Cyberscam Watchdog Network
-              </div>
-            </div>
+            <img src="/logo.png" alt="EndScams Logo" className="h-16 w-auto" />
           </Link>
 
 
@@ -68,7 +58,7 @@ export default function Navigation() {
               <Link
                 key={link.to}
                 to={link.to}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                className={`px-4 py-2 rounded-lg font-medium text-lg transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -125,7 +115,7 @@ export default function Navigation() {
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-lg font-medium text-sm transition-all ${
+                className={`block px-4 py-3 rounded-lg font-medium text-lg transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'

@@ -318,7 +318,7 @@ export default function EducationPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <BookOpen className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">Scam Education Center</h1>
+          <h1 className="text-4xl md:text-5xl font-black font-mono uppercase text-gray-900 dark:text-white mb-4">Scam Education Center</h1>
           <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
             Knowledge is your best defense. Learn to recognize the most common scam tactics and protect yourself and your loved ones.
           </p>
@@ -645,7 +645,7 @@ function QuickStatCard({ icon: Icon, label, value, color }: { icon: React.Elemen
   return (
     <div className="card p-5 text-center">
       <Icon className={`w-7 h-7 ${color} mx-auto mb-2`} />
-      <div className="text-2xl font-black text-gray-900 dark:text-white">{value}</div>
+      <div className="text-2xl font-black font-mono text-gray-900 dark:text-white">{value}</div>
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</div>
     </div>
   );

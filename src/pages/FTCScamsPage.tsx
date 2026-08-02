@@ -188,7 +188,7 @@ export default function FTCScamsPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
+          <h1 className="text-4xl md:text-5xl font-black font-mono uppercase text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
           <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>
@@ -251,7 +251,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   return (
     <div className="card p-4">
       <Icon className={`w-6 h-6 ${color} mb-2`} />
-      <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
+      <div className="text-2xl font-bold font-mono text-gray-900 dark:text-white">{value}</div>
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</div>
     </div>
   );
@@ -271,7 +271,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
             <span className="text-white font-black text-sm">#{scam.rank}</span>
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{scam.title}</h3>
+            <h3 className="text-lg font-bold font-mono uppercase tracking-wide text-gray-900 dark:text-white">{scam.title}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block line-clamp-1">{scam.description}</p>
           </div>
         </div>
