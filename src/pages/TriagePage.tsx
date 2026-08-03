@@ -1,5 +1,5 @@
 'use strict';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
 
 type QuestionnaireAnswers = {
@@ -164,7 +164,7 @@ export default function TriagePage() {
 
   if (resultType) {
     return (
-      <div className="min-h-screen bg-slate-950 pt-28 pb-16 text-slate-300">
+      <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
         <div className="max-w-2xl mx-auto px-4">
           {resultType === 'very-likely' && (
             <div className="animate-slide-up">
@@ -374,7 +374,7 @@ export default function TriagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-28 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">

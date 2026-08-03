@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
 
@@ -207,7 +207,7 @@ export default function TrackerPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-28 pb-16">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-40 pb-16">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">

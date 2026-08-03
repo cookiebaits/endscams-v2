@@ -1,5 +1,5 @@
 /* eslint-disable no-irregular-whitespace */
-import React from "react";
+
 import { useNavigate } from "react-router-dom";
 import { Shield, AlertTriangle } from "lucide-react";
 
@@ -265,8 +265,8 @@ Email: report@endscams.org
 `;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-4xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-40">
+      <div className="max-w-4xl mx-auto px-4 pb-12">
         <div className="card p-8">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 bg-brand-500/10 rounded-full flex items-center justify-center">

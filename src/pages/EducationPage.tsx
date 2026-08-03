@@ -251,7 +251,7 @@ export default function EducationPage() {
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-28 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
       {gallery !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"
@@ -350,7 +350,7 @@ export default function EducationPage() {
         <div className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
           <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value={stats.total_reports_short} color="text-yellow-500" />
-          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_visits} color="text-blue-500" />
+          <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_victims} color="text-blue-500" />
         </div>
 
         <div className="mb-10">
@@ -478,7 +478,7 @@ const GIFT_CARD_THUMBNAILS = [
   { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot', idx: 3 },
 ];
 
-function GiftCardSection({  onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
+function GiftCardSection({ onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
     { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
     { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash — accepted everywhere' },
@@ -620,7 +620,7 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
   );
 }
 
-function ClickableImage({ src, caption,  fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
+function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
   const displayLabel = label ?? caption.split(' — ')[0];
   return (
     <div

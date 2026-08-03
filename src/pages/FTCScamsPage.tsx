@@ -182,7 +182,7 @@ export default function FTCScamsPage() {
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-28 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
       <div className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">

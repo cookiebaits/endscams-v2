@@ -275,7 +275,7 @@ export default function ReportScamPage() {
 
   if (status === 'success') {
     return (
-      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 pt-28 pb-16 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 pt-40 pb-16 flex items-center justify-center">
         <div className="max-w-md mx-auto px-4 text-center animate-slide-up">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
@@ -319,7 +319,7 @@ export default function ReportScamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-28 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">

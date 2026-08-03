@@ -239,43 +239,48 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-20 bg-slate-50 dark:bg-slate-900">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="section-title text-center mb-4">Our Impact</h2>
-          <p className="section-subtitle text-center mb-12">
-            Together, we're making a real difference in the fight against scammers.
-          </p>
+      <section className="py-16 bg-brand-600 text-white dark:bg-brand-900/40 border-y border-brand-500/20">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl md:text-4xl font-black mb-4">Our Impact</h2>
+            <p className="text-brand-100 dark:text-brand-200/70 max-w-2xl mx-auto text-lg">
+              Together, we're making a real difference in the fight against scammers.
+            </p>
+          </div>
+
           {impactStats ? (
-            <div className="grid md:grid-cols-3 gap-6">
-              <ImpactCard
-                icon={DollarSign}
-                value={`$${impactStats.money_saved.toLocaleString('en-US')}`}
-                label="Estimated Money Saved"
-                description="Total dollars protected from scammer hands"
-                color="text-green-500"
-                bgColor="bg-green-500/10"
-              />
-              <ImpactCard
-                icon={Clock}
-                value={`${impactStats.scammer_hours_wasted.toLocaleString('en-US')} hrs`}
-                label="Scammer Time Wasted"
-                description="Hours of scammer resources exhausted"
-                color="text-blue-500"
-                bgColor="bg-blue-500/10"
-              />
-              <ImpactCard
-                icon={XOctagon}
-                value={impactStats.resources_shutdown.toLocaleString()}
-                label="Resources Shutdown"
-                description="Number of confirmed website, phone and finance shutdown"
-                color="text-red-500"
-                bgColor="bg-red-500/10"
-              />
+            <div className="grid md:grid-cols-3 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-brand-400/30 dark:divide-brand-800/50">
+              <div className="text-center py-4 px-2">
+                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                  <DollarSign className="w-6 h-6 text-green-300 dark:text-green-400" />
+                </div>
+                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`$${impactStats.money_saved.toLocaleString('en-US')}`}</div>
+                <h3 className="text-lg font-bold mb-1 text-brand-50">Estimated Money Saved</h3>
+                <p className="text-sm text-brand-200/80">Total dollars protected from scammer hands</p>
+              </div>
+
+              <div className="text-center py-4 px-2">
+                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-6 h-6 text-blue-300 dark:text-blue-400" />
+                </div>
+                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`${impactStats.scammer_hours_wasted.toLocaleString('en-US')}`}</div>
+                <h3 className="text-lg font-bold mb-1 text-brand-50">Scammer Time Wasted (hrs)</h3>
+                <p className="text-sm text-brand-200/80">Hours of scammer resources exhausted</p>
+              </div>
+
+              <div className="text-center py-4 px-2">
+                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                  <XOctagon className="w-6 h-6 text-red-300 dark:text-red-400" />
+                </div>
+                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{impactStats.resources_shutdown.toLocaleString()}</div>
+                <h3 className="text-lg font-bold mb-1 text-brand-50">Resources Shutdown</h3>
+                <p className="text-sm text-brand-200/80">Number of confirmed website, phone and finance shutdown</p>
+              </div>
             </div>
           ) : (
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Loading impact statistics...</p>
+            <div className="text-center py-10">
+              <Loader2 className="w-8 h-8 text-brand-200 mx-auto mb-4 animate-spin" />
+              <p className="text-brand-200/80 text-sm">Loading impact statistics...</p>
             </div>
           )}
         </div>
@@ -343,15 +348,3 @@ function FeatureCard({ icon: Icon, title, description, link }: { icon: React.Ele
   );
 }
 
-function ImpactCard({ icon: Icon, value, label, description, color, bgColor }: { icon: React.ElementType; value: string; label: string; description: string; color: string; bgColor: string }) {
-  return (
-    <div className="card p-8 text-center hover:border-brand-500/30 transition-all duration-300 hover:shadow-lg">
-      <div className={`w-16 h-16 rounded-full ${bgColor} flex items-center justify-center mx-auto mb-4`}>
-        <Icon className={`w-8 h-8 ${color}`} />
-      </div>
-      <div className={`text-4xl font-black ${color} mb-2`}>{value}</div>
-      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{label}</h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
-    </div>
-  );
-}
