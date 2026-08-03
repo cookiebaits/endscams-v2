@@ -111,7 +111,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <section className="relative pt-24 pb-20 overflow-hidden">
+      <section className="relative pt-32 pb-20 overflow-hidden">
         <div
           className="absolute inset-0 opacity-30 dark:opacity-20"
           style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
