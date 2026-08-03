@@ -167,15 +167,19 @@ export default function TrackerPage() {
   const handleReload = async () => {
     setReloading(true);
     try {
-      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-scam-data`;
+      const fnUrl = import.meta.env.DEV
+        ? 'http://localhost:8000/refresh'
+        : `${import.meta.env.VITE_FETCHER_URL}/refresh`;
+
       await fetch(fnUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
       });
-    } catch {}
+    } catch (e) {
+      console.error('Failed to reload data:', e);
+    }
     await fetchData();
   };
 
