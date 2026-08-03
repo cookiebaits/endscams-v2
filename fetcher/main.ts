@@ -1,4 +1,7 @@
 
+
+
+
 // deno-lint-ignore-file no-explicit-any
 /*
   tracker-fetcher – standalone Deno service that owns the /tracker data
@@ -35,8 +38,6 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const GOOGLE_API_KEY = env("GOOGLE_API_KEY");
-const GOOGLE_CX = env("GOOGLE_CX");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
@@ -154,24 +155,54 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  Google CSE                                                       */
+
+/*  DuckDuckGo Scraper (No API Key Required)                         */
 /* ================================================================ */
 interface CseItem { title?: string; snippet?: string; link?: string; }
 
-async function googleSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
-  if (!GOOGLE_API_KEY) return [];
-  const url = `https://customsearch.googleapis.com/customsearch/v1?key=${encodeURIComponent(GOOGLE_API_KEY)}&cx=${encodeURIComponent(GOOGLE_CX)}&q=${encodeURIComponent(q)}&num=${num}&dateRestrict=${dateRestrict}`;
+async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
+  // dateRestrict: DDG uses "d" (day), "w" (week), "m" (month). Defaulting to week if "w2".
+  const df = dateRestrict.startsWith("m") ? "m" : "w";
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&df=${df}`;
+
   try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn(`CSE ${res.status} q=${q}: ${t.slice(0, 200)}`);
+    const cmd = new Deno.Command("curl", {
+      args: [
+        "-sL",
+        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        url
+      ]
+    });
+    const { stdout, code } = await cmd.output();
+    if (code !== 0) {
+      console.warn(`DDG curl failed with code ${code} for q=${q}`);
       return [];
     }
-    const data = await res.json();
-    return (data.items || []) as CseItem[];
+    const html = new TextDecoder().decode(stdout);
+
+    const items: CseItem[] = [];
+    const itemRegex = /<a class="result__url" href="([^"]+)".*?>(.*?)<\/a>.*?<a class="result__snippet[^>]*>(.*?)<\/a>/gs;
+    let match;
+    while ((match = itemRegex.exec(html)) !== null && items.length < num) {
+      let link = match[1];
+      if (link.startsWith('//duckduckgo.com/l/?uddg=')) {
+        try {
+          const uddg = link.split('uddg=')[1].split('&')[0];
+          link = decodeURIComponent(uddg);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (e) {
+          // Ignore decode error and use raw link
+        }
+      }
+      items.push({
+        link: link,
+        title: match[2].replace(/<[^>]*>?/gm, '').trim(),
+        snippet: match[3].replace(/<[^>]*>?/gm, '').trim()
+      });
+    }
+    return items;
   } catch (e) {
-    console.warn(`CSE err q=${q}`, e);
+    console.warn(`DDG err q=${q}`, e);
     return [];
   }
 }
@@ -305,13 +336,11 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        if (GOOGLE_API_KEY) {
-          const items = await googleSearch(`"${row.digits}" scam`, "w2", 5);
-          csvGoogle++;
-          if (items.length > 0) {
-            foundUrl = items[0].link || foundUrl;
-            metaSnippet = summarizeSnippets(items);
-          }
+        const items = await duckDuckGoSearch(`"${row.digits}" scam`, "w2", 5);
+        csvGoogle++;
+        if (items.length > 0) {
+          foundUrl = items[0].link || foundUrl;
+          metaSnippet = summarizeSnippets(items);
         }
 
         const parts: string[] = [`FCC/FTC report ${toIsoDate(row.date!)}`];
@@ -334,28 +363,26 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto CSE queries */
+  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
-  if (GOOGLE_API_KEY) {
-    for (const q of WHATSAPP_QUERIES) {
-      const items = await googleSearch(q.q, "w2", 8);
-      cseUsed++;
-      for (const item of items) {
-        const text = `${item.title || ""} ${item.snippet || ""}`;
-        const nums = extractPhoneNumbers(text);
-        for (const digits of nums) {
-          if (collected.some(c => c.phone_digits === digits)) continue;
-          collected.push({
-            phone_number: formatPhoneDisplay(digits),
-            phone_digits: digits,
-            source_name: `Google Search — ${q.label}`,
-            source_url: item.link || "https://www.google.com",
-            report_date: todayIso,
-            category: q.category,
-            description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
-          });
-        }
+  for (const q of WHATSAPP_QUERIES) {
+    const items = await duckDuckGoSearch(q.q, "w2", 8);
+    cseUsed++;
+    for (const item of items) {
+      const text = `${item.title || ""} ${item.snippet || ""}`;
+      const nums = extractPhoneNumbers(text);
+      for (const digits of nums) {
+        if (collected.some(c => c.phone_digits === digits)) continue;
+        collected.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: `Web Search — ${q.label}`,
+          source_url: item.link || "https://duckduckgo.com",
+          report_date: todayIso,
+          category: q.category,
+          description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
+        });
       }
     }
   }
