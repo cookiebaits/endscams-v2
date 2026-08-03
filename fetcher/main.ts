@@ -166,19 +166,16 @@ async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promis
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&df=${df}`;
 
   try {
-    const cmd = new Deno.Command("curl", {
-      args: [
-        "-sL",
-        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        url
-      ]
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
     });
-    const { stdout, code } = await cmd.output();
-    if (code !== 0) {
-      console.warn(`DDG curl failed with code ${code} for q=${q}`);
+    if (!res.ok) {
+      console.warn(`DDG fetch failed with status ${res.status} for q=${q}`);
       return [];
     }
-    const html = new TextDecoder().decode(stdout);
+    const html = await res.text();
 
     const items: CseItem[] = [];
     const itemRegex = /<a class="result__url" href="([^"]+)".*?>(.*?)<\/a>.*?<a class="result__snippet[^>]*>(.*?)<\/a>/gs;
