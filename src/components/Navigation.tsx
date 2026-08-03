@@ -48,10 +48,8 @@ export default function Navigation() {
     <nav className="fixed top-0 left-0 right-0 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 z-40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-20">
-          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50">
-            <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="h-28 -my-4 drop-shadow-md" />
-          </div>
+          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-32 h-20">
+            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute top-1/2 -translate-y-1/2 left-0 h-28 max-w-none drop-shadow-md" />
           </Link>
 
 
