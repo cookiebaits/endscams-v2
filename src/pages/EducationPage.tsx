@@ -251,7 +251,7 @@ export default function EducationPage() {
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
       {gallery !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"
@@ -318,8 +318,8 @@ export default function EducationPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <BookOpen className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">Scam Education Center</h1>
-          <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-black text-white mb-4">Scam Education Center</h1>
+          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
             Knowledge is your best defense. Learn to recognize the most common scam tactics and protect yourself and your loved ones.
           </p>
         </div>
@@ -329,10 +329,10 @@ export default function EducationPage() {
             <Phone className="w-6 h-6 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="flex-1">
-            <p className="text-gray-900 dark:text-amber-100 font-semibold text-base leading-snug mb-1">
+            <p className="text-slate-900 dark:text-amber-100 font-semibold text-base leading-snug mb-1">
               If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
             </p>
-            <p className="text-gray-600 dark:text-amber-300/80 text-sm">
+            <p className="text-slate-600 dark:text-amber-300/80 text-sm">
               Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.
             </p>
           </div>
@@ -356,9 +356,9 @@ export default function EducationPage() {
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
             <TrendingUp className="w-5 h-5 text-red-500" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Trending Payment Methods Used by Scammers</h2>
+            <h2 className="text-lg font-bold text-white">Trending Payment Methods Used by Scammers</h2>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">These methods are preferred because they are irreversible and nearly impossible to trace once sent.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">These methods are preferred because they are irreversible and nearly impossible to trace once sent.</p>
           <div className="grid lg:grid-cols-2 gap-6">
             <GiftCardSection onZoom={openLightbox} onGallery={openGallery} />
             <BitcoinATMSection onZoom={openLightbox} />
@@ -381,11 +381,11 @@ export default function EducationPage() {
         </div>
 
         <div className="card p-8 mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
             <Shield className="w-6 h-6 text-brand-500" />
             Universal Scam Prevention Rules
           </h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">These rules apply to virtually every scam you'll encounter:</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">These rules apply to virtually every scam you'll encounter:</p>
           <div className="grid md:grid-cols-2 gap-4">
             {[
               'Never pay with gift cards, wire transfers, Zelle, or cryptocurrency for unexpected requests.',
@@ -397,9 +397,9 @@ export default function EducationPage() {
               'Protect your SSN, bank account, and passwords — never share them unsolicited.',
               'Talk to a trusted person before making any large or unusual payment.',
             ].map((rule, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div key={i} className="flex items-start gap-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
                 <span className="w-6 h-6 rounded-full bg-brand-500/20 flex items-center justify-center flex-shrink-0 text-brand-500 font-bold text-xs mt-0.5">{i + 1}</span>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{rule}</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300">{rule}</p>
               </div>
             ))}
           </div>
@@ -411,8 +411,8 @@ export default function EducationPage() {
               <PhoneCall className="w-6 h-6 text-blue-500" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <h2 className="text-xl font-bold text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
               </p>
             </div>
@@ -423,12 +423,12 @@ export default function EducationPage() {
               { step: '2', title: 'Call the non-emergency line', desc: 'Not 911 — use the non-emergency number for your county sheriff or local police.' },
               { step: '3', title: 'Report to the FTC too', desc: 'Filing at ReportFraud.ftc.gov creates a federal record and helps investigators track patterns.' },
             ].map(item => (
-              <div key={item.step} className="bg-white dark:bg-gray-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
+              <div key={item.step} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
                 <div className="w-7 h-7 rounded-full bg-blue-500/15 flex items-center justify-center mb-3">
                   <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">{item.step}</span>
                 </div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{item.title}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+                <p className="font-semibold text-white text-sm mb-1">{item.title}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -441,13 +441,13 @@ export default function EducationPage() {
             <Search className="w-4 h-4" />
             Find Your Local Sheriff Non-Emergency Number
           </a>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
             Opens a Brave Search for your local sheriff non-emergency contact information.
           </p>
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
             <ExternalLink className="w-6 h-6 text-brand-500" />
             Emergency Resources
           </h2>
@@ -460,9 +460,9 @@ export default function EducationPage() {
                 rel="noopener noreferrer"
                 className="card p-4 hover:border-brand-500/50 transition-all group"
               >
-                <p className="font-semibold text-gray-900 dark:text-white text-sm group-hover:text-brand-500 transition-colors mb-1">{r.label}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{r.desc}</p>
-                <ExternalLink className="w-3 h-3 text-gray-400 mt-2" />
+                <p className="font-semibold text-white text-sm group-hover:text-brand-500 transition-colors mb-1">{r.label}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{r.desc}</p>
+                <ExternalLink className="w-3 h-3 text-slate-400 mt-2" />
               </a>
             ))}
           </div>
@@ -478,7 +478,7 @@ const GIFT_CARD_THUMBNAILS = [
   { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot', idx: 3 },
 ];
 
-function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
+function GiftCardSection({  onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
   const COMMON_CARDS = [
     { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
     { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash — accepted everywhere' },
@@ -493,15 +493,15 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
           <AlertTriangle className="w-4 h-4 text-red-500" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight">Gift Cards</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Instant, irreversible, untraceable</p>
+          <h2 className="text-base font-bold text-white leading-tight">Gift Cards</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Instant, irreversible, untraceable</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 flex-1">
         <div className="flex flex-col gap-3">
           <div
-            className="relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-800 transition-all duration-200 flex-1"
+            className="relative group cursor-pointer rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 bg-slate-100 dark:bg-slate-800 transition-all duration-200 flex-1"
             style={{ minHeight: '160px' }}
             onClick={() => onGallery(0)}
           >
@@ -523,7 +523,7 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
               <button
                 key={thumb.src}
                 onClick={() => onGallery(thumb.idx)}
-                className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 transition-all duration-200 bg-gray-100 dark:bg-gray-800"
+                className="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 transition-all duration-200 bg-slate-100 dark:bg-slate-800"
               >
                 <img src={thumb.src} alt={thumb.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
                 <div className="absolute inset-0 bg-black/10 group-hover:bg-black/30 transition-all duration-200" />
@@ -537,15 +537,15 @@ function GiftCardSection({ onZoom, onGallery }: { onZoom: (src: string, caption:
 
         <div className="flex flex-col justify-between">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
               No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.
             </p>
             <div className="space-y-1.5">
               {COMMON_CARDS.map((card, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{card.name}</span>
                     {' '}— {card.note}
                   </p>
                 </div>
@@ -580,8 +580,8 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
           <Bitcoin className="w-4 h-4 text-yellow-500" />
         </div>
         <div>
-          <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight">Bitcoin ATMs &amp; Cryptocurrency</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Found in gas stations and liquor stores</p>
+          <h2 className="text-base font-bold text-white leading-tight">Bitcoin ATMs &amp; Cryptocurrency</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Found in gas stations and liquor stores</p>
         </div>
       </div>
 
@@ -595,14 +595,14 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
         />
         <div className="flex flex-col justify-between">
           <div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
               Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.
             </p>
             <ul className="space-y-1.5">
               {points.map((p, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-600 dark:text-gray-400">{p}</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{p}</p>
                 </li>
               ))}
             </ul>
@@ -620,11 +620,11 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
   );
 }
 
-function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
+function ClickableImage({ src, caption,  fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
   const displayLabel = label ?? caption.split(' — ')[0];
   return (
     <div
-      className={`relative group cursor-pointer rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:border-brand-500/60 bg-gray-100 dark:bg-gray-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}
+      className={`relative group cursor-pointer rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 bg-slate-100 dark:bg-slate-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}
       onClick={() => onZoom(src, caption)}
     >
       <div className={`relative overflow-hidden ${fill ? 'flex-1 min-h-0' : 'h-52'}`}>
@@ -643,10 +643,10 @@ function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover
 
 function QuickStatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
-    <div className="card p-5 text-center">
+    <div className="card p-5 text-center bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-all">
       <Icon className={`w-7 h-7 ${color} mx-auto mb-2`} />
-      <div className="text-2xl font-black text-gray-900 dark:text-white">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</div>
+      <div className="text-2xl font-black text-white">{value}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
     </div>
   );
 }
@@ -660,20 +660,20 @@ function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; 
     <div className={`card overflow-hidden transition-all duration-300 ${isExpanded ? 'border-brand-500/30' : ''}`}>
       <button
         onClick={onToggle}
-        className="w-full p-5 flex items-center gap-4 text-left hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+        className="w-full p-5 flex items-center gap-4 text-left hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
       >
         <div className={`w-10 h-10 rounded-xl ${scam.bg} flex items-center justify-center flex-shrink-0`}>
           <Icon className={`w-5 h-5 ${scam.color}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-900 dark:text-white">{scam.title}</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{scam.summary}</p>
+          <h3 className="font-bold text-white">{scam.title}</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">{scam.summary}</p>
         </div>
-        {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+        {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />}
       </button>
 
       {isExpanded && (
-        <div className="px-5 pb-5 border-t border-gray-200 dark:border-gray-800">
+        <div className="px-5 pb-5 border-t border-slate-200 dark:border-slate-800">
           <div className={`grid ${hasImages ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 pt-4 items-stretch`}>
             <div>
               <h4 className="font-bold text-red-500 dark:text-red-400 text-sm mb-3 flex items-center gap-2">
@@ -681,7 +681,7 @@ function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; 
               </h4>
               <ul className="space-y-2">
                 {scam.warningsSigns.map((sign, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />{sign}
                   </li>
                 ))}
@@ -694,7 +694,7 @@ function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; 
                 </h4>
                 <ul className="space-y-2 mb-4">
                   {scam.whatToDo.map((action, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />{action}
                     </li>
                   ))}
@@ -706,7 +706,7 @@ function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; 
             </div>
             {hasImages && (
               <div className="flex flex-col gap-3 h-full">
-                <h4 className="font-bold text-gray-700 dark:text-gray-300 text-sm">Real Examples</h4>
+                <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Real Examples</h4>
                 <div className="flex flex-col gap-3 flex-1 h-full">
                   <div className="h-full">
                     <ClickableImage src={scam.images![0].src} caption={scam.images![0].caption} onZoom={onZoom} fill objectFit={scam.images![0].objectFit} />

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Info, Paperclip } from 'lucide-react';
+import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 
 type FormData = {
@@ -212,6 +212,7 @@ export default function ReportScamPage() {
         }),
       });
     } catch {
+      // Intentional pass
     }
   };
 
@@ -274,13 +275,13 @@ export default function ReportScamPage() {
 
   if (status === 'success') {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 pt-20 pb-16 flex items-center justify-center">
         <div className="max-w-md mx-auto px-4 text-center animate-slide-up">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Report Submitted</h1>
-          <p className="text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
+          <h1 className="text-3xl font-bold text-white mb-3">Report Submitted</h1>
+          <p className="text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
             Thank you for helping protect others. Your report has been added to the Scam Tracker and will remain active for 45 days.
           </p>
           {uploadedFileUrl && (
@@ -295,7 +296,7 @@ export default function ReportScamPage() {
             </a>
           )}
           <div className="mb-8">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Also consider reporting to federal agencies:</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Also consider reporting to federal agencies:</p>
             <div className="space-y-2">
               {FEDERAL_LINKS.map(link => (
                 <a
@@ -318,14 +319,14 @@ export default function ReportScamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <AlertTriangle className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-3">Report a Scam</h1>
-          <p className="text-gray-500 dark:text-gray-400">
+          <h1 className="text-4xl font-black text-slate-100 mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
+          <p className="text-slate-500 dark:text-slate-400">
             Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
           </p>
         </div>
@@ -392,7 +393,7 @@ export default function ReportScamPage() {
           </div>
         )}
 
-        <div className="card p-6 md:p-8">
+        <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
             <Field label="Scam Phone Number" icon={Phone} required error={errors.phoneNumber}>
               <input
@@ -403,7 +404,7 @@ export default function ReportScamPage() {
                 maxLength={20}
                 className={`input-field ${errors.phoneNumber ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Include country code for international numbers (e.g. +44, +234). Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888).</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Include country code for international numbers (e.g. +44, +234). Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888).</p>
             </Field>
 
             <Field label="Scam Category" icon={AlertTriangle} required error={errors.category}>
@@ -446,12 +447,12 @@ export default function ReportScamPage() {
                 rows={5}
                 className={`input-field resize-none ${errors.description ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{form.description.length} characters (minimum 20)</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{form.description.length} characters (minimum 20)</p>
             </Field>
 
             <Field label="Amount Lost (Optional)" icon={DollarSign}>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                 <input
                   type="number"
                   value={form.moneyLost}
@@ -469,7 +470,7 @@ export default function ReportScamPage() {
                 className={`relative border-2 border-dashed rounded-xl p-5 transition-colors ${
                   errors.file
                     ? 'border-red-500/50 bg-red-500/5'
-                    : 'border-gray-300 dark:border-gray-700 hover:border-brand-500/50 bg-gray-50 dark:bg-gray-900/50'
+                    : 'border-slate-300 dark:border-slate-700 hover:border-brand-500/50 bg-slate-100 dark:bg-slate-900/50'
                 }`}
               >
                 {file ? (
@@ -482,8 +483,8 @@ export default function ReportScamPage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{file.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{file.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                       {file.size > MAX_SIZE_BYTES && (
                         <p className="text-xs text-amber-500 mt-0.5">Will be compressed before upload</p>
                       )}
@@ -491,18 +492,18 @@ export default function ReportScamPage() {
                     <button
                       type="button"
                       onClick={removeFile}
-                      className="p-1.5 rounded-full hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                      className="p-1.5 rounded-full hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
                   <label className="flex flex-col items-center gap-2 cursor-pointer">
-                    <Upload className="w-8 h-8 text-gray-400" />
-                    <span className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                    <Upload className="w-8 h-8 text-slate-400" />
+                    <span className="text-sm text-slate-500 dark:text-slate-400 text-center">
                       <span className="text-brand-500 font-semibold">Click to upload</span> or drag and drop
                     </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -515,9 +516,9 @@ export default function ReportScamPage() {
               </div>
             </Field>
 
-            <div className="border-t border-gray-200 dark:border-gray-800 pt-5">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Contact Info (Optional)</h3>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Provide contact info only if you'd like to be notified about follow-ups. Never shared publicly.</p>
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Info (Optional)</h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Provide contact info only if you'd like to be notified about follow-ups. Never shared publicly.</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="Your Name or Initials" icon={User} error={errors.reporterName}>
                   <input type="text" value={form.reporterName} onChange={e => update('reporterName', e.target.value)} placeholder="J.D. or Jane" className="input-field" />
@@ -558,7 +559,7 @@ export default function ReportScamPage() {
 function Field({ label, icon: Icon, required, error, children }: { label: string; icon?: React.ElementType; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
         {Icon && <Icon className="w-4 h-4 inline-block mr-1.5 text-brand-500" />}
         {label}
         {required && <span className="text-brand-500 ml-0.5">*</span>}

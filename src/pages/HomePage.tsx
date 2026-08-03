@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Phone, Shield, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
-import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
+import { supabase, formatPhoneDisplay } from '../lib/supabase';
 
 type ImpactStats = {
   money_saved: number;
@@ -110,13 +110,13 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
       <section className="relative pt-24 pb-20 overflow-hidden">
         <div
           className="absolute inset-0 opacity-30 dark:opacity-20"
           style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-gray-50/90 to-gray-50 dark:from-gray-950/80 dark:via-gray-950/90 dark:to-gray-950" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-slate-50/90 to-slate-50 dark:from-slate-950/80 dark:via-slate-950/90 dark:to-slate-950" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
@@ -124,19 +124,19 @@ export default function HomePage() {
             CyberScam Watch Dog Network
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6 text-gray-900 dark:text-white leading-tight tracking-tight">
+          <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
             End Scams Through<br />
             <span className="text-brand-500">Education</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto">
             Search any phone number in our database. We cross-reference reports from multiple sources to help you stay protected.
           </p>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-6">
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="(555) 123-4567"
@@ -154,7 +154,7 @@ export default function HomePage() {
                 {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5 mr-2 inline-block" />Search</>}
               </button>
             </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-left pl-1">
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 text-left pl-1">
               Accepts: (555) 123-4567 &nbsp;|&nbsp; 555-123-4567 &nbsp;|&nbsp; 5551234567
             </p>
           </form>
@@ -162,7 +162,7 @@ export default function HomePage() {
           {searching && (
             <div className="max-w-2xl mx-auto mt-6 p-6 card text-center animate-fade-in">
               <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-600 dark:text-gray-400">Searching our database...</p>
+              <p className="text-slate-600 dark:text-slate-400">Searching our database...</p>
             </div>
           )}
 
@@ -174,7 +174,7 @@ export default function HomePage() {
                     <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
                     <div className="text-left">
                       <p className="font-bold text-red-600 dark:text-red-400 text-lg">Warning — This number has been reported</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
                         Found {result.reports.length + result.trackerEntries.length} report(s) for {formatPhoneDisplay(searchedDigits)}
                       </p>
                     </div>
@@ -193,7 +193,7 @@ export default function HomePage() {
                     <CheckCircle className="w-8 h-8 text-green-500 flex-shrink-0" />
                     <div className="text-left">
                       <p className="font-bold text-green-600 dark:text-green-400 text-lg">Not found in our database</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
                         We could not match any records for {formatPhoneDisplay(searchedDigits)} in our database. For a deeper search, check the sources below.
                       </p>
                     </div>
@@ -205,7 +205,7 @@ export default function HomePage() {
                         href={buildSearchUrl(engine, searchedDigits)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium text-sm text-gray-700 dark:text-gray-300 transition-all"
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium text-sm text-slate-700 dark:text-slate-300 transition-all"
                       >
                         <ExternalLink className="w-4 h-4" />
                         Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
@@ -217,7 +217,7 @@ export default function HomePage() {
 
               {result.found && (
                 <div className="card p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Search deeper with external sources:</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Search deeper with external sources:</p>
                   <div className="grid sm:grid-cols-3 gap-3">
                     {(['google', 'bing', 'brave'] as const).map(engine => (
                       <a
@@ -225,7 +225,7 @@ export default function HomePage() {
                         href={buildSearchUrl(engine, searchedDigits)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium text-sm text-gray-700 dark:text-gray-300 transition-all"
+                        className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium text-sm text-slate-700 dark:text-slate-300 transition-all"
                       >
                         <ExternalLink className="w-4 h-4" />
                         Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
@@ -239,7 +239,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-20 bg-white dark:bg-gray-900">
+      <section className="py-20 bg-slate-50 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="section-title text-center mb-4">Our Impact</h2>
           <p className="section-subtitle text-center mb-12">
@@ -275,13 +275,13 @@ export default function HomePage() {
           ) : (
             <div className="text-center">
               <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading impact statistics...</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Loading impact statistics...</p>
             </div>
           )}
         </div>
       </section>
 
-      <section className="py-20 bg-gray-50 dark:bg-gray-950">
+      <section className="py-20 bg-slate-100 dark:bg-slate-950">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="section-title text-center mb-4">Scam Resources & Tools</h2>
           <p className="section-subtitle text-center mb-12">
@@ -295,7 +295,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-20 bg-white dark:bg-gray-900">
+      <section className="py-20 bg-slate-50 dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="section-title mb-4">Been Targeted? Report It</h2>
           <p className="section-subtitle mb-8">
@@ -313,14 +313,14 @@ export default function HomePage() {
 
 function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-3 text-left">
+    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 mb-3 text-left">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold px-2 py-1 bg-brand-500/10 text-brand-500 rounded">{label}</span>
-        <span className="text-xs text-gray-400">{date}</span>
+        <span className="text-xs text-slate-400">{date}</span>
       </div>
-      {description && <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 line-clamp-3">{description}</p>}
+      {description && <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 line-clamp-3">{description}</p>}
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">Source: {sourceName}</span>
+        <span className="text-xs text-slate-400">Source: {sourceName}</span>
         {sourceUrl && (
           <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />View Report
@@ -337,8 +337,8 @@ function FeatureCard({ icon: Icon, title, description, link }: { icon: React.Ele
       <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
         <Icon className="w-6 h-6 text-brand-500" />
       </div>
-      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">{description}</p>
+      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">{title}</h3>
+      <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">{description}</p>
     </Link>
   );
 }
@@ -350,8 +350,8 @@ function ImpactCard({ icon: Icon, value, label, description, color, bgColor }: {
         <Icon className={`w-8 h-8 ${color}`} />
       </div>
       <div className={`text-4xl font-black ${color} mb-2`}>{value}</div>
-      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{label}</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+      <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{label}</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
     </div>
   );
 }

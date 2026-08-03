@@ -217,13 +217,13 @@ export default function TrackerPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 pt-20 pb-16">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Scam Phone Tracker</h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
+              <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-2">Scam Phone Tracker</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
                 Real non-toll-free scam numbers from verified sources. Retained for 31 days, auto-refreshed twice daily (6am &amp; 1pm PST).
                 {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
               </p>
@@ -238,7 +238,7 @@ export default function TrackerPage() {
                 {reloading ? 'Checking for new numbers...' : 'Check for New Numbers'}
               </button>
               {reloading && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 text-right">
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-right">
                   Existing numbers stay visible while we search...
                 </p>
               )}
@@ -261,8 +261,8 @@ export default function TrackerPage() {
                       ? 'bg-slate-600 text-white'
                       : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                     : category === cat
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+                      ? 'bg-brand-500 text-slate-900 font-bold shadow-sm'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
                 {cat === 'Number Down' ? (
@@ -276,15 +276,15 @@ export default function TrackerPage() {
           </div>
 
           {category === 'Number Down' && (
-            <div className="card p-4 mb-6 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+            <div className="card p-4 mb-6 bg-slate-900/80 border-slate-800 backdrop-blur-md border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 These numbers have been community-reported as no longer active. Click <strong>Number Still Up</strong> on any entry to restore it to the main list.
               </p>
             </div>
           )}
 
-          <div className="card p-4 mb-6">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold">Active Source References</p>
+          <div className="card p-4 mb-6 bg-slate-900/80 border-slate-800 backdrop-blur-md">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-semibold">Active Source References</p>
             <div className="flex flex-wrap gap-2">
               {SOURCES.map(s => (
                 <a
@@ -305,22 +305,22 @@ export default function TrackerPage() {
         {loading ? (
           <div className="text-center py-20">
             <Loader2 className="w-10 h-10 text-brand-500 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-500 dark:text-gray-400">Loading scam tracker data...</p>
+            <p className="text-slate-500 dark:text-slate-400">Loading scam tracker data...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 card p-10">
-            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            <AlertTriangle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
               {category === 'Number Down' ? 'No numbers reported down' : 'No entries yet'}
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
+            <p className="text-slate-500 dark:text-slate-400 mb-6">
               {category === 'Number Down'
                 ? 'When a number is flagged as no longer active, it will appear here.'
                 : 'The database is empty. Reports submitted via the form and data fetched from external sources will appear here.'}
             </p>
             {category !== 'Number Down' && (
-              <div className="space-y-3 text-sm text-gray-400 dark:text-gray-500">
-                <p className="font-semibold text-gray-600 dark:text-gray-300">Check these sources directly:</p>
+              <div className="space-y-3 text-sm text-slate-400 dark:text-slate-500">
+                <p className="font-semibold text-slate-600 dark:text-slate-300">Check these sources directly:</p>
                 {SOURCES.slice(0, 4).map(s => (
                   <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-brand-500 hover:underline">
                     <ExternalLink className="w-4 h-4" />{s.name}
@@ -331,7 +331,7 @@ export default function TrackerPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{filtered.length} entries found</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{filtered.length} entries found</p>
             {filtered.map(entry => (
               <TrackerEntryCard
                 key={entry.id}
@@ -367,14 +367,14 @@ function TrackerEntryCard({
     'Spiritual / Spellcaster Scam': 'text-teal-500 bg-teal-500/10',
     'Crypto Recovery Scam': 'text-cyan-500 bg-cyan-500/10',
   };
-  const colorClass = categoryColors[entry.category] || 'text-gray-500 bg-gray-500/10';
+  const colorClass = categoryColors[entry.category] || 'text-slate-500 bg-slate-1000/10';
 
   return (
-    <div className={`card p-5 hover:border-brand-500/30 transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-300 dark:border-slate-700' : ''}`}>
+    <div className={`card p-5 bg-slate-900/80 border border-slate-800 backdrop-blur-md hover:border-brand-500/50 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-800' : ''}`}>
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 font-mono font-bold text-gray-900 dark:text-white text-lg">
+            <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-lg">
               <Phone className="w-4 h-4 text-brand-500" />
               {entry.phone}
             </div>
@@ -391,7 +391,7 @@ function TrackerEntryCard({
           </div>
 
           {entry.description && (
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-3 space-y-1">
+            <div className="text-sm text-slate-600 dark:text-slate-400 mb-3 space-y-1">
               {entry.description.split(/\s+\|\s+/).slice(0, 4).map((chunk, i) => {
                 const [labelRaw, ...rest] = chunk.split(/:\s*/);
                 const hasLabel = rest.length > 0 && labelRaw.length < 30;
@@ -399,7 +399,7 @@ function TrackerEntryCard({
                   <div key={i} className="leading-snug">
                     {hasLabel ? (
                       <>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">{labelRaw}:</span>{' '}
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{labelRaw}:</span>{' '}
                         <span>{rest.join(': ')}</span>
                       </>
                     ) : (
@@ -411,7 +411,7 @@ function TrackerEntryCard({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 dark:text-slate-500">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               Report date: {entry.date}
@@ -440,7 +440,7 @@ function TrackerEntryCard({
               href={entry.fileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-semibold transition-all"
             >
               <Paperclip className="w-4 h-4" />
               Uploaded Resource
