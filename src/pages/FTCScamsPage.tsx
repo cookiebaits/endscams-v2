@@ -182,13 +182,13 @@ export default function FTCScamsPage() {
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
       <div className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-100 mb-4 uppercase tracking-wider border-l-4 border-brand-500 pl-4">FTC THREAT VECTORS</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-100 mb-4 uppercase tracking-wider border-l-4 border-brand-500 pl-4">FTC Latest Scam Reports</h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>
@@ -261,7 +261,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
   const rankColors = ['bg-red-500', 'bg-red-400', 'bg-orange-500', 'bg-orange-400', 'bg-yellow-500', 'bg-yellow-400', 'bg-blue-500', 'bg-blue-400', 'bg-teal-500', 'bg-teal-400'];
 
   return (
-    <div className={`card overflow-hidden transition-all duration-300 bg-slate-900/80 border-slate-800 backdrop-blur-md hover:shadow-[0_0_15px_rgba(34,211,238,0.1)] ${isExpanded ? 'border-brand-500/50' : ''}`}>
+    <div className={`card overflow-hidden transition-all duration-300 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:shadow-lg ${isExpanded ? 'border-brand-500/50' : ''}`}>
       <button
         onClick={onToggle}
         className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"

@@ -261,7 +261,7 @@ export default function TrackerPage() {
                       ? 'bg-slate-600 text-white'
                       : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                     : category === cat
-                      ? 'bg-brand-500 text-slate-900 font-bold shadow-[0_0_10px_rgba(34,211,238,0.5)]'
+                      ? 'bg-brand-500 text-slate-900 font-bold shadow-sm'
                       : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                 }`}
               >
@@ -374,7 +374,7 @@ function TrackerEntryCard({
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 font-mono font-bold text-slate-900 dark:text-white text-lg">
+            <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-lg">
               <Phone className="w-4 h-4 text-brand-500" />
               {entry.phone}
             </div>

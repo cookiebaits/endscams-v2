@@ -319,13 +319,13 @@ export default function ReportScamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
-      <div className="max-w-2xl mx-auto px-4 font-mono">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
+      <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <AlertTriangle className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-slate-100 mb-3 uppercase tracking-wider flex items-center justify-center gap-3"><span className="w-3 h-3 bg-red-500 animate-pulse rounded-full"></span>SECURE INTAKE PORTAL</h1>
+          <h1 className="text-4xl font-black text-slate-100 mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
           <p className="text-slate-500 dark:text-slate-400">
             Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
           </p>
@@ -393,7 +393,7 @@ export default function ReportScamPage() {
           </div>
         )}
 
-        <div className="card p-6 md:p-8 bg-slate-900/80 border-brand-500/30 backdrop-blur-md shadow-[0_0_20px_rgba(34,211,238,0.1)]">
+        <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
             <Field label="Scam Phone Number" icon={Phone} required error={errors.phoneNumber}>
               <input

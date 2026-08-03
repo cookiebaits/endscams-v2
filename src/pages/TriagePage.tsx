@@ -164,7 +164,7 @@ export default function TriagePage() {
 
   if (resultType) {
     return (
-      <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
+      <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
         <div className="max-w-2xl mx-auto px-4">
           {resultType === 'very-likely' && (
             <div className="animate-slide-up">
@@ -374,7 +374,7 @@ export default function TriagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
@@ -406,7 +406,7 @@ export default function TriagePage() {
         </div>
 
         {currentQuestion === 1 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">1</div>
               <h2 className="text-2xl font-bold text-white">
@@ -431,7 +431,7 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 2 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">2</div>
               <h2 className="text-2xl font-bold text-white">
@@ -456,7 +456,7 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 3 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">3</div>
               <h2 className="text-2xl font-bold text-white">
@@ -487,7 +487,7 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 4 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">4</div>
               <h2 className="text-2xl font-bold text-white">How much money are they asking for? (Include Dollar and Cents)</h2>
@@ -515,7 +515,7 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 5 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">5</div>
               <h2 className="text-2xl font-bold text-white">What payment method are they requesting?</h2>
@@ -614,7 +614,7 @@ export default function TriagePage() {
         )}
 
         {currentQuestion === 6 && (
-          <div className="card p-6 md:p-8 bg-slate-900/80 border-slate-800 backdrop-blur-md shadow-[0_0_15px_rgba(34,211,238,0.1)] animate-slide-up">
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">6</div>
               <h2 className="text-2xl font-bold text-white">What company name do they claim to be from?</h2>

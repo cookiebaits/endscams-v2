@@ -251,7 +251,7 @@ export default function EducationPage() {
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300 font-mono">
+    <div className="min-h-screen bg-slate-950 pt-20 pb-16 text-slate-300">
       {gallery !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"
@@ -643,7 +643,7 @@ function ClickableImage({ src, caption,  fill = false, objectFit = 'cover', labe
 
 function QuickStatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
-    <div className="card p-5 text-center bg-slate-900/80 border-slate-800 backdrop-blur-md hover:border-brand-500/30 transition-all">
+    <div className="card p-5 text-center bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-all">
       <Icon className={`w-7 h-7 ${color} mx-auto mb-2`} />
       <div className="text-2xl font-black text-white">{value}</div>
       <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
