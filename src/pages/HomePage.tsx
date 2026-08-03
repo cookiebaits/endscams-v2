@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Phone, Shield, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
+import { Search, Phone, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 
 type ImpactStats = {
@@ -119,10 +119,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-slate-50/90 to-slate-50 dark:from-slate-950/80 dark:via-slate-950/90 dark:to-slate-950" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
-            <Shield className="w-4 h-4" />
-            CyberScam Watch Dog Network
-          </div>
+
 
           <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
             End Scams Through<br />
