@@ -44,29 +44,44 @@ type CombinedEntry = {
 
 const SOURCES = [
   {
-    name: 'US Gov Data — FCC/FTC Sheet',
-    url: 'https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a',
-    category: 'Government Data',
-  },
-  {
-    name: 'Google Search — WhatsApp / Spellcaster / Crypto Recovery',
-    url: 'https://www.google.com/search?q=%22whatsapp%22+%22scam%22',
-    category: 'Social Media / WhatsApp Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — PayPal',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0',
+    name: 'BBB Scam Tracker — Invoice/Imposter',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%2520geek%2520inovoice%2520apple%2520amazon%2520invoice%26from%3D0',
     category: 'Invoice / Imposter Scam',
   },
   {
-    name: 'BBB Scam Tracker — Emergency',
+    name: 'BBB Scam Tracker — Emergency Scams',
     url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0',
     category: 'Emergency Scam',
   },
   {
-    name: 'BBB Scam Tracker — Million',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0',
+    name: 'BBB Scam Tracker — Lottery/Publisher',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpublisher%2520clearing%2520house%2520digest%2520million%2520lottery%2520mega%2520%26from%3D0',
     category: 'Lottery / Prize Scam',
+  },
+  {
+    name: 'BBB Scam Tracker — Sheriff/Warrant',
+    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dsheriff%2520warrant%2520jury%2520arrest%2520family%26from%3D0',
+    category: 'Government Impersonation',
+  },
+  {
+    name: 'Google — Spellcaster/WhatsApp (Facebook)',
+    url: 'https://www.google.com/search?q=site:+facebook.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr:w',
+    category: 'Spiritual / Spellcaster Scam',
+  },
+  {
+    name: 'Google — Spellcaster/WhatsApp (Instagram)',
+    url: 'https://www.google.com/search?q=site%3A+instagram.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr%3Aw',
+    category: 'Spiritual / Spellcaster Scam',
+  },
+  {
+    name: 'Google — BTC Recovery/WhatsApp',
+    url: 'https://www.google.com/search?q=site%3A+facebook.com+%22btc+recovery%22+%22Whatsapp%22&tbs=qdr%3Aw',
+    category: 'Crypto Recovery Scam',
+  },
+  {
+    name: 'Google — Guestbook Spellcaster',
+    url: 'https://www.google.com/search?q=inurl:%22guestbook%22+spell+whatsapp&tbs=qdr:m',
+    category: 'Spiritual / Spellcaster Scam',
   },
 ];
 
@@ -82,65 +97,13 @@ const CATEGORIES = [
   'Number Down',
 ];
 
-function mergeAndSort(existing: CombinedEntry[], incoming: CombinedEntry[]): CombinedEntry[] {
-  const seen = new Map<string, CombinedEntry>();
-  for (const e of existing) seen.set(e.id, e);
-  for (const e of incoming) seen.set(e.id, e);
-
-  // Enforce a strict 31-day cutoff and de-dup by digits (keep newest report).
-  const cutoffMs = Date.now() - 31 * 86400_000;
-  const byDigits = new Map<string, CombinedEntry>();
-  for (const entry of seen.values()) {
-    if (isFakeNumber(entry.digits)) continue;
-    const t = new Date(entry.date).getTime();
-    if (isNaN(t) || t < cutoffMs) continue;
-    const prev = byDigits.get(entry.digits);
-    if (!prev || prev.date < entry.date) byDigits.set(entry.digits, entry);
-  }
-
-  return Array.from(byDigits.values())
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
-}
-
 export default function TrackerPage() {
   const [entries, setEntries] = useState<CombinedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
-  const [newCount, setNewCount] = useState(0);
   const [category, setCategory] = useState('All');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-
-  const buildEntries = (trackerData: Entry[], reportData: UserReport[]): CombinedEntry[] => {
-    const trackerItems: CombinedEntry[] = trackerData.map((e: Entry) => ({
-      id: e.id,
-      phone: formatPhoneDisplay(e.phone_digits),
-      digits: e.phone_digits,
-      sourceName: e.source_name,
-      sourceUrl: e.source_url,
-      date: e.report_date,
-      category: e.category || 'Unknown',
-      description: e.description || '',
-      type: 'tracker',
-      reportedDown: e.reported_down ?? false,
-    }));
-
-    const userItems: CombinedEntry[] = reportData.map((e: UserReport) => ({
-      id: e.id,
-      phone: formatPhoneDisplay(e.phone_digits),
-      digits: e.phone_digits,
-      sourceName: 'User Report — EndScams.org',
-      sourceUrl: e.source_url,
-      fileUrl: e.file_url,
-      date: e.incident_date,
-      category: e.category,
-      description: e.description,
-      type: 'user',
-      reportedDown: false,
-    }));
-
-    return [...trackerItems, ...userItems];
-  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -159,13 +122,41 @@ export default function TrackerPage() {
           .limit(200),
       ]);
 
-      const incoming = buildEntries(trackerRes.data || [], reportsRes.data || []);
-      setEntries(prev => mergeAndSort(prev, incoming));
+      const trackerItems: CombinedEntry[] = (trackerRes.data || []).map((e: Entry) => ({
+        id: e.id,
+        phone: formatPhoneDisplay(e.phone_digits),
+        digits: e.phone_digits,
+        sourceName: e.source_name,
+        sourceUrl: e.source_url,
+        date: e.report_date,
+        category: e.category || 'Unknown',
+        description: e.description || '',
+        type: 'tracker',
+        reportedDown: e.reported_down ?? false,
+      }));
+
+      const userItems: CombinedEntry[] = (reportsRes.data || []).map((e: UserReport) => ({
+        id: e.id,
+        phone: formatPhoneDisplay(e.phone_digits),
+        digits: e.phone_digits,
+        sourceName: 'User Report — EndScams.org',
+        sourceUrl: e.source_url,
+        fileUrl: e.file_url,
+        date: e.incident_date,
+        category: e.category,
+        description: e.description,
+        type: 'user',
+        reportedDown: false,
+      }));
+
+      const all = [...trackerItems, ...userItems]
+        .filter(e => !isFakeNumber(e.digits))
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
+      setEntries(all);
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
       setReloading(false);
-      setNewCount(0);
     }
   }, []);
 
@@ -175,21 +166,16 @@ export default function TrackerPage() {
 
   const handleReload = async () => {
     setReloading(true);
-    setNewCount(0);
     try {
-      const fetcherBase = (import.meta.env.VITE_FETCHER_URL as string | undefined) || '';
-      if (!fetcherBase) throw new Error('VITE_FETCHER_URL not set');
-      const res = await fetch(`${fetcherBase.replace(/\/$/, '')}/refresh`, {
+      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-scam-data`;
+      await fetch(fnUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
       });
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}));
-        if (json.inserted) setNewCount(json.inserted);
-      }
-    } catch (e) {
-      console.warn('refresh failed', e);
-    }
+    } catch {}
     await fetchData();
   };
 
@@ -217,37 +203,25 @@ export default function TrackerPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 pt-20 pb-16">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
       <div className="max-w-6xl mx-auto px-4">
         <div className="mb-10">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-2">Scam Phone Tracker</h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
-                Real non-toll-free scam numbers from verified sources. Retained for 31 days, auto-refreshed twice daily (6am &amp; 1pm PST).
+              <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Scam Phone Tracker</h1>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
+                Real non-toll-free scam numbers from verified sources. Retained for 30 days.
                 {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
               </p>
             </div>
-            <div className="flex flex-col items-end gap-1.5 self-start md:self-auto">
-              <button
-                onClick={handleReload}
-                disabled={reloading}
-                className="btn-primary flex items-center gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
-                {reloading ? 'Checking for new numbers...' : 'Check for New Numbers'}
-              </button>
-              {reloading && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 text-right">
-                  Existing numbers stay visible while we search...
-                </p>
-              )}
-              {!reloading && newCount > 0 && (
-                <p className="text-xs text-green-500 font-semibold text-right">
-                  {newCount} new number{newCount !== 1 ? 's' : ''} added
-                </p>
-              )}
-            </div>
+            <button
+              onClick={handleReload}
+              disabled={reloading}
+              className="btn-primary flex items-center gap-2 self-start md:self-auto"
+            >
+              <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
+              {reloading ? 'Reloading...' : 'Reload Data'}
+            </button>
           </div>
 
           <div className="flex flex-wrap gap-2 mb-6">
@@ -261,8 +235,8 @@ export default function TrackerPage() {
                       ? 'bg-slate-600 text-white'
                       : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                     : category === cat
-                      ? 'bg-brand-500 text-slate-900 font-bold shadow-sm'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
                 {cat === 'Number Down' ? (
@@ -276,15 +250,15 @@ export default function TrackerPage() {
           </div>
 
           {category === 'Number Down' && (
-            <div className="card p-4 mb-6 bg-slate-900/80 border-slate-800 backdrop-blur-md border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+            <div className="card p-4 mb-6 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 These numbers have been community-reported as no longer active. Click <strong>Number Still Up</strong> on any entry to restore it to the main list.
               </p>
             </div>
           )}
 
-          <div className="card p-4 mb-6 bg-slate-900/80 border-slate-800 backdrop-blur-md">
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-semibold">Active Source References</p>
+          <div className="card p-4 mb-6">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-semibold">Active Source References</p>
             <div className="flex flex-wrap gap-2">
               {SOURCES.map(s => (
                 <a
@@ -305,22 +279,22 @@ export default function TrackerPage() {
         {loading ? (
           <div className="text-center py-20">
             <Loader2 className="w-10 h-10 text-brand-500 mx-auto mb-4 animate-spin" />
-            <p className="text-slate-500 dark:text-slate-400">Loading scam tracker data...</p>
+            <p className="text-gray-500 dark:text-gray-400">Loading scam tracker data...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 card p-10">
-            <AlertTriangle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               {category === 'Number Down' ? 'No numbers reported down' : 'No entries yet'}
             </h3>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
               {category === 'Number Down'
                 ? 'When a number is flagged as no longer active, it will appear here.'
                 : 'The database is empty. Reports submitted via the form and data fetched from external sources will appear here.'}
             </p>
             {category !== 'Number Down' && (
-              <div className="space-y-3 text-sm text-slate-400 dark:text-slate-500">
-                <p className="font-semibold text-slate-600 dark:text-slate-300">Check these sources directly:</p>
+              <div className="space-y-3 text-sm text-gray-400 dark:text-gray-500">
+                <p className="font-semibold text-gray-600 dark:text-gray-300">Check these sources directly:</p>
                 {SOURCES.slice(0, 4).map(s => (
                   <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-brand-500 hover:underline">
                     <ExternalLink className="w-4 h-4" />{s.name}
@@ -331,7 +305,7 @@ export default function TrackerPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{filtered.length} entries found</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{filtered.length} entries found</p>
             {filtered.map(entry => (
               <TrackerEntryCard
                 key={entry.id}
@@ -367,14 +341,14 @@ function TrackerEntryCard({
     'Spiritual / Spellcaster Scam': 'text-teal-500 bg-teal-500/10',
     'Crypto Recovery Scam': 'text-cyan-500 bg-cyan-500/10',
   };
-  const colorClass = categoryColors[entry.category] || 'text-slate-500 bg-slate-1000/10';
+  const colorClass = categoryColors[entry.category] || 'text-gray-500 bg-gray-500/10';
 
   return (
-    <div className={`card p-5 bg-slate-900/80 border border-slate-800 backdrop-blur-md hover:border-brand-500/50 hover:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-800' : ''}`}>
+    <div className={`card p-5 hover:border-brand-500/30 transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-300 dark:border-slate-700' : ''}`}>
       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-white text-lg">
+            <div className="flex items-center gap-2 font-mono font-bold text-gray-900 dark:text-white text-lg">
               <Phone className="w-4 h-4 text-brand-500" />
               {entry.phone}
             </div>
@@ -391,27 +365,10 @@ function TrackerEntryCard({
           </div>
 
           {entry.description && (
-            <div className="text-sm text-slate-600 dark:text-slate-400 mb-3 space-y-1">
-              {entry.description.split(/\s+\|\s+/).slice(0, 4).map((chunk, i) => {
-                const [labelRaw, ...rest] = chunk.split(/:\s*/);
-                const hasLabel = rest.length > 0 && labelRaw.length < 30;
-                return (
-                  <div key={i} className="leading-snug">
-                    {hasLabel ? (
-                      <>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{labelRaw}:</span>{' '}
-                        <span>{rest.join(': ')}</span>
-                      </>
-                    ) : (
-                      <span>{chunk}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">{entry.description}</p>
           )}
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 dark:text-slate-500">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-gray-400 dark:text-gray-500">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               Report date: {entry.date}
@@ -440,7 +397,7 @@ function TrackerEntryCard({
               href={entry.fileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-semibold transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-semibold transition-all"
             >
               <Paperclip className="w-4 h-4" />
               Uploaded Resource
