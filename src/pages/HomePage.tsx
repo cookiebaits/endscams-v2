@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Search, Phone, Shield, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 

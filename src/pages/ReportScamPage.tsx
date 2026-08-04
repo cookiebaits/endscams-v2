@@ -174,7 +174,7 @@ export default function ReportScamPage() {
       if (f.size > MAX_SIZE_BYTES) {
         blob = await compressImage(f);
       }
-      const ext = f.name.split('.').pop() || 'bin';
+      const ext = f.name.replace(/\.\./g, "").split(".").pop() || "bin";
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const mimeType = blob.type || f.type;
       const { error } = await supabase.storage

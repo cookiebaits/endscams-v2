@@ -1,6 +1,6 @@
 /* eslint-disable no-irregular-whitespace */
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Shield, AlertTriangle } from "lucide-react";
 
 export default function DisclaimerPage() {

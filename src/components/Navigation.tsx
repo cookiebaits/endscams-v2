@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { Menu, X, Sun, Moon, Search, AlertTriangle, BookOpen, Flag, Shield } from 'lucide-react';
 
 export default function Navigation() {
