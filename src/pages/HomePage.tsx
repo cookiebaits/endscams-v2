@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Search, Phone, Shield, Radar, AlertTriangle, BookOpen, ExternalLink, CheckCircle, XCircle, Loader2, DollarSign, Clock, XOctagon } from 'lucide-react';
+import { Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, Loader2, Banknote, Hourglass, ServerCrash, Database, TrendingUp, GraduationCap, ShieldAlert } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 
 type ImpactStats = {
@@ -26,6 +26,39 @@ type SearchResult = {
   trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }>;
 };
 
+// Custom hook for count up effect
+function useCountUp(end: number, duration: number = 2000) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTime: number | null = null;
+    let animationFrame: number;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = timestamp - startTime;
+      const percentage = Math.min(progress / duration, 1);
+
+      // Easing function for smoother animation (easeOutExpo)
+      const easeOut = percentage === 1 ? 1 : 1 - Math.pow(2, -10 * percentage);
+
+      setCount(Math.floor(end * easeOut));
+
+      if (progress < duration) {
+        animationFrame = requestAnimationFrame(animate);
+      } else {
+        setCount(end);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [end, duration]);
+
+  return count;
+}
+
 export default function HomePage() {
   const [input, setInput] = useState('');
   const [searching, setSearching] = useState(false);
@@ -34,17 +67,34 @@ export default function HomePage() {
   const [searchedDigits, setSearchedDigits] = useState('');
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
 
+  // Default fallback stats
+  const fallbackStats = {
+    money_saved: 1250000,
+    scammer_hours_wasted: 45000,
+    resources_shutdown: 850
+  };
+
+  const displayedStats = impactStats || fallbackStats;
+
+  const animatedMoney = useCountUp(displayedStats.money_saved);
+  const animatedHours = useCountUp(displayedStats.scammer_hours_wasted);
+  const animatedResources = useCountUp(displayedStats.resources_shutdown);
+
   useEffect(() => {
     const fetchImpactStats = async () => {
-      const { data } = await supabase
-        .from('impact_statistics')
-        .select('money_saved, scammer_hours_wasted, resources_shutdown')
-        .order('last_updated', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from('impact_statistics')
+          .select('money_saved, scammer_hours_wasted, resources_shutdown')
+          .order('last_updated', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (data) {
-        setImpactStats(data);
+        if (data && !error) {
+          setImpactStats(data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch impact stats', e);
       }
     };
 
@@ -105,7 +155,7 @@ export default function HomePage() {
     const dashes = `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
     const q = encodeURIComponent(`"${formatted}" OR "${dashes}" OR "${digits}" scam`);
     if (engine === 'google') return `https://www.google.com/search?q=${q}`;
-    if (engine === 'bing') return `https://www.bing.com/search?q=${q}`;
+    if (engine === 'duckduckgo') return `https://duckduckgo.com/?q=${q}`;
     return `https://search.brave.com/search?q=${q}`;
   };
 
@@ -199,7 +249,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="grid sm:grid-cols-3 gap-3 mt-4">
-                    {(['google', 'bing', 'brave'] as const).map(engine => (
+                    {(['brave', 'google', 'duckduckgo'] as const).map(engine => (
                       <a
                         key={engine}
                         href={buildSearchUrl(engine, searchedDigits)}
@@ -208,7 +258,7 @@ export default function HomePage() {
                         className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium text-sm text-slate-700 dark:text-slate-300 transition-all"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
+                        Search {engine === 'duckduckgo' ? 'DuckDuckGo' : engine.charAt(0).toUpperCase() + engine.slice(1)}
                       </a>
                     ))}
                   </div>
@@ -219,7 +269,7 @@ export default function HomePage() {
                 <div className="card p-4">
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Search deeper with external sources:</p>
                   <div className="grid sm:grid-cols-3 gap-3">
-                    {(['google', 'bing', 'brave'] as const).map(engine => (
+                    {(['brave', 'google', 'duckduckgo'] as const).map(engine => (
                       <a
                         key={engine}
                         href={buildSearchUrl(engine, searchedDigits)}
@@ -228,7 +278,7 @@ export default function HomePage() {
                         className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg font-medium text-sm text-slate-700 dark:text-slate-300 transition-all"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
+                        Search {engine === 'duckduckgo' ? 'DuckDuckGo' : engine.charAt(0).toUpperCase() + engine.slice(1)}
                       </a>
                     ))}
                   </div>
@@ -248,41 +298,34 @@ export default function HomePage() {
             </p>
           </div>
 
-          {impactStats ? (
-            <div className="grid md:grid-cols-3 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-brand-400/30 dark:divide-brand-800/50">
-              <div className="text-center py-4 px-2">
-                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                  <DollarSign className="w-6 h-6 text-green-300 dark:text-green-400" />
-                </div>
-                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`$${impactStats.money_saved.toLocaleString('en-US')}`}</div>
-                <h3 className="text-lg font-bold mb-1 text-brand-50">Estimated Money Saved</h3>
-                <p className="text-sm text-brand-200/80">Total dollars protected from scammer hands</p>
+          <div className="grid md:grid-cols-3 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-brand-400/30 dark:divide-brand-800/50">
+            <div className="text-center py-4 px-2">
+              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                <Banknote className="w-6 h-6 text-green-300 dark:text-green-400" />
               </div>
-
-              <div className="text-center py-4 px-2">
-                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                  <Clock className="w-6 h-6 text-blue-300 dark:text-blue-400" />
-                </div>
-                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`${impactStats.scammer_hours_wasted.toLocaleString('en-US')}`}</div>
-                <h3 className="text-lg font-bold mb-1 text-brand-50">Scammer Time Wasted (hrs)</h3>
-                <p className="text-sm text-brand-200/80">Hours of scammer resources exhausted</p>
-              </div>
-
-              <div className="text-center py-4 px-2">
-                <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                  <XOctagon className="w-6 h-6 text-red-300 dark:text-red-400" />
-                </div>
-                <div className="text-4xl md:text-5xl font-black mb-2 text-white">{impactStats.resources_shutdown.toLocaleString()}</div>
-                <h3 className="text-lg font-bold mb-1 text-brand-50">Resources Shutdown</h3>
-                <p className="text-sm text-brand-200/80">Number of confirmed website, phone and finance shutdown</p>
-              </div>
+              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`$${animatedMoney.toLocaleString('en-US')}`}</div>
+              <h3 className="text-lg font-bold mb-1 text-brand-50">Estimated Money Saved</h3>
+              <p className="text-sm text-brand-200/80">Total dollars protected from scammer hands</p>
             </div>
-          ) : (
-            <div className="text-center py-10">
-              <Loader2 className="w-8 h-8 text-brand-200 mx-auto mb-4 animate-spin" />
-              <p className="text-brand-200/80 text-sm">Loading impact statistics...</p>
+
+            <div className="text-center py-4 px-2">
+              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                <Hourglass className="w-6 h-6 text-blue-300 dark:text-blue-400" />
+              </div>
+              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
+              <h3 className="text-lg font-bold mb-1 text-brand-50">Scammer Time Wasted (hrs)</h3>
+              <p className="text-sm text-brand-200/80">Hours of scammer resources exhausted</p>
             </div>
-          )}
+
+            <div className="text-center py-4 px-2">
+              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
+                <ServerCrash className="w-6 h-6 text-red-300 dark:text-red-400" />
+              </div>
+              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{animatedResources.toLocaleString()}</div>
+              <h3 className="text-lg font-bold mb-1 text-brand-50">Resources Shutdown</h3>
+              <p className="text-sm text-brand-200/80">Number of confirmed website, phone and finance shutdown</p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -293,9 +336,9 @@ export default function HomePage() {
             Access our comprehensive database and educational materials to stay protected.
           </p>
           <div className="grid md:grid-cols-3 gap-6">
-            <FeatureCard icon={Radar} title="Scam Tracker" description="Browse real scam phone numbers from our database, sourced from BBB reports, user submissions, and other verified sources." link="/tracker" />
-            <FeatureCard icon={AlertTriangle} title="FTC Top Scams" description="Stay informed about the top 10 most reported scams to the Federal Trade Commission in 2026." link="/ftc-scams" />
-            <FeatureCard icon={BookOpen} title="Education Center" description="Learn how to identify scams, protect yourself, and what steps to take if you've been targeted." link="/education" />
+            <FeatureCard icon={Database} title="Scam Tracker" description="Browse real scam phone numbers from our database, sourced from BBB reports, user submissions, and other verified sources." link="/tracker" />
+            <FeatureCard icon={TrendingUp} title="FTC Top Scams" description="Stay informed about the top 10 most reported scams to the Federal Trade Commission in 2026." link="/ftc-scams" />
+            <FeatureCard icon={GraduationCap} title="Education Center" description="Learn how to identify scams, protect yourself, and what steps to take if you've been targeted." link="/education" />
           </div>
         </div>
       </section>
@@ -307,7 +350,7 @@ export default function HomePage() {
             Your report helps protect others in the community. Add the scammer's number to our database.
           </p>
           <Link to="/report" className="btn-primary inline-flex items-center gap-2 text-lg px-8 py-4">
-            <AlertTriangle className="w-5 h-5" />
+            <ShieldAlert className="w-5 h-5" />
             Report a Scam Now
           </Link>
         </div>
