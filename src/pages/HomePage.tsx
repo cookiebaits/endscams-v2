@@ -110,7 +110,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-950">
       <section className="relative pt-32 pb-20 overflow-hidden">
         <div
           className="absolute inset-0 opacity-30 dark:opacity-20"
@@ -286,7 +286,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-20 bg-slate-100 dark:bg-slate-950">
+      <section className="py-20 bg-slate-950">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="section-title text-center mb-4">Scam Resources & Tools</h2>
           <p className="section-subtitle text-center mb-12">

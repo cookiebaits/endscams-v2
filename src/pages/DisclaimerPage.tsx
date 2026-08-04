@@ -265,7 +265,7 @@ Email: report@endscams.org
 `;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-40">
+    <div className="min-h-screen bg-slate-950  pt-[165px]">
       <div className="max-w-4xl mx-auto px-4 pb-12">
         <div className="card p-8">
           <div className="flex items-center gap-4 mb-6">
@@ -273,10 +273,10 @@ Email: report@endscams.org
               <Shield className="w-8 h-8 text-brand-500" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
                 Disclaimer: Terms and Conditions &amp; Privacy Policy
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
+              <p className="text-slate-600 dark:text-slate-400 mt-1">
                 Please read carefully before proceeding
               </p>
             </div>
@@ -293,14 +293,14 @@ Email: report@endscams.org
           </div>
 
           {/* Full Terms & Privacy Policy */}
-          <div className="prose dark:prose-invert max-w-none space-y-6 text-sm mb-8 max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-800 rounded-lg p-6 bg-white dark:bg-gray-900">
+          <div className="prose dark:prose-invert max-w-none space-y-6 text-sm mb-8 max-h-[500px] overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-6 bg-white dark:bg-gray-900">
             <div style={{ whiteSpace: "pre-wrap" }}>{termsAndPrivacy}</div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
             <button
               onClick={handleDeny}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 dark:border-gray-700 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="flex-1 px-6 py-3 border-2 border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               I Do Not Accept
             </button>
@@ -312,7 +312,7 @@ Email: report@endscams.org
             </button>
           </div>
 
-          <p className="text-xs text-gray-500 dark:text-gray-500 text-center mt-4">
+          <p className="text-xs text-slate-500 dark:text-slate-500 text-center mt-4">
             By clicking "I Accept", you will be redirected to the main site. Clicking "I Do Not Accept" will redirect you to Brave Search.
           </p>
         </div>

@@ -251,7 +251,7 @@ export default function EducationPage() {
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-40 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-950 pt-[165px] pb-16 text-slate-300">
       {gallery !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Sun, Moon } from 'lucide-react';
+import { Menu, X, Sun, Moon, Search, AlertTriangle, BookOpen, Flag, Shield } from 'lucide-react';
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,11 +35,11 @@ export default function Navigation() {
 
   const navLinks = [
     { to: '/', label: 'Home' },
-    { to: '/tracker', label: 'Scam Tracker' },
-    { to: '/ftc-scams', label: 'Top Scams' },
-    { to: '/education', label: 'Education' },
-    { to: '/report', label: 'Report Scam' },
-    { to: '/triage', label: 'Scam Checker' },
+    { to: '/tracker', label: 'Scam Tracker', icon: Search },
+    { to: '/ftc-scams', label: 'Top Scams', icon: AlertTriangle },
+    { to: '/education', label: 'Education', icon: BookOpen },
+    { to: '/report', label: 'Report Scam', icon: Flag },
+    { to: '/triage', label: 'Scam Checker', icon: Shield },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -58,12 +58,13 @@ export default function Navigation() {
               <Link
                 key={link.to}
                 to={link.to}
-                className={`px-4 py-2 rounded-lg font-medium text-lg transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-base transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
+                {link.icon && <link.icon className="w-4 h-4" />}
                 {link.label}
               </Link>
             ))}
@@ -115,12 +116,13 @@ export default function Navigation() {
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-lg font-medium text-lg transition-all ${
+                className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium text-base transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
+                {link.icon && <link.icon className="w-5 h-5" />}
                 {link.label}
               </Link>
             ))}
