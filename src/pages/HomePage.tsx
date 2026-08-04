@@ -69,9 +69,9 @@ export default function HomePage() {
 
   // Default fallback stats
   const fallbackStats = {
-    money_saved: 1250000,
-    scammer_hours_wasted: 45000,
-    resources_shutdown: 850
+    money_saved: 1278250,
+    scammer_hours_wasted: 4520,
+    resources_shutdown: 524
   };
 
   const displayedStats = impactStats || fallbackStats;
