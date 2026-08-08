@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { RefreshCw, ExternalLink, Calendar, AlertTriangle, Loader2, PhoneOff, Shield, Activity, Database, Clock, Zap, Search, Plus, Download, ChevronDown, MessageCircle, Copy, Check, Globe } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
 
@@ -43,8 +44,10 @@ type CombinedEntry = {
 };
 
 export default function TrackerPage() {
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<CombinedEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
 
   // New UI states
@@ -114,6 +117,24 @@ export default function TrackerPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleToggleDown = async (entry: CombinedEntry) => {
+    if (entry.type !== 'tracker') return;
+    setTogglingId(entry.id);
+    try {
+      await supabase
+        .from('tracker_entries')
+        .update({ reported_down: !entry.reportedDown })
+        .eq('id', entry.id);
+      setEntries(prev =>
+        prev.map(e => e.id === entry.id ? { ...e, reportedDown: !entry.reportedDown } : e)
+      );
+    } catch (e) {
+      console.error('Failed to toggle down status:', e);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const handleReload = async () => {
     setReloading(true);
     try {
@@ -180,6 +201,51 @@ export default function TrackerPage() {
   const scamTypesCount = new Set(entries.map(e => e.category)).size;
   const platformsCount = 6; // Mock for UI
   const countriesCount = 4; // Mock for UI
+
+
+  const handleExportCSV = () => {
+    if (filtered.length === 0) return;
+    const headers = ['Date', 'Category', 'Phone', 'Source', 'URL', 'Description'];
+    const csvContent = [
+      headers.join(','),
+      ...filtered.map(e =>
+        [`"${e.date}"`, `"${e.category}"`, `"${e.phone}"`, `"${e.sourceName}"`, `"${e.sourceUrl || ''}"`, `"${(e.description || '').replace(/"/g, '""')}"`].join(',')
+      )
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'scam-tracker-export.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportJSON = () => {
+    if (filtered.length === 0) return;
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'scam-tracker-export.json');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportTXT = () => {
+    if (filtered.length === 0) return;
+    const txtContent = filtered.map(e => `Phone: ${e.phone}\nCategory: ${e.category}\nSource: ${e.sourceName}\nDate: ${e.date}\n---`).join('\n\n');
+    const blob = new Blob([txtContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'scam-tracker-export.txt');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="min-h-screen bg-[#050B14] pt-[165px] pb-16 font-sans text-slate-300">
@@ -358,16 +424,16 @@ export default function TrackerPage() {
                  </div>
 
                  <div className="flex items-center gap-2">
-                   <button className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-sm font-medium transition-all">
+                   <button onClick={() => navigate('/report')} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-sm font-medium transition-all">
                      <Plus className="w-4 h-4" /> Add Entry
                    </button>
-                   <button className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 rounded-lg text-sm font-medium transition-all">
+                   <button onClick={handleExportCSV} className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 rounded-lg text-sm font-medium transition-all">
                      <Download className="w-4 h-4" /> Export CSV
                    </button>
-                   <button className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30 rounded-lg text-sm font-medium transition-all">
+                   <button onClick={handleExportJSON} className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 border border-blue-500/30 rounded-lg text-sm font-medium transition-all">
                      <Database className="w-4 h-4" /> JSON
                    </button>
-                   <button className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-sm font-medium transition-all">
+                   <button onClick={handleExportTXT} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-sm font-medium transition-all">
                      <Download className="w-4 h-4" /> TXT
                    </button>
                  </div>
@@ -433,7 +499,7 @@ export default function TrackerPage() {
                     </tr>
                   ) : (
                     filtered.map((entry) => (
-                      <TrackerRow key={entry.id} entry={entry} />
+                      <TrackerRow key={entry.id} entry={entry} onToggleDown={handleToggleDown} toggling={togglingId === entry.id} />
                     ))
                   )}
                 </tbody>
@@ -453,7 +519,21 @@ const Filter = ({ className }: { className?: string }) => (
 );
 
 
-function TrackerRow({ entry }: { entry: CombinedEntry }) {
+function TrackerRow({ entry, onToggleDown, toggling }: { entry: CombinedEntry, onToggleDown: (entry: CombinedEntry) => void, toggling: boolean }) {
+
+  const handleCopyPhone = () => {
+    navigator.clipboard.writeText(entry.phone);
+  };
+  const handleCopyUrl = () => {
+    if (entry.sourceUrl) {
+      navigator.clipboard.writeText(entry.sourceUrl);
+    }
+  };
+  const handleWhatsApp = () => {
+    const cleanPhone = entry.phone.replace(/[^\d]/g, '');
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+  };
+
   const categoryColors: Record<string, string> = {
     'Invoice / Imposter Scam': 'text-orange-400 bg-orange-400/10 border-orange-400/20',
     'Emergency Scam': 'text-red-400 bg-red-400/10 border-red-400/20',
@@ -470,10 +550,10 @@ function TrackerRow({ entry }: { entry: CombinedEntry }) {
 
   // Format date
   const dateObj = new Date(entry.date);
-  const formattedDate = dateObj.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) + ' PST';
+  const formattedDate = isNaN(dateObj.getTime()) ? 'Unknown Date' : dateObj.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) + ' PST';
 
   // Extract short domain
-  let shortDomain = entry.sourceName;
+  let shortDomain = entry.sourceName || 'Unknown';
   if (entry.sourceUrl) {
     try {
       const url = new URL(entry.sourceUrl);
@@ -490,9 +570,9 @@ function TrackerRow({ entry }: { entry: CombinedEntry }) {
   if (entry.phone.startsWith('+27')) countryCode = 'ZA';
 
   let platform = 'Unknown';
-  if (entry.sourceName.toLowerCase().includes('facebook')) platform = 'Facebook';
-  else if (entry.sourceName.toLowerCase().includes('instagram')) platform = 'Instagram';
-  else if (entry.sourceName.toLowerCase().includes('bbb')) platform = 'BBB Scam Tracker';
+  if ((entry.sourceName || '').toLowerCase().includes('facebook')) platform = 'Facebook';
+  else if ((entry.sourceName || '').toLowerCase().includes('instagram')) platform = 'Instagram';
+  else if ((entry.sourceName || '').toLowerCase().includes('bbb')) platform = 'BBB Scam Tracker';
   else if (shortDomain.includes('techscammersunited')) platform = 'TechScammersUnited';
   else platform = entry.sourceName;
 
@@ -511,12 +591,22 @@ function TrackerRow({ entry }: { entry: CombinedEntry }) {
       <td className="p-4 font-mono font-bold text-white flex items-center gap-2">
         {entry.phone}
         <span className="text-[10px] bg-slate-800 text-slate-400 px-1 py-0.5 rounded">{countryCode}</span>
-        <button className="w-6 h-6 rounded bg-emerald-500/10 text-emerald-500 flex items-center justify-center hover:bg-emerald-500/20" title="WhatsApp">
+        <button onClick={handleWhatsApp} className="w-6 h-6 rounded bg-emerald-500/10 text-emerald-500 flex items-center justify-center hover:bg-emerald-500/20" title="WhatsApp">
            <MessageCircle className="w-3.5 h-3.5" />
         </button>
-        <button className="w-6 h-6 rounded bg-slate-800 text-slate-400 flex items-center justify-center hover:bg-slate-700 hover:text-white" title="Copy">
+        <button onClick={handleCopyPhone} className="w-6 h-6 rounded bg-slate-800 text-slate-400 flex items-center justify-center hover:bg-slate-700 hover:text-white" title="Copy Phone">
            <Copy className="w-3.5 h-3.5" />
         </button>
+        {entry.type === 'tracker' && (
+           <button
+             onClick={() => onToggleDown(entry)}
+             disabled={toggling}
+             className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${entry.reportedDown ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
+             title={entry.reportedDown ? "Mark as Active" : "Report Down"}
+           >
+             <PhoneOff className={`w-3.5 h-3.5 ${toggling ? 'animate-pulse' : ''}`} />
+           </button>
+        )}
       </td>
       <td className="p-4">
          <div className="flex items-center gap-2">
@@ -526,7 +616,7 @@ function TrackerRow({ entry }: { entry: CombinedEntry }) {
                <ExternalLink className="w-3.5 h-3.5" />
              </a>
            )}
-           <button className="text-slate-500 hover:text-slate-300"><Copy className="w-3.5 h-3.5" /></button>
+           <button onClick={handleCopyUrl} className="text-slate-500 hover:text-slate-300 ml-1" title="Copy URL" disabled={!entry.sourceUrl}><Copy className="w-3.5 h-3.5" /></button>
          </div>
       </td>
       <td className="p-4">
