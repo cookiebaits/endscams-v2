@@ -1,0 +1,17 @@
+{
+  "name": "fetcher",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6",
+    "tsx": "^4.23.0",
+    "typescript": "^5.0.0"
+  }
+}

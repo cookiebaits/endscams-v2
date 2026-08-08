@@ -1,443 +1,275 @@
-import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall } from 'lucide-react';
-import { supabase, formatPhoneDisplay, isFakeNumber } from '../lib/supabase';
-
-type Entry = {
-  id: string;
-  phone_number: string;
-  phone_digits: string;
-  source_name: string;
-  source_url: string;
-  report_date: string;
-  category?: string;
-  description?: string;
-  created_at: string;
-  reported_down: boolean;
-};
-
-type UserReport = {
-  id: string;
-  phone_number: string;
-  phone_digits: string;
-  category: string;
-  description: string;
-  incident_date: string;
-  source: string;
-  source_url?: string;
-  file_url?: string;
-  created_at: string;
-};
-
-type CombinedEntry = {
-  id: string;
-  phone: string;
-  digits: string;
-  sourceName: string;
-  sourceUrl?: string;
-  fileUrl?: string;
-  date: string;
-  category: string;
-  description: string;
-  type: 'tracker' | 'user';
-  reportedDown: boolean;
-};
-
-const SOURCES = [
-  {
-    name: 'BBB Scam Tracker — Invoice/Imposter',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%2520geek%2520inovoice%2520apple%2520amazon%2520invoice%26from%3D0',
-    category: 'Invoice / Imposter Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Emergency Scams',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0',
-    category: 'Emergency Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Lottery/Publisher',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpublisher%2520clearing%2520house%2520digest%2520million%2520lottery%2520mega%2520%26from%3D0',
-    category: 'Lottery / Prize Scam',
-  },
-  {
-    name: 'BBB Scam Tracker — Sheriff/Warrant',
-    url: 'https://www.bbb.org/scamtracker/lookupscam?q=all%3Dsheriff%2520warrant%2520jury%2520arrest%2520family%26from%3D0',
-    category: 'Government Impersonation',
-  },
-  {
-    name: 'Google — Spellcaster/WhatsApp (Facebook)',
-    url: 'https://www.google.com/search?q=site:+facebook.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr:w',
-    category: 'Spiritual / Spellcaster Scam',
-  },
-  {
-    name: 'Google — Spellcaster/WhatsApp (Instagram)',
-    url: 'https://www.google.com/search?q=site%3A+instagram.com+%22spellcaster%22+%22Whatsapp%22&tbs=qdr%3Aw',
-    category: 'Spiritual / Spellcaster Scam',
-  },
-  {
-    name: 'Google — BTC Recovery/WhatsApp',
-    url: 'https://www.google.com/search?q=site%3A+facebook.com+%22btc+recovery%22+%22Whatsapp%22&tbs=qdr%3Aw',
-    category: 'Crypto Recovery Scam',
-  },
-  {
-    name: 'Google — Guestbook Spellcaster',
-    url: 'https://www.google.com/search?q=inurl:%22guestbook%22+spell+whatsapp&tbs=qdr:m',
-    category: 'Spiritual / Spellcaster Scam',
-  },
-];
-
-const CATEGORIES = [
-  'All',
-  'Invoice / Imposter Scam',
-  'Emergency Scam',
-  'Lottery / Prize Scam',
-  'Government Impersonation',
-  'Spiritual / Spellcaster Scam',
-  'Crypto Recovery Scam',
-  'User Report',
-  'Number Down',
-];
+import { useState, useEffect } from 'react';
+import { Navbar } from '../components/Navbar';
+import { StatsCards } from '../components/StatsCards';
+import { ResultsTable } from '../components/ResultsTable';
+import { ScamPhoneRecord } from '../types';
+import { ShieldAlert, RefreshCw, Sparkles, AlertCircle, Clock, Calendar, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 export default function TrackerPage() {
-  const [entries, setEntries] = useState<CombinedEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reloading, setReloading] = useState(false);
-  const [category, setCategory] = useState('All');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [records, setRecords] = useState<ScamPhoneRecord[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState<string | null>(null);
+  const [_lastScanSummary, setLastScanSummary] = useState<string>('Database loaded.');
+  const [nextScheduledRefresh, setNextScheduledRefresh] = useState<string>('7:00 AM & 1:00 PM PST Daily');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  // Fetch records from backend API
+  const fetchRecords = async () => {
     try {
-      const [trackerRes, reportsRes] = await Promise.all([
-        supabase
-          .from('tracker_entries')
-          .select('id,phone_number,phone_digits,source_name,source_url,report_date,category,description,created_at,reported_down')
-          .gt('expires_at', new Date().toISOString())
-          .order('report_date', { ascending: false })
-          .limit(200),
-        supabase
-          .from('scam_reports')
-          .select('id,phone_number,phone_digits,category,description,incident_date,source,source_url,file_url,created_at')
-          .gt('expires_at', new Date().toISOString())
-          .order('incident_date', { ascending: false })
-          .limit(200),
-      ]);
-
-      const trackerItems: CombinedEntry[] = (trackerRes.data || []).map((e: Entry) => ({
-        id: e.id,
-        phone: formatPhoneDisplay(e.phone_digits),
-        digits: e.phone_digits,
-        sourceName: e.source_name,
-        sourceUrl: e.source_url,
-        date: e.report_date,
-        category: e.category || 'Unknown',
-        description: e.description || '',
-        type: 'tracker',
-        reportedDown: e.reported_down ?? false,
-      }));
-
-      const userItems: CombinedEntry[] = (reportsRes.data || []).map((e: UserReport) => ({
-        id: e.id,
-        phone: formatPhoneDisplay(e.phone_digits),
-        digits: e.phone_digits,
-        sourceName: 'User Report — EndScams.org',
-        sourceUrl: e.source_url,
-        fileUrl: e.file_url,
-        date: e.incident_date,
-        category: e.category,
-        description: e.description,
-        type: 'user',
-        reportedDown: false,
-      }));
-
-      const all = [...trackerItems, ...userItems]
-        .filter(e => !isFakeNumber(e.digits))
-        .sort((a, b) => (a.date < b.date ? 1 : -1));
-      setEntries(all);
-      setLastUpdated(new Date());
-    } finally {
-      setLoading(false);
-      setReloading(false);
+      const response = await fetch(import.meta.env.DEV ? 'http://localhost:8000/api/records' : `${import.meta.env.VITE_FETCHER_URL}/api/records`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.records)) {
+          setRecords(data.records);
+          setLastScanTime(data.lastScanTime);
+          if (data.lastScanSummary) setLastScanSummary(data.lastScanSummary);
+          if (data.nextScheduledRefresh) setNextScheduledRefresh(data.nextScheduledRefresh);
+          setIsScanning(Boolean(data.isScanningInProgress));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching records from server:', err);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchRecords();
+    // Poll server records every 15 seconds to update table if background harvester runs
+    const interval = setInterval(fetchRecords, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleReload = async () => {
-    setReloading(true);
+  // Trigger manual harvester scan (31 days window or 24 hours window)
+  const handleRunScanNow = async (windowDays: number = 31) => {
+    setIsScanning(true);
+    setErrorMessage(null);
+    const windowLabel = windowDays === 1 ? 'last 24 hours' : 'last 31 days';
+    setStatusMessage(`Initiating harvester scan for ${windowLabel} across Google & BBB Scam Tracker...`);
+
     try {
-      const fnUrl = import.meta.env.DEV
-        ? 'http://localhost:8000/refresh'
-        : `${import.meta.env.VITE_FETCHER_URL}/refresh`;
-
-      await fetch(fnUrl, {
+      const response = await fetch(import.meta.env.DEV ? 'http://localhost:8000/api/scan-now' : `${import.meta.env.VITE_FETCHER_URL}/api/scan-now`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ windowDays }),
       });
-    } catch (e) {
-      console.error('Failed to reload data:', e);
+
+      if (response.ok) {
+        const data = await response.json();
+        setStatusMessage(data.message || 'Harvester scan started.');
+        // Poll quickly for updates
+        setTimeout(fetchRecords, 3000);
+        setTimeout(fetchRecords, 8000);
+        setTimeout(fetchRecords, 15000);
+      } else {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
+    } catch (err: any) {
+      console.error('Error triggering harvester scan:', err);
+      setErrorMessage(err.message || 'Failed to start harvester scan.');
+      setIsScanning(false);
     }
-    await fetchData();
   };
 
-  const handleToggleDown = async (entry: CombinedEntry) => {
-    if (entry.type !== 'tracker') return;
-    setTogglingId(entry.id);
+  // Delete single record
+  const handleDeleteRecord = async (id: string) => {
+    setRecords((prev) => prev.filter((r) => r.id !== id));
     try {
-      await supabase
-        .from('tracker_entries')
-        .update({ reported_down: !entry.reportedDown })
-        .eq('id', entry.id);
-      setEntries(prev =>
-        prev.map(e => e.id === entry.id ? { ...e, reportedDown: !entry.reportedDown } : e)
-      );
-    } finally {
-      setTogglingId(null);
+      await fetch(import.meta.env.DEV ? `http://localhost:8000/api/records/${id}` : `${import.meta.env.VITE_FETCHER_URL}/api/records/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('Delete error:', err);
     }
   };
 
-  const filtered = (() => {
-    if (category === 'Number Down') return entries.filter(e => e.reportedDown);
-    if (category === 'User Report') return entries.filter(e => e.type === 'user' && !e.reportedDown);
-    if (category === 'All') return entries.filter(e => !e.reportedDown);
-    return entries.filter(e => e.category === category && !e.reportedDown);
-  })();
+  // Delete bulk selected records
+  const handleDeleteSelected = async (ids: string[]) => {
+    const idsSet = new Set(ids);
+    setRecords((prev) => prev.filter((r) => !idsSet.has(r.id)));
+    try {
+      await fetch(import.meta.env.DEV ? 'http://localhost:8000/api/records/delete-bulk' : `${import.meta.env.VITE_FETCHER_URL}/api/records/delete-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+    } catch (err) {
+      console.warn('Delete bulk error:', err);
+    }
+  };
+
+  // Add manual record
+  const handleAddManualRecord = async (recordData: Omit<ScamPhoneRecord, 'id' | 'detectedAt'>) => {
+    try {
+      const response = await fetch(import.meta.env.DEV ? 'http://localhost:8000/api/records/manual' : `${import.meta.env.VITE_FETCHER_URL}/api/records/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.record) {
+          setRecords((prev) => [data.record, ...prev]);
+        }
+      } else {
+        const errData = await response.json();
+        setErrorMessage(errData.error || 'Failed to add manual record.');
+      }
+    } catch (err) {
+      console.error('Error adding manual record:', err);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950  pt-[165px] pb-16">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="mb-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-2">Scam Phone Tracker</h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
-                Real non-toll-free scam numbers from verified sources. Retained for 30 days.
-                {lastUpdated && <span> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col pt-[165px]">
+      {/* Top Header Navigation */}
+      <Navbar
+        totalRecordsCount={records.length}
+        lastScanTime={lastScanTime}
+        nextScheduledRefresh={nextScheduledRefresh}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Automated Harvester Live Control Banner */}
+        <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2 flex-wrap">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <h2 className="text-base font-bold text-slate-100">
+                  End Scam Scan Engine
+                </h2>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded">
+                  Daily Refreshes @ 7:00 AM & 1:00 PM PST (24h Window)
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 max-w-2xl">
+                Continuously extracts scam phone numbers across Facebook, Instagram, Guestbooks, and{' '}
+                <strong className="text-slate-200">BBB Scam Tracker</strong> (Geek Squad & tech support scams). Auto-purges after 31 days with strict zero-duplicate filtering.
               </p>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0 flex-wrap">
+              <button
+                id="btn-run-manual-31day-scan"
+                onClick={() => handleRunScanNow(31)}
+                disabled={isScanning}
+                className="inline-flex items-center space-x-2 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+                title="Perform full manual search for the last 31 days"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
+                <span>{isScanning ? 'Scanning...' : 'Manual Search (31 Days)'}</span>
+              </button>
+
+              <button
+                id="btn-run-24h-scan"
+                onClick={() => handleRunScanNow(1)}
+                disabled={isScanning}
+                className="inline-flex items-center space-x-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 transition-all disabled:opacity-50"
+                title="Perform scan for last 24 hours"
+              >
+                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Scan (24 Hours)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-bar showing sources, deduplication status and 31-day retention policy */}
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <div className="flex items-center space-x-3 flex-wrap">
+              <span className="flex items-center gap-1.5 text-slate-300 font-medium">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Active Target Sources:
+              </span>
+              <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px]">
+                Google Deep Search
+              </span>
+              <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px] text-amber-300">
+                BBB Scam Tracker (Geek Squad)
+              </span>
+              <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[11px]">
+                Social Media Dorks
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-4 text-[11px] text-slate-400 flex-wrap">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Strict Zero-Duplicate Filter Active
+              </span>
+              <span className="flex items-center gap-1 text-slate-400">
+                <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                31-Day Retention Policy
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Notifications */}
+        {statusMessage && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-300 animate-fadeIn">
+            <div className="flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <span>{statusMessage}</span>
             </div>
             <button
-              onClick={handleReload}
-              disabled={reloading}
-              className="btn-primary flex items-center gap-2 self-start md:self-auto"
+              onClick={() => setStatusMessage(null)}
+              className="text-amber-400 hover:text-amber-300 text-xs font-bold"
             >
-              <RefreshCw className={`w-4 h-4 ${reloading ? 'animate-spin' : ''}`} />
-              {reloading ? 'Reloading...' : 'Reload Data'}
+              Dismiss
             </button>
           </div>
+        )}
 
-          <div className="flex flex-wrap gap-2 mb-6">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  cat === 'Number Down'
-                    ? category === cat
-                      ? 'bg-slate-600 text-white'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
-                    : category === cat
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-800 text-slate-600 dark:text-slate-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {cat === 'Number Down' ? (
-                  <span className="flex items-center gap-1">
-                    <PhoneOff className="w-3 h-3" />
-                    {cat}
-                  </span>
-                ) : cat}
-              </button>
-            ))}
-          </div>
-
-          {category === 'Number Down' && (
-            <div className="card p-4 mb-6 border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                These numbers have been community-reported as no longer active. Click <strong>Number Still Up</strong> on any entry to restore it to the main list.
-              </p>
+        {errorMessage && (
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between text-xs text-red-300">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <span>{errorMessage}</span>
             </div>
-          )}
-
-          <div className="card p-4 mb-6">
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-semibold">Active Source References</p>
-            <div className="flex flex-wrap gap-2">
-              {SOURCES.map(s => (
-                <a
-                  key={s.name}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-brand-500 hover:text-brand-600 hover:underline"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {s.name}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-20">
-            <Loader2 className="w-10 h-10 text-brand-500 mx-auto mb-4 animate-spin" />
-            <p className="text-slate-500 dark:text-slate-400">Loading scam tracker data...</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-20 card p-10">
-            <AlertTriangle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-              {category === 'Number Down' ? 'No numbers reported down' : 'No entries yet'}
-            </h3>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">
-              {category === 'Number Down'
-                ? 'When a number is flagged as no longer active, it will appear here.'
-                : 'The database is empty. Reports submitted via the form and data fetched from external sources will appear here.'}
-            </p>
-            {category !== 'Number Down' && (
-              <div className="space-y-3 text-sm text-slate-400 dark:text-slate-500">
-                <p className="font-semibold text-slate-600 dark:text-slate-300">Check these sources directly:</p>
-                {SOURCES.slice(0, 4).map(s => (
-                  <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 text-brand-500 hover:underline">
-                    <ExternalLink className="w-4 h-4" />{s.name}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{filtered.length} entries found</p>
-            {filtered.map(entry => (
-              <TrackerEntryCard
-                key={entry.id}
-                entry={entry}
-                onToggleDown={handleToggleDown}
-                toggling={togglingId === entry.id}
-                showingDown={category === 'Number Down'}
-              />
-            ))}
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-400 hover:text-red-300 text-xs font-bold"
+            >
+              Dismiss
+            </button>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
 
-function TrackerEntryCard({
-  entry,
-  onToggleDown,
-  toggling,
-  showingDown,
-}: {
-  entry: CombinedEntry;
-  onToggleDown: (entry: CombinedEntry) => void;
-  toggling: boolean;
-  showingDown: boolean;
-}) {
-  const categoryColors: Record<string, string> = {
-    'Invoice / Imposter Scam': 'text-orange-500 bg-orange-500/10',
-    'Emergency Scam': 'text-red-500 bg-red-500/10',
-    'Lottery / Prize Scam': 'text-yellow-500 bg-yellow-500/10',
-    'Government Impersonation': 'text-blue-500 bg-blue-500/10',
-    'Spiritual / Spellcaster Scam': 'text-teal-500 bg-teal-500/10',
-    'Crypto Recovery Scam': 'text-cyan-500 bg-cyan-500/10',
-  };
-  const colorClass = categoryColors[entry.category] || 'text-slate-500 bg-slate-500/10';
+        {/* Metrics Cards */}
+        <StatsCards records={records} isSearching={isScanning} />
 
-  return (
-    <div className={`card p-5 hover:border-brand-500/30 transition-all duration-200 group ${entry.reportedDown ? 'opacity-75 border-slate-300 dark:border-slate-700' : ''}`}>
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-3 mb-2">
-            <div className="flex items-center gap-2 font-mono font-bold text-slate-900 dark:text-white text-lg">
-              <Phone className="w-4 h-4 text-brand-500" />
-              {entry.phone}
+        {/* Sortable & Filterable Database Results Table with Date Column */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                Harvested Scam Phone Database (Past 31 Days)
+              </h2>
+              <p className="text-xs text-slate-400">
+                Sorted by date detected. Includes scam type, direct WhatsApp links, source links, and report context.
+              </p>
             </div>
-            <span className={`text-xs px-2 py-1 rounded font-semibold ${colorClass}`}>{entry.category}</span>
-            {entry.type === 'user' && (
-              <span className="text-xs px-2 py-1 rounded font-semibold text-green-500 bg-green-500/10">Community Report</span>
-            )}
-            {entry.reportedDown && (
-              <span className="text-xs px-2 py-1 rounded font-semibold text-slate-500 bg-slate-500/10 flex items-center gap-1">
-                <PhoneOff className="w-3 h-3" />
-                Number Down
-              </span>
-            )}
           </div>
 
-          {entry.description && (
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3 line-clamp-2">{entry.description}</p>
-          )}
+          <ResultsTable
+            records={records}
+            onDeleteRecord={handleDeleteRecord}
+            onDeleteSelected={handleDeleteSelected}
+            onAddManualRecord={handleAddManualRecord}
+            isSearching={isScanning}
+          />
+        </section>
+      </main>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 dark:text-slate-500">
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              Report date: {entry.date}
-            </span>
-            <span className="flex items-center gap-1">
-              <Tag className="w-3 h-3" />
-              {entry.sourceName}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {entry.sourceUrl && (
-            <a
-              href={entry.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-brand-500/10 hover:bg-brand-500/20 text-brand-500 rounded-lg text-sm font-semibold transition-all"
-            >
-              <ExternalLink className="w-4 h-4" />
-              View Report
-            </a>
-          )}
-          {entry.fileUrl && (
-            <a
-              href={entry.fileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-semibold transition-all"
-            >
-              <Paperclip className="w-4 h-4" />
-              Uploaded Resource
-            </a>
-          )}
-          {entry.type === 'tracker' && (
-            showingDown ? (
-              <button
-                onClick={() => onToggleDown(entry)}
-                disabled={toggling}
-                className="flex items-center gap-2 px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-              >
-                {toggling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <PhoneCall className="w-4 h-4" />
-                )}
-                Number Still Up
-              </button>
-            ) : (
-              <button
-                onClick={() => onToggleDown(entry)}
-                disabled={toggling}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-sm font-semibold transition-all disabled:opacity-50"
-              >
-                {toggling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <PhoneOff className="w-4 h-4" />
-                )}
-                Report Number Down
-              </button>
-            )
-          )}
-        </div>
-      </div>
+      {/* Clean Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500 mt-auto">
+        <p>
+          End Scam Scan &bull; Scheduled Daily Refreshes (24h Window @ 7:00 AM & 1:00 PM PST) &bull; 31-Day Retention & Deduplication
+        </p>
+      </footer>
     </div>
   );
 }

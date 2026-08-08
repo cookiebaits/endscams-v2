@@ -1,14 +1,16 @@
-FROM denoland/deno:alpine-1.46.3
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY main.ts .
+COPY package.json .
+RUN npm install
 
-# Cache dependencies at build time
-RUN deno cache main.ts
+COPY server.ts .
+COPY types.ts .
+COPY data/presets.ts ./data/
 
 EXPOSE 8000
 
-# --allow-net covers Supabase, Google CSE, BBB, Google Sheets
-# --allow-env for reading Dokploy env vars
-CMD ["deno", "run", "--allow-net", "--allow-env", "main.ts"]
+ENV PORT=8000
+
+CMD ["npx", "tsx", "server.ts"]
