@@ -1,0 +1,6 @@
+{
+  "name": "End Scam Scan",
+  "description": "Automated scam phone harvester with 30-day Google Search grounding, BBB Scam Tracker scraper, TechScammersUnited thread scraper, 7 AM & 1 PM daily PST refresh, and 31-day auto-purge retention.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
