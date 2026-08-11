@@ -7,7 +7,50 @@ type ImpactStats = {
   money_saved: number;
   scammer_hours_wasted: number;
   resources_shutdown: number;
+  last_updated?: string;
 };
+
+// Seeded random number generator
+function seededRandom(seed: number) {
+  const x = Math.sin(seed++) * 10000;
+  return x - Math.floor(x);
+}
+
+// Calculate simulated stats growth
+function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
+  const simulatedStats = { ...baseStats };
+  const baselineDate = baseStats.last_updated ? new Date(baseStats.last_updated) : new Date('2024-01-01T00:00:00Z');
+  const now = new Date();
+
+  // Create an iterator date starting at the baseline
+  const currentDate = new Date(baselineDate);
+  currentDate.setUTCHours(0, 0, 0, 0);
+
+  const endDate = new Date(now);
+  endDate.setUTCHours(0, 0, 0, 0);
+
+  // Iterate day by day
+  while (currentDate <= endDate) {
+    const dayOfWeek = currentDate.getUTCDay();
+    // 1-5 is Monday-Friday
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      // Use the date string as a consistent seed
+      const seed = currentDate.getTime();
+
+      const moneyDiff = Math.floor(seededRandom(seed) * (135 - 50 + 1)) + 50;
+      const hoursDiff = Math.floor(seededRandom(seed + 1) * (4 - 3 + 1)) + 3;
+      const resourcesDiff = Math.floor(seededRandom(seed + 2) * (4 - 1 + 1)) + 1;
+
+      simulatedStats.money_saved += moneyDiff;
+      simulatedStats.scammer_hours_wasted += hoursDiff;
+      simulatedStats.resources_shutdown += resourcesDiff;
+    }
+    // Increment by 1 day
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return simulatedStats;
+}
 
 function normalizeInput(raw: string): string {
   return raw.replace(/\D/g, '').slice(0, 10);
@@ -68,13 +111,14 @@ export default function HomePage() {
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
 
   // Default fallback stats
-  const fallbackStats = {
+  const fallbackStats: ImpactStats = {
     money_saved: 1278250,
     scammer_hours_wasted: 4520,
-    resources_shutdown: 524
+    resources_shutdown: 524,
+    last_updated: '2024-01-01T00:00:00Z'
   };
 
-  const displayedStats = impactStats || fallbackStats;
+  const displayedStats = getSimulatedStats(impactStats || fallbackStats);
 
   const animatedMoney = useCountUp(displayedStats.money_saved);
   const animatedHours = useCountUp(displayedStats.scammer_hours_wasted);
@@ -85,13 +129,13 @@ export default function HomePage() {
       try {
         const { data, error } = await supabase
           .from('impact_statistics')
-          .select('money_saved, scammer_hours_wasted, resources_shutdown')
+          .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
           .order('last_updated', { ascending: false })
           .limit(1)
           .maybeSingle();
 
         if (data && !error) {
-          setImpactStats(data);
+          setImpactStats(data as ImpactStats);
         }
       } catch (e) {
         console.error('Failed to fetch impact stats', e);
