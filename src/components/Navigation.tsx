@@ -49,7 +49,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-52 h-20">
-            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-3 left-0 h-[11.4rem] max-w-none drop-shadow-md" />
+            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-3 left-0 h-[10.83rem] max-w-none drop-shadow-md" />
           </Link>
 
 
