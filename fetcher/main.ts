@@ -507,18 +507,26 @@ const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
 const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
 const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
 
+let lastToolSearchTime = 0;
+
 async function handleAbstractProxy(req: Request): Promise<Response> {
   if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
   let body;
   try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
 
+  const now = Date.now();
+  if (now - lastToolSearchTime < 60_000) {
+    return cors(json({ error: "Rate limit exceeded. Please wait 1 minute between searches." }, 429));
+  }
+  lastToolSearchTime = now;
+
   const { tool, query } = body;
   if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
   let targetUrl = "";
-  if (tool === "phone") targetUrl = `https://phonevalidation.abstractapi.com/v1/?api_key=${ABSTRACT_PHONE_API_KEY}&phone=${encodeURIComponent(query)}`;
-  else if (tool === "email") targetUrl = `https://emailvalidation.abstractapi.com/v1/?api_key=${ABSTRACT_EMAIL_API_KEY}&email=${encodeURIComponent(query)}`;
-  else if (tool === "ip") targetUrl = `https://ipgeolocation.abstractapi.com/v1/?api_key=${ABSTRACT_IP_API_KEY}&ip_address=${encodeURIComponent(query)}`;
+  if (tool === "phone") targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${ABSTRACT_PHONE_API_KEY}&phone=${encodeURIComponent(query)}`;
+  else if (tool === "email") targetUrl = `https://emailreputation.abstractapi.com/v1/?api_key=${ABSTRACT_EMAIL_API_KEY}&email=${encodeURIComponent(query)}`;
+  else if (tool === "ip") targetUrl = `https://ip-intelligence.abstractapi.com/v1/?api_key=${ABSTRACT_IP_API_KEY}&ip_address=${encodeURIComponent(query)}`;
   else if (tool === "scrape") targetUrl = `https://scrape.abstractapi.com/v1/?api_key=${ABSTRACT_SCRAPE_API_KEY}&url=${encodeURIComponent(query)}`;
   else return cors(json({ error: "Invalid tool" }, 400));
 
