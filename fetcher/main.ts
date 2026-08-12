@@ -508,31 +508,31 @@ const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
 const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
 
 async function handleAbstractProxy(req: Request): Promise<Response> {
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
   let body;
-  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+  try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
 
   const { tool, query } = body;
-  if (!tool || !query) return json({ error: "Missing tool or query" }, 400);
+  if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
   let targetUrl = "";
   if (tool === "phone") targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${ABSTRACT_PHONE_API_KEY}&phone=${encodeURIComponent(query)}`;
   else if (tool === "email") targetUrl = `https://emailreputation.abstractapi.com/v1/?api_key=${ABSTRACT_EMAIL_API_KEY}&email=${encodeURIComponent(query)}`;
   else if (tool === "ip") targetUrl = `https://ip-intelligence.abstractapi.com/v1/?api_key=${ABSTRACT_IP_API_KEY}&ip_address=${encodeURIComponent(query)}`;
   else if (tool === "scrape") targetUrl = `https://scrape.abstractapi.com/v1/?api_key=${ABSTRACT_SCRAPE_API_KEY}&url=${encodeURIComponent(query)}`;
-  else return json({ error: "Invalid tool" }, 400);
+  else return cors(json({ error: "Invalid tool" }, 400));
 
   try {
     const apiRes = await fetch(targetUrl);
     if (!apiRes.ok) {
-       return json({ error: `API returned status ${apiRes.status}` }, apiRes.status);
+       return cors(json({ error: `API returned status ${apiRes.status}` }, apiRes.status));
     }
     const data = tool === "scrape" ? await apiRes.text() : await apiRes.json();
     return cors(new Response(JSON.stringify(data), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     }));
-  } catch (e) { return json({ error: String(e) }, 500); }
+  } catch (e) { return cors(json({ error: String(e) }, 500)); }
 }
 
 Deno.serve({ port: PORT }, async (req: Request) => {
@@ -549,7 +549,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
 
   if (url.pathname === "/refresh") {
-    if (req.method !== "POST") return json({ error: "POST required" }, 405);
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     if (running) return json({ error: "already running" }, 429);
     running = true;
     try {

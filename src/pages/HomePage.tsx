@@ -476,7 +476,7 @@ export default function HomePage() {
 
       <section className="py-20 bg-slate-950">
         <div className="max-w-6xl mx-auto px-4">
-          <h2 className="section-title text-center mb-4">Scam Resources & Tools</h2>
+          <h2 className="section-title text-center mb-4">Advanced Scam Detection Tools</h2>
           <p className="section-subtitle text-center mb-12">
             Access our comprehensive database and educational materials to stay protected.
           </p>
