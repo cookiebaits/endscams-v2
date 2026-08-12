@@ -186,8 +186,8 @@ async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promis
         try {
           const uddg = link.split('uddg=')[1].split('&')[0];
           link = decodeURIComponent(uddg);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (e) {
+
+        } catch {
           // Ignore decode error and use raw link
         }
       }
@@ -487,22 +487,66 @@ async function scheduler() {
   }
 }
 
-setInterval(() => { scheduler().catch(e => console.error("scheduler err", e)); }, 60_000);
+setInterval(() => { scheduler().catch((e) => console.error("scheduler err", e)); }, 60_000);
 
 // Run once on boot so the tracker is populated the moment the container starts
 runPipeline()
   .then(stats => console.log("[boot] initial run:", stats))
-  .catch(e => console.error("[boot] initial run failed", e));
+  .catch((e) => console.error("[boot] initial run failed", e));
 
 /* ================================================================ */
 /*  HTTP server                                                      */
 /* ================================================================ */
+
+/* ================================================================ */
+/*  Abstract Tools Proxy Endpoints                                   */
+/* ================================================================ */
+
+const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
+const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
+const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
+const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
+
+async function handleAbstractProxy(req: Request): Promise<Response> {
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+  const { tool, query } = body;
+  if (!tool || !query) return json({ error: "Missing tool or query" }, 400);
+
+  let targetUrl = "";
+  if (tool === "phone") targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${ABSTRACT_PHONE_API_KEY}&phone=${encodeURIComponent(query)}`;
+  else if (tool === "email") targetUrl = `https://emailreputation.abstractapi.com/v1/?api_key=${ABSTRACT_EMAIL_API_KEY}&email=${encodeURIComponent(query)}`;
+  else if (tool === "ip") targetUrl = `https://ip-intelligence.abstractapi.com/v1/?api_key=${ABSTRACT_IP_API_KEY}&ip_address=${encodeURIComponent(query)}`;
+  else if (tool === "scrape") targetUrl = `https://scrape.abstractapi.com/v1/?api_key=${ABSTRACT_SCRAPE_API_KEY}&url=${encodeURIComponent(query)}`;
+  else return json({ error: "Invalid tool" }, 400);
+
+  try {
+    const apiRes = await fetch(targetUrl);
+    if (!apiRes.ok) {
+       return json({ error: `API returned status ${apiRes.status}` }, apiRes.status);
+    }
+    const data = tool === "scrape" ? await apiRes.text() : await apiRes.json();
+    return cors(new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }));
+  } catch (e) { return json({ error: String(e) }, 500); }
+}
+
 Deno.serve({ port: PORT }, async (req: Request) => {
+
   const url = new URL(req.url);
 
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
 
   if (url.pathname === "/health") return json({ ok: true, ts: new Date().toISOString() });
+
+  if (url.pathname === "/api/tools") {
+    return await handleAbstractProxy(req);
+  }
+
 
   if (url.pathname === "/refresh") {
     if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -511,9 +555,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     try {
       const stats = await runPipeline();
       return json(stats);
-    } catch (e) {
-      return json({ success: false, error: String(e) }, 500);
-    } finally { running = false; }
+    } catch (e) { return json({ success: false, error: String(e) }, 500); } finally { running = false; }
   }
 
   return json({ error: "not found" }, 404);
