@@ -523,12 +523,17 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
   const { tool, query } = body;
   if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
-  let targetUrl = "";
-  if (tool === "phone") targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${ABSTRACT_PHONE_API_KEY}&phone=${encodeURIComponent(query)}`;
-  else if (tool === "email") targetUrl = `https://emailreputation.abstractapi.com/v1/?api_key=${ABSTRACT_EMAIL_API_KEY}&email=${encodeURIComponent(query)}`;
-  else if (tool === "ip") targetUrl = `https://ip-intelligence.abstractapi.com/v1/?api_key=${ABSTRACT_IP_API_KEY}&ip_address=${encodeURIComponent(query)}`;
-  else if (tool === "scrape") targetUrl = `https://scrape.abstractapi.com/v1/?api_key=${ABSTRACT_SCRAPE_API_KEY}&url=${encodeURIComponent(query)}`;
-  else return cors(json({ error: "Invalid tool" }, 400));
+  const endpoints: Record<string, { base: string, key: string, param: string }> = {
+    phone: { base: "https://phonevalidation.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
+    email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
+    ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
+    scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },
+  };
+
+  const config = endpoints[tool as string];
+  if (!config) return cors(json({ error: "Invalid tool" }, 400));
+
+  const targetUrl = `${config.base}?api_key=${config.key}&${config.param}=${encodeURIComponent(query)}`;
 
   try {
     const apiRes = await fetch(targetUrl);
