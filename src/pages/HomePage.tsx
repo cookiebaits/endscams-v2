@@ -127,7 +127,8 @@ export default function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
 
-  const fetcherUrl = import.meta.env.DEV ? 'http://localhost:8000' : import.meta.env.VITE_FETCHER_URL;
+  const rawFetcherUrl = import.meta.env.DEV ? 'http://localhost:8000' : (import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org');
+  const fetcherUrl = rawFetcherUrl.replace(/\/+$/, '');
 
   const handlePhoneToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,8 +215,8 @@ export default function HomePage() {
   // Default fallback stats
   const fallbackStats: ImpactStats = {
     money_saved: 1278250,
-    scammer_hours_wasted: 4520,
-    resources_shutdown: 524,
+    scammer_hours_wasted: 4526,
+    resources_shutdown: 528,
     last_updated: '2024-01-01T00:00:00Z'
   };
 
@@ -458,8 +459,8 @@ export default function HomePage() {
                 <Hourglass className="w-6 h-6 text-blue-300 dark:text-blue-400" />
               </div>
               <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
-              <h3 className="text-lg font-bold mb-1 text-brand-50">Scammer Time Wasted (hrs)</h3>
-              <p className="text-sm text-brand-200/80">Hours of scammer resources exhausted</p>
+              <h3 className="text-lg font-bold mb-1 text-brand-50">Scam Decoy Investigations (hrs)</h3>
+              <p className="text-sm text-brand-200/80">Hours of decoy collecting evidence</p>
             </div>
 
             <div className="text-center py-4 px-2">
