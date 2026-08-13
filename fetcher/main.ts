@@ -41,8 +41,6 @@ const env = (k: string, required = false): string => {
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
-const ALLOWED_ORIGIN2 = "http://localhost:5173";
-const ALLOWED_ORIGIN3 = "http://localhost:5174";
 const PORT = parseInt(env("PORT") || "8000", 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -51,7 +49,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 
 function cors(res: Response): Response {
   const h = new Headers(res.headers);
-  h.set("Access-Control-Allow-Origin", "*");
+  h.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   h.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   h.set("Vary", "Origin");
