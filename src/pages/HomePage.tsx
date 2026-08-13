@@ -38,8 +38,8 @@ function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
       const seed = currentDate.getTime();
 
       const moneyDiff = Math.floor(seededRandom(seed) * (135 - 50 + 1)) + 50;
-      const hoursDiff = Math.floor(seededRandom(seed + 1) * (4 - 3 + 1)) + 3;
-      const resourcesDiff = Math.floor(seededRandom(seed + 2) * (4 - 1 + 1)) + 1;
+      const hoursDiff = Math.floor(seededRandom(seed + 1) * (5 - 3 + 1)) + 3; // 3 to 5 hours daily
+      const resourcesDiff = Math.floor(seededRandom(seed + 2) * (4 - 2 + 1)) + 2; // 2 to 4 resources daily
 
       simulatedStats.money_saved += moneyDiff;
       simulatedStats.scammer_hours_wasted += hoursDiff;
@@ -215,9 +215,9 @@ export default function HomePage() {
   // Default fallback stats
   const fallbackStats: ImpactStats = {
     money_saved: 1278250,
-    scammer_hours_wasted: 21,
-    resources_shutdown: 21,
-    last_updated: '2024-01-01T00:00:00Z'
+    scammer_hours_wasted: 5676,
+    resources_shutdown: 720,
+    last_updated: '2026-08-14T00:00:00Z'
   };
 
   const displayedStats = getSimulatedStats(impactStats || fallbackStats);
