@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { SmtpClient } from "npm:nodemailer@6.9.9";
 
 const corsHeaders = {

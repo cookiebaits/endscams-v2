@@ -1,3 +1,15 @@
+export default function TrackerPage() {
+  return (
+    <div className="min-h-screen bg-slate-950 pt-[165px] flex flex-col">
+      <iframe
+        src="https://esscan.ai.studio"
+        className="w-full border-0"
+        style={{ minHeight: '2000px', height: '100%' }}
+        scrolling="no"
+        title="End Scam Scan"
+        allow="microphone; camera; display-capture; clipboard-read; clipboard-write"
+        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+      />
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, ExternalLink, Phone, Calendar, Tag, AlertTriangle, Loader2, Paperclip, PhoneOff, PhoneCall, Clock } from 'lucide-react';
 import { supabase, formatPhoneDisplay, isValidScamNumber, normalizePhone } from '../lib/supabase';

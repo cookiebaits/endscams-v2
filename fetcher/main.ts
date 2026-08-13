@@ -1,3 +1,7 @@
+
+
+
+
 // deno-lint-ignore-file no-explicit-any
 /*
   tracker-fetcher – standalone Deno service that owns the /tracker data
@@ -34,8 +38,6 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const GOOGLE_API_KEY = env("GOOGLE_API_KEY");
-const GOOGLE_CX = env("GOOGLE_CX");
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
 const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
@@ -155,24 +157,51 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
 
 /* ================================================================ */
-/*  Google CSE                                                       */
+
+/*  DuckDuckGo Scraper (No API Key Required)                         */
 /* ================================================================ */
 interface CseItem { title?: string; snippet?: string; link?: string; }
 
-async function googleSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
-  if (!GOOGLE_API_KEY) return [];
-  const url = `https://customsearch.googleapis.com/customsearch/v1?key=${encodeURIComponent(GOOGLE_API_KEY)}&cx=${encodeURIComponent(GOOGLE_CX)}&q=${encodeURIComponent(q)}&num=${num}&dateRestrict=${dateRestrict}`;
+async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
+  // dateRestrict: DDG uses "d" (day), "w" (week), "m" (month). Defaulting to week if "w2".
+  const df = dateRestrict.startsWith("m") ? "m" : "w";
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&df=${df}`;
+
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
     if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.warn(`CSE ${res.status} q=${q}: ${t.slice(0, 200)}`);
+      console.warn(`DDG fetch failed with status ${res.status} for q=${q}`);
       return [];
     }
-    const data = await res.json();
-    return (data.items || []) as CseItem[];
+    const html = await res.text();
+
+    const items: CseItem[] = [];
+    const itemRegex = /<a class="result__url" href="([^"]+)".*?>(.*?)<\/a>.*?<a class="result__snippet[^>]*>(.*?)<\/a>/gs;
+    let match;
+    while ((match = itemRegex.exec(html)) !== null && items.length < num) {
+      let link = match[1];
+      if (link.startsWith('//duckduckgo.com/l/?uddg=')) {
+        try {
+          const uddg = link.split('uddg=')[1].split('&')[0];
+          link = decodeURIComponent(uddg);
+
+        } catch {
+          // Ignore decode error and use raw link
+        }
+      }
+      items.push({
+        link: link,
+        title: match[2].replace(/<[^>]*>?/gm, '').trim(),
+        snippet: match[3].replace(/<[^>]*>?/gm, '').trim()
+      });
+    }
+    return items;
   } catch (e) {
-    console.warn(`CSE err q=${q}`, e);
+    console.warn(`DDG err q=${q}`, e);
     return [];
   }
 }
@@ -306,13 +335,11 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         let metaSnippet = "";
         let foundUrl = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
-        if (GOOGLE_API_KEY) {
-          const items = await googleSearch(`"${row.digits}" scam`, "w2", 5);
-          csvGoogle++;
-          if (items.length > 0) {
-            foundUrl = items[0].link || foundUrl;
-            metaSnippet = summarizeSnippets(items);
-          }
+        const items = await duckDuckGoSearch(`"${row.digits}" scam`, "w2", 5);
+        csvGoogle++;
+        if (items.length > 0) {
+          foundUrl = items[0].link || foundUrl;
+          metaSnippet = summarizeSnippets(items);
         }
 
         const parts: string[] = [`FCC/FTC report ${toIsoDate(row.date!)}`];
@@ -335,28 +362,26 @@ async function runPipeline(): Promise<Record<string, unknown>> {
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto CSE queries */
+  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
-  if (GOOGLE_API_KEY) {
-    for (const q of WHATSAPP_QUERIES) {
-      const items = await googleSearch(q.q, "w2", 8);
-      cseUsed++;
-      for (const item of items) {
-        const text = `${item.title || ""} ${item.snippet || ""}`;
-        const nums = extractPhoneNumbers(text);
-        for (const digits of nums) {
-          if (collected.some(c => c.phone_digits === digits)) continue;
-          collected.push({
-            phone_number: formatPhoneDisplay(digits),
-            phone_digits: digits,
-            source_name: `Google Search — ${q.label}`,
-            source_url: item.link || "https://www.google.com",
-            report_date: todayIso,
-            category: q.category,
-            description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
-          });
-        }
+  for (const q of WHATSAPP_QUERIES) {
+    const items = await duckDuckGoSearch(q.q, "w2", 8);
+    cseUsed++;
+    for (const item of items) {
+      const text = `${item.title || ""} ${item.snippet || ""}`;
+      const nums = extractPhoneNumbers(text);
+      for (const digits of nums) {
+        if (collected.some(c => c.phone_digits === digits)) continue;
+        collected.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: `Web Search — ${q.label}`,
+          source_url: item.link || "https://duckduckgo.com",
+          report_date: todayIso,
+          category: q.category,
+          description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
+        });
       }
     }
   }
@@ -464,33 +489,88 @@ async function scheduler() {
   }
 }
 
-setInterval(() => { scheduler().catch(e => console.error("scheduler err", e)); }, 60_000);
+setInterval(() => { scheduler().catch((e) => console.error("scheduler err", e)); }, 60_000);
 
 // Run once on boot so the tracker is populated the moment the container starts
 runPipeline()
   .then(stats => console.log("[boot] initial run:", stats))
-  .catch(e => console.error("[boot] initial run failed", e));
+  .catch((e) => console.error("[boot] initial run failed", e));
 
 /* ================================================================ */
 /*  HTTP server                                                      */
 /* ================================================================ */
+
+/* ================================================================ */
+/*  Abstract Tools Proxy Endpoints                                   */
+/* ================================================================ */
+
+const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
+const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
+const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
+const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
+
+let lastToolSearchTime = 0;
+
+async function handleAbstractProxy(req: Request): Promise<Response> {
+  if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+  let body;
+  try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
+
+  const now = Date.now();
+  if (now - lastToolSearchTime < 60_000) {
+    return cors(json({ error: "Rate limit exceeded. Please wait 1 minute between searches." }, 429));
+  }
+  lastToolSearchTime = now;
+
+  const { tool, query } = body;
+  if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
+
+  const endpoints: Record<string, { base: string, key: string, param: string }> = {
+    phone: { base: "https://phonevalidation.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
+    email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
+    ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
+    scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },
+  };
+
+  const config = endpoints[tool as string];
+  if (!config) return cors(json({ error: "Invalid tool" }, 400));
+
+  const targetUrl = `${config.base}?api_key=${config.key}&${config.param}=${encodeURIComponent(query)}`;
+
+  try {
+    const apiRes = await fetch(targetUrl);
+    if (!apiRes.ok) {
+       return cors(json({ error: `API returned status ${apiRes.status}` }, apiRes.status));
+    }
+    const data = tool === "scrape" ? await apiRes.text() : await apiRes.json();
+    return cors(new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }));
+  } catch (e) { return cors(json({ error: String(e) }, 500)); }
+}
+
 Deno.serve({ port: PORT }, async (req: Request) => {
+
   const url = new URL(req.url);
 
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
 
   if (url.pathname === "/health") return json({ ok: true, ts: new Date().toISOString() });
 
+  if (url.pathname === "/api/tools") {
+    return await handleAbstractProxy(req);
+  }
+
+
   if (url.pathname === "/refresh") {
-    if (req.method !== "POST") return json({ error: "POST required" }, 405);
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     if (running) return json({ error: "already running" }, 429);
     running = true;
     try {
       const stats = await runPipeline();
       return json(stats);
-    } catch (e) {
-      return json({ success: false, error: String(e) }, 500);
-    } finally { running = false; }
+    } catch (e) { return json({ success: false, error: String(e) }, 500); } finally { running = false; }
   }
 
   return json({ error: "not found" }, 404);

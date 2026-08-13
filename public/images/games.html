@@ -176,6 +176,16 @@ input:focus,textarea:focus,select:focus{border-color:var(--b2);background:var(--
 .master-table th,.master-table td{padding:1rem;border-bottom:1px solid #e5e7eb;text-align:left;}
 .master-table th{background:#f3f4f6;font-weight:700;color:#374151;}
 </style>
+
+<script>
+function escapeHTML(str) {
+  return String(str).replace(/[&<>'"]/g, function(tag) {
+    const charsToReplace = { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' };
+    return charsToReplace[tag] || tag;
+  });
+}
+</script>
+
 </head>
 <body>
 
@@ -1049,7 +1059,7 @@ function loadG4Template(){
 
 function g4FinishA(){
   stopMainTimer();
-  let fake = { i:g4CurrentEmoji, t:document.getElementById('g4-title').value, p:document.getElementById('g4-price').value, a:document.getElementById('g4-age').value, st:document.getElementById('g4-stars').value, d:document.getElementById('g4-desc').value, s:true };
+  let fake = { i:g4CurrentEmoji, t:escapeHTML(document.getElementById('g4-title').value), p:escapeHTML(document.getElementById('g4-price').value), a:escapeHTML(document.getElementById('g4-age').value), st:escapeHTML(document.getElementById('g4-stars').value), d:escapeHTML(document.getElementById('g4-desc').value), s:true };
   
   let grid = document.getElementById('g4-grid'); grid.innerHTML = '';
   let combined = [...g4Legit, fake].sort(()=>Math.random()-0.5);
@@ -1122,7 +1132,7 @@ function g5FinishA(){
   }
 
   stopMainTimer();
-  let fake = { n:document.getElementById('g5-sender').value, m: `${document.getElementById('g5-body').value} ${document.getElementById('g5-payload').value}`, s: true };
+  let fake = { n:escapeHTML(document.getElementById('g5-sender').value), m: `${escapeHTML(document.getElementById('g5-body').value)} ${escapeHTML(document.getElementById('g5-payload').value)}`, s: true };
   runFairnessCheck('g5', () => {
     let mix = [...g5Legit, fake].sort(()=>Math.random()-0.5);
     let inbox = document.getElementById('g5-inbox'); inbox.innerHTML = '';
@@ -1191,7 +1201,7 @@ function g6FinishA(){
   }
 
   stopMainTimer();
-  g6FakeInvoice = { v: v, e: e, a: a, r: r, n: n, s: true };
+  g6FakeInvoice = { v: escapeHTML(v), e: escapeHTML(e), a: escapeHTML(a), r: escapeHTML(r), n: escapeHTML(n), s: true };
   runFairnessCheck('g6', () => doHandoff("The Phantom Invoice", "Attacker injected the customized anomaly into the queue.", 6));
 }
 

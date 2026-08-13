@@ -182,14 +182,14 @@ export default function FTCScamsPage() {
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-16">
+    <div className="min-h-screen bg-slate-950 pt-[165px] pb-16 text-slate-300">
       <div className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4">FTC Latest Scam Reports</h1>
-          <p className="text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-black text-slate-100 mb-4 uppercase tracking-wider border-l-4 border-brand-500 pl-4">FTC Latest Scam Reports</h1>
+          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>
           <a
@@ -212,7 +212,7 @@ export default function FTCScamsPage() {
 
         <div className="card p-4 mb-8 flex items-start gap-3">
           <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Data reflects reports submitted to the FTC through the Consumer Sentinel Network for the most recent reporting period. Total losses represent amounts reported — actual losses are likely higher.
             <a href={FTC_SOURCE} target="_blank" rel="noopener noreferrer" className="text-brand-500 hover:underline ml-1">View the full FTC data book.</a>
           </p>
@@ -225,8 +225,8 @@ export default function FTCScamsPage() {
         </div>
 
         <div className="mt-12 card p-6 text-center">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Been Targeted by a Scam?</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Report it to protect others and help track fraud patterns.</p>
+          <h3 className="text-lg font-bold text-white mb-2">Been Targeted by a Scam?</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Report it to protect others and help track fraud patterns.</p>
           <div className="flex flex-wrap justify-center gap-3">
             <a href={FTC_REPORT_URL} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2 text-sm">
               <ExternalLink className="w-4 h-4" />Report to FTC
@@ -238,7 +238,7 @@ export default function FTCScamsPage() {
               Report to EndScams
             </a>
           </div>
-          <p className="text-xs text-gray-400 dark:text-gray-600 mt-4">
+          <p className="text-xs text-slate-400 dark:text-slate-600 mt-4">
             Source: <a href={FTC_SOURCE} target="_blank" rel="noopener noreferrer" className="text-brand-500 hover:underline">FTC Consumer Sentinel Network</a> | Updated based on most recent available data.
           </p>
         </div>
@@ -251,8 +251,8 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   return (
     <div className="card p-4">
       <Icon className={`w-6 h-6 ${color} mb-2`} />
-      <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
     </div>
   );
 }
@@ -261,44 +261,44 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
   const rankColors = ['bg-red-500', 'bg-red-400', 'bg-orange-500', 'bg-orange-400', 'bg-yellow-500', 'bg-yellow-400', 'bg-blue-500', 'bg-blue-400', 'bg-teal-500', 'bg-teal-400'];
 
   return (
-    <div className={`card overflow-hidden transition-all duration-300 ${isExpanded ? 'border-brand-500/50' : ''}`}>
+    <div className={`card overflow-hidden transition-all duration-300 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:shadow-lg ${isExpanded ? 'border-brand-500/50' : ''}`}>
       <button
         onClick={onToggle}
-        className="w-full p-5 flex items-center justify-between text-left hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+        className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
       >
         <div className="flex items-center gap-4">
-          <div className={`w-10 h-10 rounded-full ${rankColors[scam.rank - 1] || 'bg-gray-500'} flex items-center justify-center flex-shrink-0`}>
+          <div className={`w-10 h-10 rounded-full ${rankColors[scam.rank - 1] || 'bg-slate-1000'} flex items-center justify-center flex-shrink-0`}>
             <span className="text-white font-black text-sm">#{scam.rank}</span>
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">{scam.title}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block line-clamp-1">{scam.description}</p>
+            <h3 className="text-lg font-bold text-white">{scam.title}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 hidden sm:block line-clamp-1">{scam.description}</p>
           </div>
         </div>
         <div className="flex items-center gap-4 flex-shrink-0 ml-4">
           <div className="text-right hidden md:block">
             <div className="text-red-500 font-bold text-sm">{scam.lossAmount}</div>
-            <div className="text-xs text-gray-400">{scam.reports.toLocaleString()} reports</div>
+            <div className="text-xs text-slate-400">{scam.reports.toLocaleString()} reports</div>
           </div>
-          {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+          {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
         </div>
       </button>
 
       {isExpanded && (
-        <div className="px-5 pb-5 border-t border-gray-200 dark:border-gray-800 animate-fade-in">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 sm:hidden mb-4">{scam.description}</p>
+        <div className="px-5 pb-5 border-t border-slate-200 dark:border-slate-800 animate-fade-in">
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-4 sm:hidden mb-4">{scam.description}</p>
           <div className="md:hidden flex justify-between text-sm my-4">
             <span className="text-red-500 font-bold">Losses: {scam.lossAmount}</span>
-            <span className="text-gray-500">{scam.reports.toLocaleString()} reports</span>
+            <span className="text-slate-500">{scam.reports.toLocaleString()} reports</span>
           </div>
           <div className="grid md:grid-cols-2 gap-6 mt-4">
             <div>
-              <h4 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
+              <h4 className="font-bold text-white mb-3 flex items-center gap-2 text-sm">
                 <Shield className="w-4 h-4 text-brand-500" />How to Protect Yourself
               </h4>
               <ul className="space-y-2">
                 {scam.tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2 flex-shrink-0" />
                     {tip}
                   </li>
@@ -306,7 +306,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
               </ul>
             </div>
             <div>
-              <h4 className="font-bold text-gray-900 dark:text-white mb-3 text-sm">Resources & Sources</h4>
+              <h4 className="font-bold text-white mb-3 text-sm">Resources & Sources</h4>
               <div className="space-y-2">
                 <a href={scam.source} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline font-medium">
                   <ExternalLink className="w-4 h-4 flex-shrink-0" />FTC — {scam.title}
@@ -315,7 +315,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
                   <ExternalLink className="w-4 h-4 flex-shrink-0" />ReportFraud.ftc.gov
                 </a>
                 {scam.govResources.map((r, i) => (
-                  <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors">
+                  <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-400 transition-colors">
                     <ExternalLink className="w-4 h-4 flex-shrink-0 mt-0.5" />{r.label}
                   </a>
                 ))}

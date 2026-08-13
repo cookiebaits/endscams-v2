@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
