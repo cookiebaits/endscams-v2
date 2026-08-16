@@ -465,8 +465,8 @@ async function scheduler() {
   const hour = now.getUTCHours();
   const minute = now.getUTCMinutes();
 
-  // Cron trigger — top of the hour, 14:00 UTC (6 AM PST) or 21:00 UTC (1 PM PST)
-  if (!running && (hour === 14 || hour === 21) && minute < 5 && lastRunHour !== hour) {
+  // Cron trigger — top of the hour, 15:05 UTC (7:05 AM PST) or 21:05 UTC (1:05 PM PST)
+  if (!running && (hour === 15 || hour === 21) && minute === 5 && lastRunHour !== hour) {
     lastRunHour = hour;
     running = true;
     console.log(`[cron] pipeline start @ ${now.toISOString()}`);
