@@ -334,10 +334,7 @@ export default function EducationPage() {
               If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
             </p>
             <p className="text-slate-600 dark:text-amber-300/80 text-sm">
-              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.
-            <p className="text-gray-600 dark:text-amber-300/80 text-sm">
-              Deputies can help you confirm whether a call, text, or situation is legitimate  before you take any action.
-            </p>
+              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.</p>
           </div>
           <a
             href="https://search.brave.com/search?q=local+sheriff+non-emergency+line+near+me"
@@ -416,11 +413,7 @@ export default function EducationPage() {
             <div>
               <h2 className="text-xl font-bold text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                If you suspect you're being targeted  even if you haven't sent money yet  contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.
-              </p>
+                If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.</p>
             </div>
           </div>
           <div className="grid sm:grid-cols-3 gap-4 mb-5">
@@ -544,17 +537,11 @@ function GiftCardSection({ onGallery }: { onZoom: (src: string, caption: string)
         <div className="flex flex-col justify-between">
           <div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              No legitimate agency or business will ever ask you to pay with a gift card. If someone does  it is a scam, no exceptions.
-            </p>
+              No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.</p>
             <div className="space-y-1.5">
               {COMMON_CARDS.map((card, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{card.name}</span>
-                    {' '}— {card.note}
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     <span className="font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
                     {' '} {card.note}
@@ -607,10 +594,7 @@ function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) 
         <div className="flex flex-col justify-between">
           <div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous  and irreversible.
-            </p>
+              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.</p>
             <ul className="space-y-1.5">
               {points.map((p, i) => (
                 <li key={i} className="flex items-start gap-2">

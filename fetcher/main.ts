@@ -40,9 +40,9 @@ const env = (k: string, required = false): string => {
 
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
-const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
-const ALLOWED_ORIGIN2 = "http://localhost:5173";
-const ALLOWED_ORIGIN3 = "http://localhost:5174";
+// const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
+// const ALLOWED_ORIGIN2 = "http://localhost:5173";
+// const ALLOWED_ORIGIN3 = "http://localhost:5174";
 const PORT = parseInt(env("PORT") || "8000", 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
