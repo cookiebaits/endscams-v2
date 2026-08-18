@@ -9,6 +9,7 @@ import EducationPage from './pages/EducationPage';
 import FTCScamsPage from './pages/FTCScamsPage';
 import DisclaimerPage from './pages/DisclaimerPage';
 import TriagePage from './pages/TriagePage';
+import LivestreamSafetyPage from './pages/LivestreamSafetyPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [hasAccepted, setHasAccepted] = useState<boolean | null>(null);
@@ -49,6 +50,7 @@ function App() {
                       <Route path="/ftc-scams" element={<FTCScamsPage />} />
                       <Route path="/report" element={<ReportScamPage />} />
                       <Route path="/education" element={<EducationPage />} />
+                      <Route path="/stream-safety" element={<LivestreamSafetyPage />} />
                       <Route path="/triage" element={<TriagePage />} />
                     </Routes>
                   </div>

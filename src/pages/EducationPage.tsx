@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search } from 'lucide-react';
+import { Link } from 'react-router';
+import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 
 const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
@@ -403,6 +404,26 @@ export default function EducationPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="card p-8 mb-12 border-brand-500/30 bg-brand-50/30 dark:bg-brand-950/20">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
+              <MonitorPlay className="w-6 h-6 text-brand-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Are you a Content Creator or Livestreamer?</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Streamers face unique threats including session hijacking, fake sponsorships, and live extortion. View our dedicated Livestreaming Safety & Security Field Guide to protect your channel and personal data.</p>
+            </div>
+          </div>
+          <Link
+            to="/stream-safety"
+            className="inline-flex items-center gap-2.5 px-5 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+          >
+            <MonitorPlay className="w-4 h-4" />
+            View Creator Field Guide
+          </Link>
         </div>
 
         <div className="card p-8 mb-12 border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/10">

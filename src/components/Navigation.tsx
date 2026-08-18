@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Menu, X, Sun, Moon, FileSearch, TrendingUp, GraduationCap, Megaphone, ShieldCheck } from 'lucide-react';
+import { Menu, X, Sun, Moon, FileSearch, TrendingUp, GraduationCap, Megaphone, ShieldCheck, MonitorPlay } from 'lucide-react';
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -38,6 +38,7 @@ export default function Navigation() {
     { to: '/tracker', label: 'Scam Tracker', icon: FileSearch },
     { to: '/ftc-scams', label: 'Top Scams', icon: TrendingUp },
     { to: '/education', label: 'Education', icon: GraduationCap },
+    { to: '/stream-safety', label: 'Streamer Safety', icon: MonitorPlay },
     { to: '/report', label: 'Report Scam', icon: Megaphone },
     { to: '/triage', label: 'Scam Checker', icon: ShieldCheck },
   ];
