@@ -81,27 +81,10 @@ export default function LivestreamSafetyPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 pt-[165px] pb-12">
       <div className="card p-8 bg-slate-900/80 backdrop-blur-md mb-8">
-        <h1 className="text-3xl font-bold text-white mb-4 flex items-center gap-3">
+        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
           <MonitorPlay className="w-8 h-8 text-brand-500" />
           Livestreaming Safety & Security Field Guide
         </h1>
-        <p className="text-slate-400 text-lg mb-6">
-          A definitive resource for content creators to protect their stream, safeguard personal data, and respond to live emergencies.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <a href="#scam-catalog" className="px-4 py-2 bg-slate-800 hover:bg-brand-500/20 text-slate-300 hover:text-brand-400 rounded-full text-sm font-medium transition-colors border border-slate-700 hover:border-brand-500/50">
-            Common Scams Breakdown
-          </a>
-          <a href="#opsec-matrix" className="px-4 py-2 bg-slate-800 hover:bg-brand-500/20 text-slate-300 hover:text-brand-400 rounded-full text-sm font-medium transition-colors border border-slate-700 hover:border-brand-500/50">
-            Stream OPSEC & Software Hardening
-          </a>
-          <a href="#incident-playbook" className="px-4 py-2 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded-full text-sm font-medium transition-colors border border-slate-700 hover:border-red-500/50">
-            Live Incident Playbook
-          </a>
-          <a href="#pre-stream-checklist" className="px-4 py-2 bg-slate-800 hover:bg-green-500/20 text-slate-300 hover:text-green-400 rounded-full text-sm font-medium transition-colors border border-slate-700 hover:border-green-500/50">
-            Pre-Stream Checklist
-          </a>
-        </div>
       </div>
 
       {/* Module 1: Comprehensive Scam Catalog */}
