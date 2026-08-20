@@ -80,9 +80,11 @@ export default function LivestreamSafetyPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-[165px] pb-12">
-      <div className="card p-8 bg-slate-900/80 backdrop-blur-md mb-8">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+      <div className="text-center mb-14">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
           <MonitorPlay className="w-8 h-8 text-brand-500" />
+        </div>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">
           Livestreaming Safety & Security Field Guide
         </h1>
       </div>
