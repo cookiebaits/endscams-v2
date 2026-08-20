@@ -47,32 +47,33 @@ export default function Navigation() {
 
   return (
     <nav className="sticky top-0 z-40 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-20">
-          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-52 h-20">
-            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-3 left-0 h-[10.83rem] max-w-none drop-shadow-md" />
+      <div className="max-w-[1400px] mx-auto px-4">
+        <div className="flex items-center justify-between h-20 gap-2 md:gap-4">
+          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[200px] md:w-[260px] lg:w-[320px] shrink-0 h-20">
+            <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-1 left-0 h-[7rem] md:h-[8.5rem] lg:h-[10.83rem] max-w-none drop-shadow-md transform origin-left" />
           </Link>
 
 
-          <div className="hidden md:flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-0.5 lg:gap-1 xl:gap-2 overflow-x-auto no-scrollbar flex-nowrap shrink">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-base whitespace-nowrap transition-all ${
+                className={`flex items-center gap-1.5 xl:gap-2 px-2 lg:px-3 xl:px-4 py-2 rounded-lg font-medium text-[13px] lg:text-sm xl:text-base whitespace-nowrap transition-all ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                {link.icon && <link.icon className="w-4 h-4" />}
-                {link.label}
+                {link.icon && <link.icon className="w-4 h-4 shrink-0" />}
+                <span className="hidden lg:inline">{link.label}</span>
+                <span className="lg:hidden">{link.label.replace('Scam ', '')}</span>
               </Link>
             ))}
           </div>
 
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <a
               href="https://endscams.org/donate"
               className="hidden md:flex items-center justify-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-sm transition-colors shadow-sm"
