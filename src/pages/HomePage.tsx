@@ -314,7 +314,7 @@ export default function HomePage() {
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-bold mb-8 shadow-sm">
             <Shield className="w-4 h-4" />
-            CyberScam Watch Dog Network
+            CyberScam Watch Dog Network - Anti-Scam 503(c) Non-Profit
           </div>
 
           <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
