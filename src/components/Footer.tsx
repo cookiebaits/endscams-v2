@@ -21,18 +21,56 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <button
-            onClick={handleCopyrightClick}
-            className="text-xs text-gray-400 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-500 transition-colors select-none cursor-default"
-            title=""
-          >
-            &copy; {new Date().getFullYear()} EndScams.org — Cyberscam Watchdog Network. For educational purposes only.
-          </button>
-          <p className="text-xs text-gray-400 dark:text-gray-600">
-            FTC data: Consumer Sentinel Network &middot; Last updated {stats.last_updated ? new Date(stats.last_updated).toLocaleDateString() : 'N/A'}
-          </p>
+      <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 py-12 mt-auto">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">EndScams.org</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Cyberscam Watchdog Network. Dedicated to exposing scams, protecting victims, and educating the public.
+              </p>
+              <button
+                onClick={handleCopyrightClick}
+                className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors select-none cursor-default text-left"
+              >
+                &copy; {new Date().getFullYear()} EndScams.org. For educational purposes only.
+              </button>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">Quick Links</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="/" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Home</a></li>
+                <li><a href="/tracker" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Scam Tracker</a></li>
+                <li><a href="/education" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Education</a></li>
+                <li><a href="/ftc-scams" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Top Scams</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">Support & Action</h4>
+              <ul className="space-y-2 text-sm">
+                <li><a href="/report" className="text-red-600 dark:text-red-400 font-medium hover:underline transition-all">Report a Scam</a></li>
+                <li><a href="https://endscams.org/donate" target="_blank" rel="noopener noreferrer" className="text-green-600 dark:text-green-400 font-medium hover:underline transition-all">Donate to Cause</a></li>
+                <li><a href="/disclaimer" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Disclaimer</a></li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-4">Compliance & Data</h4>
+              <div className="bg-slate-100 dark:bg-slate-900 p-3 rounded-lg text-xs text-slate-600 dark:text-slate-400 space-y-2 border border-slate-200 dark:border-slate-800">
+                <p className="flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-green-500" /> Secure Connection
+                </p>
+                <p>
+                  <strong>FTC Data Source:</strong> Consumer Sentinel Network
+                </p>
+                <p>
+                  Last updated: {stats.last_updated ? new Date(stats.last_updated).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </footer>
 

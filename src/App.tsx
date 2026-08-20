@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import Navigation from './components/Navigation';
 import Footer from './components/Footer';
+import GlobalBanner from './components/GlobalBanner';
 import HomePage from './pages/HomePage';
 import TrackerPage from './pages/TrackerPage';
 import ReportScamPage from './pages/ReportScamPage';
@@ -33,7 +34,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
         <Routes>
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route
@@ -41,6 +42,7 @@ function App() {
             element={
               <ProtectedRoute>
                 <div className="flex flex-col min-h-screen">
+                  <GlobalBanner />
                   <Navigation />
                   <div className="flex-1">
                     <Routes>
