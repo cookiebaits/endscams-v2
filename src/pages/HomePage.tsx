@@ -317,20 +317,20 @@ export default function HomePage() {
             CyberScam Watch Dog Network - Anti-Scam 503(c) Non-Profit
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
-            Protect Yourself from<br />
-            <span className="text-brand-500">Digital Threats</span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
+            Protect Yourself from<br className="hidden sm:block" />
+            <span className="text-brand-500 sm:ml-2">Digital Threats</span>
           </h1>
 
-          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-8 md:mb-10 max-w-2xl mx-auto px-2 sm:px-0">
             Our comprehensive cybersecurity platform allows you to identify scams, report active threats, and search our extensive database of malicious activity.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Link to="/report" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10 md:mb-12">
+            <Link to="/report" className="btn-primary w-full sm:w-auto text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-3.5 shadow-brand-500/30 text-center">
               Report a Scam
             </Link>
-            <a href="#tools" className="btn-outline w-full sm:w-auto text-lg px-8 py-3.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+            <a href="#tools" className="btn-outline w-full sm:w-auto text-base sm:text-lg px-6 sm:px-8 py-3 sm:py-3.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm text-center">
               Check a URL / Phone
             </a>
           </div>
@@ -462,32 +462,32 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-green-500/10 dark:bg-green-500/20 flex items-center justify-center mb-6">
-                <Banknote className="w-8 h-8 text-green-500 dark:text-green-400" />
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-green-500/10 dark:bg-green-500/20 flex items-center justify-center mb-4 md:mb-6">
+                <Banknote className="w-6 h-6 md:w-8 md:h-8 text-green-500 dark:text-green-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`$${animatedMoney.toLocaleString('en-US')}`}</div>
-              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Estimated Money Saved</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Total dollars protected from scammer hands</p>
+              <div className="text-3xl sm:text-4xl lg:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`$${animatedMoney.toLocaleString('en-US')}`}</div>
+              <h3 className="text-base sm:text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Estimated Money Saved</h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Total dollars protected from scammer hands</p>
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-brand-500/10 dark:bg-brand-500/20 flex items-center justify-center mb-6">
-                <Hourglass className="w-8 h-8 text-brand-500 dark:text-brand-400" />
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-brand-500/10 dark:bg-brand-500/20 flex items-center justify-center mb-4 md:mb-6">
+                <Hourglass className="w-6 h-6 md:w-8 md:h-8 text-brand-500 dark:text-brand-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
-              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Scam Decoy Investigations (hrs)</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Hours of decoy collecting evidence</p>
+              <div className="text-3xl sm:text-4xl lg:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
+              <h3 className="text-base sm:text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Scam Decoy Investigations (hrs)</h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Hours of decoy collecting evidence</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center mb-6">
-                <ServerCrash className="w-8 h-8 text-red-500 dark:text-red-400" />
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300 sm:col-span-2 md:col-span-1">
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center mb-4 md:mb-6">
+                <ServerCrash className="w-6 h-6 md:w-8 md:h-8 text-red-500 dark:text-red-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{animatedResources.toLocaleString()}</div>
-              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Resources Shutdown</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Confirmed website, phone, and finance shutdowns</p>
+              <div className="text-3xl sm:text-4xl lg:text-5xl font-black mb-3 text-slate-900 dark:text-white">{animatedResources.toLocaleString()}</div>
+              <h3 className="text-base sm:text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Resources Shutdown</h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Confirmed website, phone, and finance shutdowns</p>
             </div>
           </div>
         </div>

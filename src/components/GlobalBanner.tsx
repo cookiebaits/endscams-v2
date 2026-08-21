@@ -19,19 +19,19 @@ export default function GlobalBanner() {
   };
 
   return (
-    <div className="bg-red-600 text-white px-4 py-2 flex items-center justify-between text-sm font-medium z-50 relative">
-      <div className="flex items-center gap-2 max-w-7xl mx-auto flex-1 justify-center">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+    <div className="bg-red-600 text-white px-10 py-2 sm:px-4 flex items-center justify-between text-xs sm:text-sm font-medium z-50 relative">
+      <div className="flex items-start sm:items-center gap-2 max-w-7xl mx-auto flex-1 justify-center text-center">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 sm:mt-0 hidden sm:block" />
         <span>
           <strong>ALERT:</strong> Active threat bulletin. Multiple reports of new tech support scams targeting vulnerable users.
         </span>
       </div>
       <button
         onClick={handleDismiss}
-        className="p-1 hover:bg-red-700 rounded-lg transition-colors absolute right-4"
+        className="p-1.5 hover:bg-red-700 rounded-lg transition-colors absolute right-2 top-1/2 -translate-y-1/2"
         aria-label="Dismiss"
       >
-        <X className="w-4 h-4" />
+        <X className="w-4 h-4 sm:w-5 sm:h-5" />
       </button>
     </div>
   );
