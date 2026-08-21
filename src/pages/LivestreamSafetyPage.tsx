@@ -91,7 +91,7 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 1: Comprehensive Scam Catalog */}
       <div id="scam-catalog" className="mb-12">
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Comprehensive Scam Catalog
         </h2>
@@ -109,7 +109,7 @@ export default function LivestreamSafetyPage() {
                     <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-md border ${scam.threatColor}`}>
                       {scam.threat}
                     </span>
-                    <h3 className="font-bold text-white text-lg">{scam.title}</h3>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-lg">{scam.title}</h3>
                   </div>
                   {isExpanded ? (
                     <ChevronUp className="w-5 h-5 text-slate-400" />
@@ -152,13 +152,13 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 2: Streamer OPSEC & Software Hardening Matrix */}
       <div id="opsec-matrix" className="mb-12">
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
           <Key className="w-6 h-6 text-brand-500" />
           Streamer OPSEC & Software Hardening Matrix
         </h2>
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
-            <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-blue-400" />
               Broadcast Safety
             </h3>
@@ -179,7 +179,7 @@ export default function LivestreamSafetyPage() {
           </div>
 
           <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
-            <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Radio className="w-5 h-5 text-purple-400" />
               Network & IP Protection
             </h3>
@@ -200,7 +200,7 @@ export default function LivestreamSafetyPage() {
           </div>
 
           <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
-            <h3 className="font-bold text-white text-lg mb-4 flex items-center gap-2">
+            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Key className="w-5 h-5 text-yellow-400" />
               Account Security
             </h3>
@@ -224,7 +224,7 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 3: Live Incident Response Playbook */}
       <div id="incident-playbook" className="mb-12">
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
           <AlertTriangle className="w-6 h-6 text-red-500" />
           Live Incident Response Playbook
         </h2>
@@ -239,7 +239,7 @@ export default function LivestreamSafetyPage() {
                 <VideoOff className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <h4 className="text-white font-bold text-lg mb-1">Step 1: The Panic Scene (Kill Visuals)</h4>
+                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 1: The Panic Scene (Kill Visuals)</h4>
                 <p className="text-red-200/80 text-sm">Hit your pre-configured OBS hotkey to switch to an emergency "BRB / Tech Issues" scene. This scene MUST have desktop audio, mic audio, and display capture fully muted/disabled.</p>
               </div>
             </div>
@@ -249,7 +249,7 @@ export default function LivestreamSafetyPage() {
                 <Key className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <h4 className="text-white font-bold text-lg mb-1">Step 2: Credential Revocation</h4>
+                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 2: Credential Revocation</h4>
                 <p className="text-red-200/80 text-sm">If a session token was stolen (e.g., clicked a bad link), immediately log out of all active sessions on your platform (Twitch/YouTube). Reset your password and invalidate your Stream Key from a separate, secure device (like your phone) if possible.</p>
               </div>
             </div>
@@ -259,7 +259,7 @@ export default function LivestreamSafetyPage() {
                 <XOctagon className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <h4 className="text-white font-bold text-lg mb-1">Step 3: VOD & Clip Isolation</h4>
+                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 3: VOD & Clip Isolation</h4>
                 <p className="text-red-200/80 text-sm">Before ending the broadcast, unpublish or delete the current active stream VOD. Have your trusted moderators immediately delete any clips created in the last 10 minutes to prevent the leak from spreading.</p>
               </div>
             </div>
@@ -269,7 +269,7 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 4: Interactive Pre-Stream Security Checklist */}
       <div id="pre-stream-checklist" className="mb-12">
-        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Interactive Pre-Stream Security Checklist
         </h2>
@@ -281,9 +281,9 @@ export default function LivestreamSafetyPage() {
               return (
                 <label key={item.id} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-colors border ${isChecked ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'}`}>
                   <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-brand-500 border-brand-500' : 'border-slate-500 bg-slate-900'}`}>
-                    {isChecked && <Shield className="w-4 h-4 text-white" />}
+                    {isChecked && <Shield className="w-4 h-4 text-slate-900 dark:text-white" />}
                   </div>
-                  <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-white' : 'text-slate-300'}`}>
+                  <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-300'}`}>
                     {item.label}
                   </span>
                   <input
@@ -301,7 +301,7 @@ export default function LivestreamSafetyPage() {
               setChecklist({});
               localStorage.removeItem('stream_security_checklist');
             }}
-            className="mt-6 px-4 py-2 text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+            className="mt-6 px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
           >
             Reset Checklist
           </button>
