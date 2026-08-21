@@ -6,7 +6,7 @@ const SCAM_CATALOG = [
     id: 'fake-sponsorship',
     title: 'Fake Sponsorships & Brand Deals',
     threat: 'Critical',
-    threatColor: 'bg-red-500/20 text-red-500 border-red-500/30',
+    threatColor: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-500 border-red-300 dark:border-red-500/30',
     vector: 'Email, Twitter/X DMs',
     pitch: 'A well-known brand (often gaming or tech related) reaches out with a lucrative sponsorship offer. They ask you to download a "game launcher", "asset pack", or "contract" (often a password-protected ZIP, .scr, or .exe file).',
     tactic: 'The downloaded file contains a stealthy infostealer malware (like RedLine or Raccoon). It bypasses 2FA by stealing active session tokens from your browser and immediately hijacking your YouTube/Twitch/Twitter accounts.',
@@ -91,7 +91,7 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 1: Comprehensive Scam Catalog */}
       <div id="scam-catalog" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Comprehensive Scam Catalog
         </h2>
@@ -99,10 +99,10 @@ export default function LivestreamSafetyPage() {
           {SCAM_CATALOG.map((scam) => {
             const isExpanded = expandedScam === scam.id;
             return (
-              <div key={scam.id} className={`card overflow-hidden transition-all duration-300 border ${isExpanded ? 'border-brand-500/50' : 'border-slate-800'}`}>
+              <div key={scam.id} className={`card overflow-hidden transition-all duration-300 border ${isExpanded ? 'border-brand-500/50' : 'border-slate-200 dark:border-slate-800'}`}>
                 <button
                   onClick={() => toggleScam(scam.id)}
-                  className="w-full flex items-center justify-between p-5 bg-slate-900/50 hover:bg-slate-800/80 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-5 bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-800/80 transition-colors text-left"
                   aria-expanded={isExpanded}
                 >
                   <div className="flex items-center gap-4">
@@ -119,7 +119,7 @@ export default function LivestreamSafetyPage() {
                 </button>
 
                 {isExpanded && (
-                  <div className="p-5 border-t border-slate-800 bg-slate-900/30">
+                  <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-900/30">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <div className="mb-4">
@@ -152,12 +152,12 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 2: Streamer OPSEC & Software Hardening Matrix */}
       <div id="opsec-matrix" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Key className="w-6 h-6 text-brand-500" />
           Streamer OPSEC & Software Hardening Matrix
         </h2>
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
+          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-blue-400" />
               Broadcast Safety
@@ -178,7 +178,7 @@ export default function LivestreamSafetyPage() {
             </ul>
           </div>
 
-          <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
+          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Radio className="w-5 h-5 text-purple-400" />
               Network & IP Protection
@@ -199,7 +199,7 @@ export default function LivestreamSafetyPage() {
             </ul>
           </div>
 
-          <div className="card p-6 bg-slate-900/50 border border-slate-800 hover:border-brand-500/30 transition-colors">
+          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Key className="w-5 h-5 text-yellow-400" />
               Account Security
@@ -224,43 +224,43 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 3: Live Incident Response Playbook */}
       <div id="incident-playbook" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
-          <AlertTriangle className="w-6 h-6 text-red-500" />
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+          <AlertTriangle className="w-6 h-6 text-red-700 dark:text-red-500" />
           Live Incident Response Playbook
         </h2>
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+        <div className="bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 dark:bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
 
-          <p className="text-red-200 mb-6 font-medium">If your screen flashes personal info, a malicious link is opened, or you suspect active hijacking mid-stream, execute these steps immediately:</p>
+          <p className="text-red-700 dark:text-red-200 mb-6 font-medium">If your screen flashes personal info, a malicious link is opened, or you suspect active hijacking mid-stream, execute these steps immediately:</p>
 
           <div className="space-y-4 relative z-10">
-            <div className="flex items-start gap-4 p-4 bg-red-950/40 rounded-lg border border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
-                <VideoOff className="w-5 h-5 text-red-500" />
+            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+                <VideoOff className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
                 <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 1: The Panic Scene (Kill Visuals)</h4>
-                <p className="text-red-200/80 text-sm">Hit your pre-configured OBS hotkey to switch to an emergency "BRB / Tech Issues" scene. This scene MUST have desktop audio, mic audio, and display capture fully muted/disabled.</p>
+                <p className="text-red-700 dark:text-red-200/80 text-sm">Hit your pre-configured OBS hotkey to switch to an emergency "BRB / Tech Issues" scene. This scene MUST have desktop audio, mic audio, and display capture fully muted/disabled.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-4 p-4 bg-red-950/40 rounded-lg border border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
-                <Key className="w-5 h-5 text-red-500" />
+            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+                <Key className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
                 <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 2: Credential Revocation</h4>
-                <p className="text-red-200/80 text-sm">If a session token was stolen (e.g., clicked a bad link), immediately log out of all active sessions on your platform (Twitch/YouTube). Reset your password and invalidate your Stream Key from a separate, secure device (like your phone) if possible.</p>
+                <p className="text-red-700 dark:text-red-200/80 text-sm">If a session token was stolen (e.g., clicked a bad link), immediately log out of all active sessions on your platform (Twitch/YouTube). Reset your password and invalidate your Stream Key from a separate, secure device (like your phone) if possible.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-4 p-4 bg-red-950/40 rounded-lg border border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
-                <XOctagon className="w-5 h-5 text-red-500" />
+            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+                <XOctagon className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
                 <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 3: VOD & Clip Isolation</h4>
-                <p className="text-red-200/80 text-sm">Before ending the broadcast, unpublish or delete the current active stream VOD. Have your trusted moderators immediately delete any clips created in the last 10 minutes to prevent the leak from spreading.</p>
+                <p className="text-red-700 dark:text-red-200/80 text-sm">Before ending the broadcast, unpublish or delete the current active stream VOD. Have your trusted moderators immediately delete any clips created in the last 10 minutes to prevent the leak from spreading.</p>
               </div>
             </div>
           </div>
@@ -269,7 +269,7 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 4: Interactive Pre-Stream Security Checklist */}
       <div id="pre-stream-checklist" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Interactive Pre-Stream Security Checklist
         </h2>
@@ -301,7 +301,7 @@ export default function LivestreamSafetyPage() {
               setChecklist({});
               localStorage.removeItem('stream_security_checklist');
             }}
-            className="mt-6 px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+            className="mt-6 px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
           >
             Reset Checklist
           </button>
