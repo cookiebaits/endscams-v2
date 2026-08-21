@@ -544,7 +544,7 @@ export default function HomePage() {
                   {phoneToolResult.error ? (
                      <p className="text-red-500 font-medium">{phoneToolResult.error}</p>
                   ) : (
-                    <div>
+                    <div className="flex flex-col gap-4 text-left">
                       {(() => {
                         const carrier = phoneToolResult.phone_carrier?.name?.toLowerCase() || '';
                         const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'text free'];
@@ -554,13 +554,79 @@ export default function HomePage() {
                         const isMajor = majors.some(m => carrier.includes(m));
 
                         if (isWholesaler) {
-                          return <div className="text-red-500 font-bold mb-2 px-3 py-1.5 bg-red-500/10 rounded-md inline-block">Likely Spam or Scam (Wholesaler detected)</div>;
+                          return <div className="text-red-500 font-bold px-4 py-3 bg-red-500/10 rounded-lg inline-block self-start border border-red-500/20">Risk: Likely Spam or Scam (Wholesaler detected)</div>;
                         } else if (isMajor) {
-                          return <div className="text-green-500 font-bold mb-2 px-3 py-1.5 bg-green-500/10 rounded-md inline-block">Unlikely scam. Proceed with caution.</div>;
+                          return <div className="text-green-500 font-bold px-4 py-3 bg-green-500/10 rounded-lg inline-block self-start border border-green-500/20">Risk: Low (Major Carrier)</div>;
                         }
-                        return <div className="text-yellow-500 font-bold mb-2 px-3 py-1.5 bg-yellow-500/10 rounded-md inline-block">Carrier: {phoneToolResult.phone_carrier?.name || 'Unknown'}</div>;
+                        return null;
                       })()}
-                      <pre className="text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap mt-2">{JSON.stringify(phoneToolResult, null, 2)}</pre>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-brand-500" />
+                            Validation & Status
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex justify-between">
+                              <span>Valid Number:</span>
+                              <span className={`font-medium ${phoneToolResult.is_valid ? 'text-green-400' : 'text-red-400'}`}>
+                                {phoneToolResult.is_valid ? 'Yes' : 'No'}
+                              </span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>Line Status:</span>
+                              <span className="text-slate-300 font-medium capitalize">{phoneToolResult.line_status || 'Unknown'}</span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>VOIP:</span>
+                              <span className={`font-medium ${phoneToolResult.is_voip ? 'text-yellow-400' : 'text-slate-300'}`}>
+                                {phoneToolResult.is_voip ? 'Yes' : 'No'}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Network className="w-4 h-4 text-blue-500" />
+                            Carrier Details
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex flex-col">
+                              <span className="text-xs">Carrier Name:</span>
+                              <span className="text-slate-200 font-medium">{phoneToolResult.phone_carrier?.name || 'Unknown'}</span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>Line Type:</span>
+                              <span className="text-slate-300 font-medium capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 md:col-span-2 lg:col-span-1">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-purple-500" />
+                            Formatting & Region
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex flex-col">
+                              <span className="text-xs">International Format:</span>
+                              <span className="text-slate-300 font-medium font-mono">{phoneToolResult.format?.international || 'N/A'}</span>
+                            </p>
+                            <p className="flex flex-col">
+                              <span className="text-xs">National Format:</span>
+                              <span className="text-slate-300 font-medium font-mono">{phoneToolResult.format?.national || 'N/A'}</span>
+                            </p>
+                            {phoneToolResult.location && (
+                               <p className="flex justify-between pt-1 border-t border-slate-700/50 mt-1">
+                                 <span>Region:</span>
+                                 <span className="text-slate-300">{phoneToolResult.location}</span>
+                               </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
