@@ -526,7 +526,7 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
   if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
   const endpoints: Record<string, { base: string, key: string, param: string }> = {
-    phone: { base: "https://phonevalidation.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
+    phone: { base: "https://phoneintelligence.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
     email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
     ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
     scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },
