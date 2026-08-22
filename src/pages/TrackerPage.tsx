@@ -6,8 +6,6 @@ export default function TrackerPage() {
   const [frameHeight, setFrameHeight] = useState("600px");
 
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-
     const updateHeight = () => {
       const nav = document.querySelector('nav');
       const footer = document.querySelector('footer');
@@ -22,9 +20,9 @@ export default function TrackerPage() {
       const targetHeight = windowH - topOffset - footH;
 
       if (targetHeight > 100) {
-        setFrameHeight(`${targetHeight}px`);
+        setFrameHeight(`${targetHeight + 50}px`);
       } else {
-        setFrameHeight("400px");
+        setFrameHeight("450px");
       }
     };
 
@@ -33,14 +31,13 @@ export default function TrackerPage() {
     window.addEventListener("resize", updateHeight);
 
     return () => {
-      document.body.style.overflow = "";
       window.removeEventListener("resize", updateHeight);
     };
   }, []);
 
   return (
-    <div ref={containerRef} className="bg-slate-950 flex flex-col overflow-hidden w-full">
-      <div className="w-full relative overflow-x-auto overflow-y-hidden" style={{ height: frameHeight }}>
+    <div ref={containerRef} className="bg-slate-950 flex flex-col w-full">
+      <div className="w-full relative overflow-x-auto" style={{ height: frameHeight }}>
         {!isLoaded && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950 z-10">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
