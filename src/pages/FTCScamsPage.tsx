@@ -182,13 +182,13 @@ export default function FTCScamsPage() {
   const toggle = (rank: number) => setExpanded(e => (e === rank ? null : rank));
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-8 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
       <div className="max-w-5xl mx-auto px-4">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <AlertTriangle className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-100 mb-4 uppercase tracking-wider border-l-4 border-brand-500 pl-4">FTC Latest Scam Reports</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-brand-500 pl-4">FTC Latest Scam Reports</h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
             The Federal Trade Commission's most reported consumer fraud categories for 2025 (reported March 2026). Data from the Consumer Sentinel Network.
           </p>
@@ -225,7 +225,7 @@ export default function FTCScamsPage() {
         </div>
 
         <div className="mt-12 card p-6 text-center">
-          <h3 className="text-lg font-bold text-white mb-2">Been Targeted by a Scam?</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Been Targeted by a Scam?</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Report it to protect others and help track fraud patterns.</p>
           <div className="flex flex-wrap justify-center gap-3">
             <a href={FTC_REPORT_URL} target="_blank" rel="noopener noreferrer" className="btn-primary inline-flex items-center gap-2 text-sm">
@@ -251,7 +251,7 @@ function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType
   return (
     <div className="card p-4">
       <Icon className={`w-6 h-6 ${color} mb-2`} />
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-2xl font-bold text-slate-900 dark:text-white">{value}</div>
       <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
     </div>
   );
@@ -268,10 +268,10 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
       >
         <div className="flex items-center gap-4">
           <div className={`w-10 h-10 rounded-full ${rankColors[scam.rank - 1] || 'bg-slate-1000'} flex items-center justify-center flex-shrink-0`}>
-            <span className="text-white font-black text-sm">#{scam.rank}</span>
+            <span className="text-slate-900 dark:text-white font-black text-sm">#{scam.rank}</span>
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-bold text-white">{scam.title}</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{scam.title}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 hidden sm:block line-clamp-1">{scam.description}</p>
           </div>
         </div>
@@ -293,7 +293,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
           </div>
           <div className="grid md:grid-cols-2 gap-6 mt-4">
             <div>
-              <h4 className="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+              <h4 className="font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2 text-sm">
                 <Shield className="w-4 h-4 text-brand-500" />How to Protect Yourself
               </h4>
               <ul className="space-y-2">
@@ -306,7 +306,7 @@ function ScamCard({ scam, isExpanded, onToggle }: { scam: typeof TOP_SCAMS[0]; i
               </ul>
             </div>
             <div>
-              <h4 className="font-bold text-white mb-3 text-sm">Resources & Sources</h4>
+              <h4 className="font-bold text-slate-900 dark:text-white mb-3 text-sm">Resources & Sources</h4>
               <div className="space-y-2">
                 <a href={scam.source} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-brand-500 hover:underline font-medium">
                   <ExternalLink className="w-4 h-4 flex-shrink-0" />FTC — {scam.title}

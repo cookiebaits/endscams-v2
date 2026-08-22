@@ -27,7 +27,7 @@
   }
 
   .card {
-    @apply bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl hover:border-white/20 transition-all duration-300;
+    @apply bg-white dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl hover:border-brand-500/50 dark:hover:border-white/20 transition-all duration-300;
   }
 
   .section-title {

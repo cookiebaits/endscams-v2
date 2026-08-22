@@ -532,7 +532,7 @@ export default function HomePage() {
 
           {activeTool === 'phone' && (
             <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-white mb-4">Phone Searcher</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Phone Searcher</h3>
               <form onSubmit={handlePhoneToolSearch} className="flex gap-2 mb-6">
                 <input type="text" value={phoneToolInput} onChange={(e) => setPhoneToolInput(e.target.value)} placeholder="Enter phone number (e.g. +14152000000)" className="input-field flex-1" />
                 <button type="submit" disabled={phoneToolLoading} className="btn-primary px-6 flex items-center gap-2">
@@ -576,11 +576,11 @@ export default function HomePage() {
                             </p>
                             <p className="flex justify-between">
                               <span>Line Status:</span>
-                              <span className="text-slate-300 font-medium capitalize">{phoneToolResult.line_status || 'Unknown'}</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.line_status || 'Unknown'}</span>
                             </p>
                             <p className="flex justify-between">
                               <span>VOIP:</span>
-                              <span className={`font-medium ${phoneToolResult.is_voip ? 'text-yellow-400' : 'text-slate-300'}`}>
+                              <span className={`font-medium ${phoneToolResult.is_voip ? 'text-yellow-400' : 'text-slate-700 dark:text-slate-300'}`}>
                                 {phoneToolResult.is_voip ? 'Yes' : 'No'}
                               </span>
                             </p>
@@ -599,7 +599,7 @@ export default function HomePage() {
                             </p>
                             <p className="flex justify-between">
                               <span>Line Type:</span>
-                              <span className="text-slate-300 font-medium capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span>
                             </p>
                           </div>
                         </div>
@@ -612,16 +612,16 @@ export default function HomePage() {
                           <div className="space-y-2 text-sm text-slate-400">
                             <p className="flex flex-col">
                               <span className="text-xs">International Format:</span>
-                              <span className="text-slate-300 font-medium font-mono">{phoneToolResult.format?.international || 'N/A'}</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.international || 'N/A'}</span>
                             </p>
                             <p className="flex flex-col">
                               <span className="text-xs">National Format:</span>
-                              <span className="text-slate-300 font-medium font-mono">{phoneToolResult.format?.national || 'N/A'}</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.national || 'N/A'}</span>
                             </p>
                             {phoneToolResult.location && (
                                <p className="flex justify-between pt-1 border-t border-slate-700/50 mt-1">
                                  <span>Region:</span>
-                                 <span className="text-slate-300">{phoneToolResult.location}</span>
+                                 <span className="text-slate-700 dark:text-slate-300">{phoneToolResult.location}</span>
                                </p>
                             )}
                           </div>

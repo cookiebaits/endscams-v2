@@ -275,12 +275,12 @@ export default function ReportScamPage() {
 
   if (status === 'success') {
     return (
-      <div className="min-h-screen bg-slate-950 pt-8 pb-16 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 flex items-center justify-center">
         <div className="max-w-md mx-auto px-4 text-center animate-slide-up">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">Report Submitted</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Report Submitted</h1>
           <p className="text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
             Thank you for helping protect others. Your report has been added to the Scam Tracker and will remain active for 45 days.
           </p>
@@ -319,13 +319,13 @@ export default function ReportScamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 pt-8 pb-16 text-slate-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <AlertTriangle className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-slate-100 mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
           <p className="text-slate-500 dark:text-slate-400">
             Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
           </p>
