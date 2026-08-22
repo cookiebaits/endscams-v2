@@ -20,9 +20,9 @@ export default function TrackerPage() {
       const targetHeight = windowH - topOffset - footH;
 
       if (targetHeight > 100) {
-        setFrameHeight(`${targetHeight + 50}px`);
+        setFrameHeight(`${targetHeight + 100}px`);
       } else {
-        setFrameHeight("450px");
+        setFrameHeight("500px");
       }
     };
 
