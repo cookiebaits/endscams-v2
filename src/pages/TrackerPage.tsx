@@ -6,31 +6,10 @@ export default function TrackerPage() {
   const [frameHeight, setFrameHeight] = useState("600px");
 
   useEffect(() => {
-    document.body.style.overflow = "hidden";
+
 
     const updateHeight = () => {
-      // Find the header and footer heights directly
-      const nav = document.querySelector('nav');
-      const footer = document.querySelector('footer');
-
-      const navH = nav ? nav.offsetHeight : 80;
-      const footH = footer ? footer.offsetHeight : 150;
-      // We can also just calculate it cleanly:
-      const windowH = window.innerHeight;
-      let topOffset = containerRef.current ? containerRef.current.getBoundingClientRect().top : navH;
-
-      // If topOffset is weirdly small/large, fallback to a safe calculation
-      if (topOffset <= 0) topOffset = navH + 40; // approx
-
-      // The height we want is the remaining window height MINUS the footer height
-      const targetHeight = windowH - topOffset - footH;
-
-      if (targetHeight > 100) {
-        setFrameHeight(`${targetHeight}px`);
-      } else {
-        // Fallback for extremely small screens
-        setFrameHeight("400px");
-      }
+      setFrameHeight("1200px");
     };
 
     // Slight delay to ensure DOM is fully rendered before measuring
@@ -38,7 +17,7 @@ export default function TrackerPage() {
     window.addEventListener("resize", updateHeight);
 
     return () => {
-      document.body.style.overflow = "";
+
       window.removeEventListener("resize", updateHeight);
     };
   }, []);
