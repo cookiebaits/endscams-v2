@@ -112,9 +112,9 @@ export default function LivestreamSafetyPage() {
                     <h3 className="font-bold text-slate-900 dark:text-white text-lg">{scam.title}</h3>
                   </div>
                   {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-slate-400" />
+                    <ChevronUp className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                    <ChevronDown className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                   )}
                 </button>
 
@@ -123,22 +123,22 @@ export default function LivestreamSafetyPage() {
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Attack Vector</h4>
-                          <p className="text-slate-300 text-sm">{scam.vector}</p>
+                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">Attack Vector</h4>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.vector}</p>
                         </div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">The Scam Pitch</h4>
-                          <p className="text-slate-300 text-sm">{scam.pitch}</p>
+                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">The Scam Pitch</h4>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.pitch}</p>
                         </div>
                       </div>
                       <div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Scammer Tactic & Payload</h4>
-                          <p className="text-slate-300 text-sm">{scam.tactic}</p>
+                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">Scammer Tactic & Payload</h4>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.tactic}</p>
                         </div>
                         <div>
                           <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider mb-1">Defensive Action</h4>
-                          <p className="text-slate-300 text-sm font-medium">{scam.defense}</p>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm font-medium">{scam.defense}</p>
                         </div>
                       </div>
                     </div>
@@ -165,15 +165,15 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Use Window Capture:</strong> Avoid Display Capture whenever possible. If required, always disable desktop icons and hide the taskbar.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Use Window Capture:</strong> Avoid Display Capture whenever possible. If required, always disable desktop icons and hide the taskbar.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Dedicated Profiles:</strong> Use a separate browser profile specifically for streaming, completely isolated from your personal emails and banking.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Dedicated Profiles:</strong> Use a separate browser profile specifically for streaming, completely isolated from your personal emails and banking.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Notification Silence:</strong> Use "Do Not Disturb" on Windows/Mac to block push notifications that might reveal personal info or 2FA codes on stream.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Notification Silence:</strong> Use "Do Not Disturb" on Windows/Mac to block push notifications that might reveal personal info or 2FA codes on stream.</p>
               </li>
             </ul>
           </div>
@@ -186,15 +186,15 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>VPN Considerations:</strong> Use a reputable VPN during stream if playing P2P games or interacting with unverified external servers to prevent DDoS attacks.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>VPN Considerations:</strong> Use a reputable VPN during stream if playing P2P games or interacting with unverified external servers to prevent DDoS attacks.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Discord Voice Servers:</strong> Never show your Discord server region settings on stream; malicious actors can use this to narrow down your geolocation.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Discord Voice Servers:</strong> Never show your Discord server region settings on stream; malicious actors can use this to narrow down your geolocation.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Avoid P2P IP Leaks:</strong> Be wary of older multiplayer games or voice protocols that expose direct IP connections to other players.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Avoid P2P IP Leaks:</strong> Be wary of older multiplayer games or voice protocols that expose direct IP connections to other players.</p>
               </li>
             </ul>
           </div>
@@ -207,15 +207,15 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Hardware 2FA (FIDO):</strong> Migrate to hardware keys (YubiKey, Titan) for Google, Twitter, Twitch. Deprecate SMS 2FA to prevent SIM-swapping.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Hardware 2FA (FIDO):</strong> Migrate to hardware keys (YubiKey, Titan) for Google, Twitter, Twitch. Deprecate SMS 2FA to prevent SIM-swapping.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Email Segmentation:</strong> Maintain strictly separated email addresses: one for public business inquiries, one for private platform logins.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Email Segmentation:</strong> Maintain strictly separated email addresses: one for public business inquiries, one for private platform logins.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-300"><strong>Password Managers:</strong> Use a robust password manager and never store streaming-related passwords in your browser's auto-fill.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Password Managers:</strong> Use a robust password manager and never store streaming-related passwords in your browser's auto-fill.</p>
               </li>
             </ul>
           </div>
@@ -273,17 +273,17 @@ export default function LivestreamSafetyPage() {
           <Shield className="w-6 h-6 text-brand-500" />
           Interactive Pre-Stream Security Checklist
         </h2>
-        <div className="card p-6 bg-slate-900/80">
-          <p className="text-slate-400 mb-6 text-sm">Review this checklist before going live to ensure maximum OPSEC. Your progress is saved locally in this browser.</p>
+        <div className="card p-6 bg-white dark:bg-slate-900/80">
+          <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">Review this checklist before going live to ensure maximum OPSEC. Your progress is saved locally in this browser.</p>
           <div className="space-y-3">
             {CHECKLIST_ITEMS.map(item => {
               const isChecked = !!checklist[item.id];
               return (
-                <label key={item.id} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-colors border ${isChecked ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'}`}>
-                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-brand-500 border-brand-500' : 'border-slate-500 bg-slate-900'}`}>
+                <label key={item.id} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-colors border ${isChecked ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-brand-500 border-brand-500' : 'border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-900'}`}>
                     {isChecked && <Shield className="w-4 h-4 text-slate-900 dark:text-white" />}
                   </div>
-                  <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-300'}`}>
+                  <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                     {item.label}
                   </span>
                   <input
@@ -301,7 +301,7 @@ export default function LivestreamSafetyPage() {
               setChecklist({});
               localStorage.removeItem('stream_security_checklist');
             }}
-            className="mt-6 px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
+            className="mt-6 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
           >
             Reset Checklist
           </button>
