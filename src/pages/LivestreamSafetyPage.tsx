@@ -119,25 +119,25 @@ export default function LivestreamSafetyPage() {
                 </button>
 
                 {isExpanded && (
-                  <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-900/30">
+                  <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">Attack Vector</h4>
+                          <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Attack Vector</h4>
                           <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.vector}</p>
                         </div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">The Scam Pitch</h4>
+                          <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">The Scam Pitch</h4>
                           <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.pitch}</p>
                         </div>
                       </div>
                       <div>
                         <div className="mb-4">
-                          <h4 className="text-xs font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider mb-1">Scammer Tactic & Payload</h4>
+                          <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Scammer Tactic & Payload</h4>
                           <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.tactic}</p>
                         </div>
                         <div>
-                          <h4 className="text-xs font-bold text-brand-400 uppercase tracking-wider mb-1">Defensive Action</h4>
+                          <h4 className="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-1">Defensive Action</h4>
                           <p className="text-slate-700 dark:text-slate-300 text-sm font-medium">{scam.defense}</p>
                         </div>
                       </div>
