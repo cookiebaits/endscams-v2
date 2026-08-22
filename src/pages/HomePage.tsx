@@ -638,7 +638,7 @@ export default function HomePage() {
             <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Email Scanner</h3>
               <form onSubmit={handleEmailToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={emailToolInput} onChange={(e) => setEmailToolInput(e.target.value)} placeholder="Enter email address" className="input-field bg-slate-50 dark:bg-slate-950/50 flex-1 text-slate-900 dark:text-white" />
+                <input type="text" value={emailToolInput} onChange={(e) => setEmailToolInput(e.target.value)} placeholder="Enter email address" className="input-field flex-1" />
                 <button type="submit" disabled={emailToolLoading} className="btn-primary px-6 flex items-center gap-2">
                   {emailToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scan
                 </button>
@@ -666,7 +666,7 @@ export default function HomePage() {
             <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">IP Intelligence</h3>
               <form onSubmit={handleIpToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={ipToolInput} onChange={(e) => setIpToolInput(e.target.value)} placeholder="Enter IP address" className="input-field bg-slate-50 dark:bg-slate-950/50 flex-1 text-slate-900 dark:text-white" />
+                <input type="text" value={ipToolInput} onChange={(e) => setIpToolInput(e.target.value)} placeholder="Enter IP address" className="input-field flex-1" />
                 <button type="submit" disabled={ipToolLoading} className="btn-primary px-6 flex items-center gap-2">
                   {ipToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scan
                 </button>
@@ -689,7 +689,7 @@ export default function HomePage() {
             <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Web Scraper</h3>
               <form onSubmit={handleScrapeToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={scrapeToolInput} onChange={(e) => setScrapeToolInput(e.target.value)} placeholder="Enter URL (e.g. https://example.com)" className="input-field bg-slate-50 dark:bg-slate-950/50 flex-1 text-slate-900 dark:text-white" />
+                <input type="text" value={scrapeToolInput} onChange={(e) => setScrapeToolInput(e.target.value)} placeholder="Enter URL (e.g. https://example.com)" className="input-field flex-1" />
                 <button type="submit" disabled={scrapeToolLoading} className="btn-primary px-6 flex items-center gap-2">
                   {scrapeToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scrape
                 </button>

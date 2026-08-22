@@ -23,7 +23,7 @@
   }
 
   .input-field {
-    @apply w-full px-4 py-3 border border-white/10 rounded-xl bg-slate-950/50 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all outline-none backdrop-blur-sm;
+    @apply w-full px-4 py-3 border border-slate-300 dark:border-white/10 rounded-xl bg-white dark:bg-slate-950/50 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all outline-none backdrop-blur-sm;
   }
 
   .card {
