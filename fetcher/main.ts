@@ -40,9 +40,9 @@ const env = (k: string, required = false): string => {
 
 const SUPABASE_URL = env("SUPABASE_URL", true);
 const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
-const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
-const ALLOWED_ORIGIN2 = "http://localhost:5173";
-const ALLOWED_ORIGIN3 = "http://localhost:5174";
+// const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
+// const ALLOWED_ORIGIN2 = "http://localhost:5173";
+// const ALLOWED_ORIGIN3 = "http://localhost:5174";
 const PORT = parseInt(env("PORT") || "8000", 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -465,8 +465,8 @@ async function scheduler() {
   const hour = now.getUTCHours();
   const minute = now.getUTCMinutes();
 
-  // Cron trigger — top of the hour, 14:00 UTC (6 AM PST) or 21:00 UTC (1 PM PST)
-  if (!running && (hour === 14 || hour === 21) && minute < 5 && lastRunHour !== hour) {
+  // Cron trigger — top of the hour, 15:05 UTC (7:05 AM PST) or 21:05 UTC (1:05 PM PST)
+  if (!running && (hour === 15 || hour === 21) && minute === 5 && lastRunHour !== hour) {
     lastRunHour = hour;
     running = true;
     console.log(`[cron] pipeline start @ ${now.toISOString()}`);
@@ -526,7 +526,7 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
   if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
   const endpoints: Record<string, { base: string, key: string, param: string }> = {
-    phone: { base: "https://phonevalidation.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
+    phone: { base: "https://phoneintelligence.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
     email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
     ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
     scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },

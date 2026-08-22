@@ -306,28 +306,46 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
-      <section className="relative pt-32 pb-20 overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-30 dark:opacity-20"
-          style={{ backgroundImage: `url('https://images.pexels.com/photos/5380664/pexels-photo-5380664.jpeg?auto=compress&cs=tinysrgb&w=1920')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-slate-50/90 to-slate-50 dark:from-slate-950/80 dark:via-slate-950/90 dark:to-slate-950" />
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+      <section className="relative pt-32 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
+        <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-950 transition-colors duration-200" />
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brand-500/10 to-transparent" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-medium mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-bold mb-8 shadow-sm">
             <Shield className="w-4 h-4" />
-            CyberScam Watch Dog Network
+            CyberScam Watch Dog Network - Anti-Scam 503(c) Non-Profit
           </div>
 
           <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
-            End Scams Through<br />
-            <span className="text-brand-500">Education</span>
+            Protect Yourself from<br />
+            <span className="text-brand-500">Digital Threats</span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto">
-            Search any phone number in our database. We cross-reference reports from multiple sources to help you stay protected.
+            Our comprehensive cybersecurity platform allows you to identify scams, report active threats, and search our extensive database of malicious activity.
           </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+            <Link to="/report" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30">
+              Report a Scam
+            </Link>
+            <a href="#tools" className="btn-outline w-full sm:w-auto text-lg px-8 py-3.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
+              Check a URL / Phone
+            </a>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
+            <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-green-500" /> Verified Protection</span>
+            <span className="flex items-center gap-2"><Network className="w-4 h-4 text-brand-500" /> Global Intelligence</span>
+            <span className="flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Community Driven</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="tools" className="py-20 bg-slate-50 dark:bg-slate-950">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="section-title mb-10">Database Search</h2>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto mb-6">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -435,54 +453,54 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="py-16 bg-brand-600 text-white dark:bg-brand-900/40 border-y border-brand-500/20">
+      <section className="py-16 bg-slate-100 dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-10">
-            <h2 className="text-3xl md:text-4xl font-black mb-4">Our Impact</h2>
-            <p className="text-brand-100 dark:text-brand-200/70 max-w-2xl mx-auto text-lg">
+            <h2 className="text-3xl md:text-4xl font-black mb-4 text-slate-900 dark:text-white">Our Impact</h2>
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto text-lg">
               Together, we're making a real difference in the fight against scammers.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 md:gap-4 divide-y md:divide-y-0 md:divide-x divide-brand-400/30 dark:divide-brand-800/50">
-            <div className="text-center py-4 px-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                <Banknote className="w-6 h-6 text-green-300 dark:text-green-400" />
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+              <div className="w-16 h-16 rounded-2xl bg-green-500/10 dark:bg-green-500/20 flex items-center justify-center mb-6">
+                <Banknote className="w-8 h-8 text-green-500 dark:text-green-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`$${animatedMoney.toLocaleString('en-US')}`}</div>
-              <h3 className="text-lg font-bold mb-1 text-brand-50">Estimated Money Saved</h3>
-              <p className="text-sm text-brand-200/80">Total dollars protected from scammer hands</p>
+              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`$${animatedMoney.toLocaleString('en-US')}`}</div>
+              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Estimated Money Saved</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Total dollars protected from scammer hands</p>
             </div>
 
-            <div className="text-center py-4 px-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                <Hourglass className="w-6 h-6 text-blue-300 dark:text-blue-400" />
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+              <div className="w-16 h-16 rounded-2xl bg-brand-500/10 dark:bg-brand-500/20 flex items-center justify-center mb-6">
+                <Hourglass className="w-8 h-8 text-brand-500 dark:text-brand-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
-              <h3 className="text-lg font-bold mb-1 text-brand-50">Scam Decoy Investigations (hrs)</h3>
-              <p className="text-sm text-brand-200/80">Hours of decoy collecting evidence</p>
+              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
+              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Scam Decoy Investigations (hrs)</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Hours of decoy collecting evidence</p>
             </div>
 
-            <div className="text-center py-4 px-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 dark:bg-brand-500/20 flex items-center justify-center mx-auto mb-4">
-                <ServerCrash className="w-6 h-6 text-red-300 dark:text-red-400" />
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 dark:bg-red-500/20 flex items-center justify-center mb-6">
+                <ServerCrash className="w-8 h-8 text-red-500 dark:text-red-400" />
               </div>
-              <div className="text-4xl md:text-5xl font-black mb-2 text-white">{animatedResources.toLocaleString()}</div>
-              <h3 className="text-lg font-bold mb-1 text-brand-50">Resources Shutdown</h3>
-              <p className="text-sm text-brand-200/80">Number of confirmed website, phone and finance shutdown</p>
+              <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{animatedResources.toLocaleString()}</div>
+              <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Resources Shutdown</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Confirmed website, phone, and finance shutdowns</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="py-20 bg-slate-950">
+      <section className="py-20 bg-slate-50 dark:bg-slate-950">
         <div className="max-w-6xl mx-auto px-4">
           <h2 className="section-title text-center mb-4">Advanced Scam Detection Tools</h2>
           <p className="section-subtitle text-center mb-12">
             Access our comprehensive database and educational materials to stay protected.
           </p>
-          <div className="grid md:grid-cols-4 gap-6">
-            <button onClick={() => setActiveTool(activeTool === 'phone' ? null : 'phone')} className={`card p-6 text-left hover:border-brand-500/50 transition-all duration-300 hover:shadow-md group block ${activeTool === 'phone' ? 'border-brand-500 bg-slate-900/90' : ''}`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <button onClick={() => setActiveTool(activeTool === 'phone' ? null : 'phone')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'phone' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90' : 'bg-white dark:bg-slate-900/80'}`}>
               <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
                 <Phone className="w-6 h-6 text-brand-500" />
               </div>
@@ -514,7 +532,7 @@ export default function HomePage() {
 
           {activeTool === 'phone' && (
             <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-white mb-4">Phone Searcher</h3>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Phone Searcher</h3>
               <form onSubmit={handlePhoneToolSearch} className="flex gap-2 mb-6">
                 <input type="text" value={phoneToolInput} onChange={(e) => setPhoneToolInput(e.target.value)} placeholder="Enter phone number (e.g. +14152000000)" className="input-field flex-1" />
                 <button type="submit" disabled={phoneToolLoading} className="btn-primary px-6 flex items-center gap-2">
@@ -522,11 +540,11 @@ export default function HomePage() {
                 </button>
               </form>
               {phoneToolResult && (
-                <div className="p-4 bg-slate-950 rounded-lg">
+                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
                   {phoneToolResult.error ? (
-                     <p className="text-red-400">{phoneToolResult.error}</p>
+                     <p className="text-red-500 font-medium">{phoneToolResult.error}</p>
                   ) : (
-                    <div>
+                    <div className="flex flex-col gap-4 text-left">
                       {(() => {
                         const carrier = phoneToolResult.phone_carrier?.name?.toLowerCase() || '';
                         const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'text free'];
@@ -536,13 +554,79 @@ export default function HomePage() {
                         const isMajor = majors.some(m => carrier.includes(m));
 
                         if (isWholesaler) {
-                          return <div className="text-red-400 font-bold mb-2">likely spam or scam (Wholesaler detected)</div>;
+                          return <div className="text-red-500 font-bold px-4 py-3 bg-red-500/10 rounded-lg inline-block self-start border border-red-500/20">Risk: Likely Spam or Scam (Wholesaler detected)</div>;
                         } else if (isMajor) {
-                          return <div className="text-green-400 font-bold mb-2">unlikely scam. Proceed with caution and state some scammers are now buying pre-paid phones.</div>;
+                          return <div className="text-green-500 font-bold px-4 py-3 bg-green-500/10 rounded-lg inline-block self-start border border-green-500/20">Risk: Low (Major Carrier)</div>;
                         }
-                        return <div className="text-yellow-400 font-bold mb-2">Carrier: {phoneToolResult.phone_carrier?.name || 'Unknown'}</div>;
+                        return null;
                       })()}
-                      <pre className="text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(phoneToolResult, null, 2)}</pre>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-brand-500" />
+                            Validation & Status
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex justify-between">
+                              <span>Valid Number:</span>
+                              <span className={`font-medium ${phoneToolResult.is_valid ? 'text-green-400' : 'text-red-400'}`}>
+                                {phoneToolResult.is_valid ? 'Yes' : 'No'}
+                              </span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>Line Status:</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.line_status || 'Unknown'}</span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>VOIP:</span>
+                              <span className={`font-medium ${phoneToolResult.is_voip ? 'text-yellow-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                {phoneToolResult.is_voip ? 'Yes' : 'No'}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Network className="w-4 h-4 text-blue-500" />
+                            Carrier Details
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex flex-col">
+                              <span className="text-xs">Carrier Name:</span>
+                              <span className="text-slate-200 font-medium">{phoneToolResult.phone_carrier?.name || 'Unknown'}</span>
+                            </p>
+                            <p className="flex justify-between">
+                              <span>Line Type:</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 md:col-span-2 lg:col-span-1">
+                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-purple-500" />
+                            Formatting & Region
+                          </p>
+                          <div className="space-y-2 text-sm text-slate-400">
+                            <p className="flex flex-col">
+                              <span className="text-xs">International Format:</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.international || 'N/A'}</span>
+                            </p>
+                            <p className="flex flex-col">
+                              <span className="text-xs">National Format:</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.national || 'N/A'}</span>
+                            </p>
+                            {phoneToolResult.location && (
+                               <p className="flex justify-between pt-1 border-t border-slate-700/50 mt-1">
+                                 <span>Region:</span>
+                                 <span className="text-slate-700 dark:text-slate-300">{phoneToolResult.location}</span>
+                               </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -551,8 +635,8 @@ export default function HomePage() {
           )}
 
           {activeTool === 'email' && (
-            <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-white mb-4">Email Scanner</h3>
+            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Email Scanner</h3>
               <form onSubmit={handleEmailToolSearch} className="flex gap-2 mb-6">
                 <input type="text" value={emailToolInput} onChange={(e) => setEmailToolInput(e.target.value)} placeholder="Enter email address" className="input-field flex-1" />
                 <button type="submit" disabled={emailToolLoading} className="btn-primary px-6 flex items-center gap-2">
@@ -560,16 +644,17 @@ export default function HomePage() {
                 </button>
               </form>
               {emailToolResult && (
-                <div className="p-4 bg-slate-950 rounded-lg">
+                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   {emailToolResult.error ? (
-                     <p className="text-red-400">{emailToolResult.error}</p>
+                     <p className="text-red-500 font-medium">{emailToolResult.error}</p>
                   ) : (
                     <div>
                       <div className="mb-2">
-                         <span className="font-bold text-white">Risk Status:</span> {emailToolResult.email_risk?.address_risk_status || 'Unknown'}
-                         {emailToolResult.email_quality?.is_disposable && <span className="ml-2 text-red-400 font-bold">(Disposable Email Detected!)</span>}
+                         <span className="font-bold text-slate-800 dark:text-white">Risk Status:</span>
+                         <span className={`ml-2 px-2 py-1 rounded text-sm font-bold ${emailToolResult.email_risk?.address_risk_status === 'high' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>{emailToolResult.email_risk?.address_risk_status || 'Unknown'}</span>
+                         {emailToolResult.email_quality?.is_disposable && <span className="ml-2 px-2 py-1 bg-red-500/10 text-red-500 rounded text-sm font-bold">(Disposable Email Detected!)</span>}
                       </div>
-                      <pre className="text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(emailToolResult, (key, value) => key === 'breaches' ? undefined : value, 2)}</pre>
+                      <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(emailToolResult, (key, value) => key === 'breaches' ? undefined : value, 2)}</pre>
                     </div>
                   )}
                 </div>
@@ -578,8 +663,8 @@ export default function HomePage() {
           )}
 
           {activeTool === 'ip' && (
-            <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-white mb-4">IP Intelligence</h3>
+            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">IP Intelligence</h3>
               <form onSubmit={handleIpToolSearch} className="flex gap-2 mb-6">
                 <input type="text" value={ipToolInput} onChange={(e) => setIpToolInput(e.target.value)} placeholder="Enter IP address" className="input-field flex-1" />
                 <button type="submit" disabled={ipToolLoading} className="btn-primary px-6 flex items-center gap-2">
@@ -587,12 +672,12 @@ export default function HomePage() {
                 </button>
               </form>
               {ipToolResult && (
-                <div className="p-4 bg-slate-950 rounded-lg">
+                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   {ipToolResult.error ? (
-                     <p className="text-red-400">{ipToolResult.error}</p>
+                     <p className="text-red-500 font-medium">{ipToolResult.error}</p>
                   ) : (
                     <div>
-                      <pre className="text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(ipToolResult, null, 2)}</pre>
+                      <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(ipToolResult, null, 2)}</pre>
                     </div>
                   )}
                 </div>
@@ -601,8 +686,8 @@ export default function HomePage() {
           )}
 
           {activeTool === 'scrape' && (
-            <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-white mb-4">Web Scraper</h3>
+            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Web Scraper</h3>
               <form onSubmit={handleScrapeToolSearch} className="flex gap-2 mb-6">
                 <input type="text" value={scrapeToolInput} onChange={(e) => setScrapeToolInput(e.target.value)} placeholder="Enter URL (e.g. https://example.com)" className="input-field flex-1" />
                 <button type="submit" disabled={scrapeToolLoading} className="btn-primary px-6 flex items-center gap-2">
@@ -610,12 +695,12 @@ export default function HomePage() {
                 </button>
               </form>
               {scrapeToolResult && (
-                <div className="p-4 bg-slate-950 rounded-lg">
+                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                   {scrapeToolResult.error ? (
-                     <p className="text-red-400">{scrapeToolResult.error}</p>
+                     <p className="text-red-500 font-medium">{scrapeToolResult.error}</p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <pre className="text-xs text-slate-400 whitespace-pre-wrap max-h-96 overflow-y-auto">{typeof scrapeToolResult === 'string' ? scrapeToolResult.substring(0, 5000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 5000)}</pre>
+                      <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap max-h-96 overflow-y-auto">{typeof scrapeToolResult === 'string' ? scrapeToolResult.substring(0, 5000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 5000)}</pre>
                     </div>
                   )}
                 </div>

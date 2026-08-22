@@ -265,7 +265,7 @@ Email: report@endscams.org
 `;
 
   return (
-    <div className="min-h-screen bg-slate-950  pt-[165px]">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200  pt-8">
       <div className="max-w-4xl mx-auto px-4 pb-12">
         <div className="card p-8">
           <div className="flex items-center gap-4 mb-6">
