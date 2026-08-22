@@ -6,10 +6,26 @@ export default function TrackerPage() {
   const [frameHeight, setFrameHeight] = useState("600px");
 
   useEffect(() => {
-
+    document.body.style.overflow = "hidden";
 
     const updateHeight = () => {
-      setFrameHeight("1200px");
+      const nav = document.querySelector('nav');
+      const footer = document.querySelector('footer');
+
+      const navH = nav ? nav.offsetHeight : 80;
+      const footH = footer ? footer.offsetHeight : 150;
+      const windowH = window.innerHeight;
+      let topOffset = containerRef.current ? containerRef.current.getBoundingClientRect().top : navH;
+
+      if (topOffset <= 0) topOffset = navH + 40;
+
+      const targetHeight = windowH - topOffset - footH;
+
+      if (targetHeight > 100) {
+        setFrameHeight(`${targetHeight}px`);
+      } else {
+        setFrameHeight("400px");
+      }
     };
 
     // Slight delay to ensure DOM is fully rendered before measuring
@@ -17,7 +33,7 @@ export default function TrackerPage() {
     window.addEventListener("resize", updateHeight);
 
     return () => {
-
+      document.body.style.overflow = "";
       window.removeEventListener("resize", updateHeight);
     };
   }, []);
