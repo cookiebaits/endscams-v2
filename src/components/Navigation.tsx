@@ -52,8 +52,8 @@ export default function Navigation() {
 
           {/* Left section: Logo */}
           <div className="flex flex-1 justify-start items-center h-full">
-            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[180px] md:w-[220px] lg:w-[280px] xl:w-[340px] 2xl:w-[420px] shrink-0 h-20">
-              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-[5px] left-0 h-[4.5rem] md:h-[5.5rem] lg:h-[6.5rem] xl:h-[7.5rem] 2xl:h-[8.5rem] max-w-none drop-shadow-md origin-top-left object-contain" />
+            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[198px] md:w-[242px] lg:w-[308px] xl:w-[374px] 2xl:w-[462px] shrink-0 h-20">
+              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-[5px] left-0 h-[4.95rem] md:h-[6.05rem] lg:h-[7.15rem] xl:h-[8.25rem] 2xl:h-[9.35rem] max-w-none drop-shadow-md origin-top-left object-contain" />
             </Link>
           </div>
 
