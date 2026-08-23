@@ -75,9 +75,9 @@ export default function Banner({ variant = 'info', message, dismissible = false,
   return (
     <div className={`w-full px-4 py-3 border-b ${styles.bg} ${styles.border} ${styles.text} transition-colors relative z-30`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between relative">
-        <div className={`flex items-start sm:items-center gap-3 ${center ? 'mx-auto justify-center' : ''}`}>
+        <div className={`flex items-start sm:items-center gap-3 ${center ? 'mx-auto justify-center w-full' : ''}`}>
           <div className="mt-0.5 sm:mt-0">{styles.icon}</div>
-          <div className="font-medium leading-tight sm:leading-normal pr-6">
+          <div className={`font-medium leading-tight sm:leading-normal pr-6 ${center ? 'text-center' : ''}`}>
             {message}
           </div>
         </div>
