@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
+import Banner from '../components/Banner';
 
 const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
@@ -254,6 +255,12 @@ export default function EducationPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
+      <Banner
+        variant="info"
+        id="education_tip"
+        dismissible
+        message={<span><strong>Educational Tip:</strong> Stay vigilant! Knowledge is your best defense against scammers. Read the articles below to stay updated.</span>}
+      />
       {gallery !== null && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"

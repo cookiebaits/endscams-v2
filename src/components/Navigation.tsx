@@ -46,14 +46,14 @@ export default function Navigation() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
+    <nav className="sticky top-0 z-40 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
       <div className="w-full px-2 lg:px-4">
         <div className="flex items-center justify-between h-20">
 
           {/* Left section: Logo */}
           <div className="flex flex-1 justify-start items-center h-full">
-            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[130px] md:w-[150px] lg:w-[190px] xl:w-[250px] 2xl:w-[320px] shrink-0 h-20">
-              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute top-1/2 -translate-y-1/2 left-0 h-[4rem] md:h-[4.5rem] lg:h-[5.5rem] xl:h-[7.5rem] 2xl:h-[9.8rem] max-w-none drop-shadow-md transform origin-left" />
+            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[130px] md:w-[150px] lg:w-[190px] xl:w-[250px] 2xl:w-[320px] shrink-0 h-20 overflow-hidden">
+              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute top-[1.2rem] md:top-[1.5rem] -translate-y-1/2 left-0 h-[2.5rem] md:h-[3rem] lg:h-[3.5rem] xl:h-[4rem] 2xl:h-[4.5rem] max-w-none drop-shadow-md origin-left object-contain" />
             </Link>
           </div>
 

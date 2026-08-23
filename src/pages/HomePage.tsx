@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, Network, Globe } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
+import Banner from '../components/Banner';
 
 type ImpactStats = {
   money_saved: number;
@@ -307,6 +308,12 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+      <Banner
+        variant="info"
+        message={<span>Welcome to EndScams.org! We are a 501(1)(c) Non-Profit dedicated to fighting online fraud.</span>}
+        dismissible
+        id="home_welcome"
+      />
       <section className="relative pt-32 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
         <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-950 transition-colors duration-200" />
         <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brand-500/10 to-transparent" />

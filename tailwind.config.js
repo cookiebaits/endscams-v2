@@ -9,9 +9,9 @@ export default {
       },
       colors: {
         brand: {
-          500: '#38BDF8', // Cyan/electric blue accent
-          600: '#0ea5e9', // Darker cyan for hover
-          900: '#0c4a6e', // Deep cyan
+          500: '#2563EB', // Cobalt blue accent
+          600: '#1D4ED8', // Darker cobalt for hover
+          900: '#1E3A8A', // Deep blue
         },
         slate: {
           950: '#0B0F19',

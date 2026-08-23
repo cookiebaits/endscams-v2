@@ -1,6 +1,7 @@
 'use strict';
 import { useState } from 'react';
 import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
+import Banner from '../components/Banner';
 
 type QuestionnaireAnswers = {
   ownsService: string | null;
@@ -375,6 +376,12 @@ export default function TriagePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
+      <Banner
+        variant="warning"
+        id="triage_disclaimer"
+        dismissible
+        message={<span><strong>Disclaimer:</strong> This triage tool provides guidance based on common scam patterns but does not replace professional investigation.</span>}
+      />
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
+import Banner from '../components/Banner';
 
 type FormData = {
   phoneNumber: string;
@@ -320,6 +321,12 @@ export default function ReportScamPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
+      <Banner
+        variant="warning"
+        id="report_privacy"
+        dismissible
+        message={<span><strong>Privacy Notice:</strong> Any information you submit will be publicly visible on the Scam Tracker for 45 days. Do not include your own personal banking details.</span>}
+      />
       <div className="max-w-2xl mx-auto px-4">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
