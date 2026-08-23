@@ -72,7 +72,7 @@ export default function Banner({ variant = 'info', message, dismissible = false,
   const styles = getVariantStyles();
 
   return (
-    <div className={`w-full px-4 py-3 border-b ${styles.bg} ${styles.border} ${styles.text} transition-colors relative z-40`}>
+    <div className={`w-full px-4 py-3 border-b ${styles.bg} ${styles.border} ${styles.text} transition-colors relative z-30`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-start sm:items-center gap-3">
           <div className="mt-0.5 sm:mt-0">{styles.icon}</div>

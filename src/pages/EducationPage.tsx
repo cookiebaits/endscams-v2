@@ -254,7 +254,7 @@ export default function EducationPage() {
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pt-8 pb-16 text-slate-700 dark:text-slate-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
       <Banner
         variant="info"
         id="education_tip"
@@ -322,7 +322,7 @@ export default function EducationPage() {
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4">
+      <div className="max-w-5xl mx-auto px-4 pt-8">
         <div className="text-center mb-14">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <BookOpen className="w-8 h-8 text-brand-500" />
