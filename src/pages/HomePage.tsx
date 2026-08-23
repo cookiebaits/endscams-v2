@@ -310,8 +310,9 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <Banner
         variant="info"
-        message={<span>Welcome to EndScams.org! We are a 501(1)(c) Non-Profit dedicated to fighting online fraud.</span>}
+        message={<span className="text-[1.1em] text-center w-full block">Welcome to EndScams.org, Official site of CWN! We are a 501(1)(c) Non-Profit dedicated to fighting online fraud.</span>}
         dismissible
+        center
         id="home_welcome"
       />
       <section className="relative pt-32 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">

@@ -8,9 +8,10 @@ interface BannerProps {
   message: React.ReactNode;
   dismissible?: boolean;
   id?: string; // If provided, the dismissed state will be saved to localStorage
+  center?: boolean;
 }
 
-export default function Banner({ variant = 'info', message, dismissible = false, id }: BannerProps) {
+export default function Banner({ variant = 'info', message, dismissible = false, id, center = false }: BannerProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -73,10 +74,10 @@ export default function Banner({ variant = 'info', message, dismissible = false,
 
   return (
     <div className={`w-full px-4 py-3 border-b ${styles.bg} ${styles.border} ${styles.text} transition-colors relative z-30`}>
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-start sm:items-center gap-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between relative">
+        <div className={`flex items-start sm:items-center gap-3 ${center ? 'mx-auto justify-center' : ''}`}>
           <div className="mt-0.5 sm:mt-0">{styles.icon}</div>
-          <div className="text-sm font-medium leading-tight sm:leading-normal pr-6">
+          <div className="font-medium leading-tight sm:leading-normal pr-6">
             {message}
           </div>
         </div>
