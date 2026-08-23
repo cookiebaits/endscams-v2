@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, Radio, XOctagon } from 'lucide-react';
+import Banner from '../components/Banner';
 
 const SCAM_CATALOG = [
   {
@@ -79,15 +80,22 @@ export default function LivestreamSafetyPage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
-      <div className="text-center mb-14">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
-          <MonitorPlay className="w-8 h-8 text-brand-500" />
+    <>
+      <Banner
+        variant="info"
+        id="streamer_safety"
+        dismissible
+        message={<span><strong>Streamer Safety:</strong> High-profile creators are prime targets. Keep your personal data strictly separated from your public presence.</span>}
+      />
+      <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
+            <MonitorPlay className="w-8 h-8 text-brand-500" />
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">
+            Livestreaming Safety & Security Field Guide
+          </h1>
         </div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">
-          Livestreaming Safety & Security Field Guide
-        </h1>
-      </div>
 
       {/* Module 1: Comprehensive Scam Catalog */}
       <div id="scam-catalog" className="mb-12">
@@ -307,6 +315,7 @@ export default function LivestreamSafetyPage() {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

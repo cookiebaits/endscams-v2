@@ -2,6 +2,7 @@
 
 import { useNavigate } from "react-router";
 import { Shield, AlertTriangle } from "lucide-react";
+import Banner from '../components/Banner';
 
 export default function DisclaimerPage() {
   const navigate = useNavigate();
@@ -265,8 +266,12 @@ Email: report@endscams.org
 `;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200  pt-8">
-      <div className="max-w-4xl mx-auto px-4 pb-12">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+      <Banner
+        variant="warning"
+        message={<span><strong>Action Required:</strong> Please read and accept our Terms of Service and Privacy Policy to access EndScams.org.</span>}
+      />
+      <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
         <div className="card p-8">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 bg-brand-500/10 rounded-full flex items-center justify-center">
