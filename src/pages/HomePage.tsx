@@ -310,36 +310,28 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <Banner 
         variant="info" 
-        message={<span className="text-[1.21em]">Welcome to EndScams.org, Official site of CWN! We are a 501(1)(c) Non-Profit dedicated to fighting online fraud.</span>}
+        message={<span className="text-[1.21em]">Welcome to Cyberscam Watchdog Network! We are a 501(1)(c) Non-Profit dedicated to ending scams through education.</span>}
         dismissible 
         center
         id="home_welcome"
       />
-      <section className="relative pt-32 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
+      <section className="relative pt-20 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
         <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-950 transition-colors duration-200" />
         <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brand-500/10 to-transparent" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-500/30 rounded-full text-brand-500 text-sm font-bold mb-8 shadow-sm">
-            <Shield className="w-4 h-4" />
-            CyberScam Watch Dog Network - Anti-Scam 501(1)(c) Non-Profit
-          </div>
 
-          <h1 className="text-5xl md:text-7xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
-            Protect Yourself from<br />
-            <span className="text-brand-500">Digital Threats</span>
+          <h1 className="text-4xl md:text-6xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
+            Cyberscam Workshops
           </h1>
 
           <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto">
-            Our comprehensive cybersecurity platform allows you to identify scams, report active threats, and search our extensive database of malicious activity.
+            We provide free cybersecurity workshops. A nominal fee of $15 per person covers supplies and simple expenses.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Link to="/report" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30">
-              Report a Scam
-            </Link>
-            <a href="#tools" className="btn-outline w-full sm:w-auto text-lg px-8 py-3.5 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-              Check a URL / Phone
+            <a href="mailto:contact@endscams.org" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30">
+              Work With Us
             </a>
           </div>
 
