@@ -329,10 +329,13 @@ export default function HomePage() {
             We provide free cybersecurity workshops. A nominal fee of $15 per person covers supplies and simple expenses.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <a href="mailto:contact@endscams.org" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30">
+          <div className="flex flex-col items-center justify-center mb-12">
+            <a href="mailto:outreach@endscams.org" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30 mb-4">
               Work With Us
             </a>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              You can also email us directly at <a href="mailto:outreach@endscams.org" className="text-brand-500 hover:underline">outreach@endscams.org</a> to work with us.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
