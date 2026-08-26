@@ -4,53 +4,53 @@ import { ShieldAlert, AlertTriangle, CheckCircle } from 'lucide-react';
 const CHECKLIST_ITEMS = [
   {
     id: 'police',
-    question: 'File a police report',
-    yesAction: 'If you answered yes, keep a copy of the police report. It will be helpful for disputing charges with your bank or freezing your credit.'
+    question: 'Did you file a police report?',
+    noAction: 'Immediately file a police report for being a victim of a scam.'
   },
   {
     id: 'phone',
-    question: 'New Phone # / have they asked you to open a new phone line',
-    yesAction: 'Do not open a new phone line for them. If your current number is compromised and you are receiving non-stop scam calls, consider changing your phone number.'
-  },
-  {
-    id: 'bank',
-    question: 'Report bank as victim of fraud',
-    yesAction: 'Contact your bank immediately to report the fraud. They can help secure your accounts, issue new cards, and potentially reverse unauthorized transactions.'
-  },
-  {
-    id: 'id',
-    question: 'Did they give their ID or Social security number?',
-    yesAction: 'If you provided your ID or SSN, you are at risk of identity theft. Place a fraud alert or freeze on your credit reports immediately.'
-  },
-  {
-    id: 'access',
-    question: 'Did they provide them with access to any of their accounts? Bank, social media, email etc.',
-    yesAction: 'Change all your passwords immediately. Enable two-factor authentication (2FA) wherever possible, and check for any unrecognized recovery emails or phone numbers.'
+    question: 'Did you get a new phone number?',
+    noAction: 'Immediately go to your cell phone provider store to get a new number.'
   },
   {
     id: 'contact',
-    question: 'Cut off all contacts with the scammer',
-    yesAction: 'Block their phone numbers, email addresses, and social media accounts. Do not engage with them further, as they may try to manipulate or threaten you.'
+    question: "Did you block the scammer's contact and close any phone lines you opened for them?",
+    noAction: 'Make sure to talk to your provider about closing extra lines and get help blocking their number on your new line.'
+  },
+  {
+    id: 'bank',
+    question: 'Did you report to your bank as a victim of fraud?',
+    noAction: 'Contact your bank immediately to report the fraud. They can help secure your accounts, issue new cards, and potentially reverse unauthorized transactions.'
+  },
+  {
+    id: 'id',
+    question: 'Did you place a fraud alert if you gave them your ID or Social Security number?',
+    noAction: 'If you provided your ID or SSN, you are at risk of identity theft. Place a fraud alert or freeze on your credit reports immediately.'
+  },
+  {
+    id: 'access',
+    question: 'Did you change passwords if you provided them access to any accounts (Bank, social media, email etc)?',
+    noAction: 'Change all your passwords immediately. Enable two-factor authentication (2FA) wherever possible, and check for any unrecognized recovery emails or phone numbers.'
   },
   {
     id: 'freeze',
-    question: 'Freeze credit if identity has been provided.',
-    yesAction: 'Contact the three major credit bureaus (Equifax, Experian, TransUnion) to freeze your credit. This prevents scammers from opening new accounts in your name.'
+    question: 'Did you freeze your credit if your identity was compromised?',
+    noAction: 'Contact the three major credit bureaus (Equifax, Experian, TransUnion) to freeze your credit. This prevents scammers from opening new accounts in your name.'
   },
   {
     id: 'recovery',
-    question: 'Have you been contacted by any recovery agents? Recovery is just another form of Advanced Fee Fraud.',
-    yesAction: 'Do not trust anyone claiming they can recover your lost money for a fee. Legitimate agencies (like law enforcement) do not charge fees to help victims.'
+    question: 'Have you ignored recovery agents who contacted you? (Recovery is just another form of Advanced Fee Fraud)',
+    noAction: 'Do not trust anyone claiming they can recover your lost money for a fee. Legitimate agencies (like law enforcement) do not charge fees to help victims.'
   },
   {
     id: 'help',
-    question: 'Do they have a family member or friend with some technical knowledge that can help them.',
-    yesAction: 'Reach out to them for help in securing your devices, changing passwords, and monitoring your accounts. A trusted contact can also provide emotional support.'
+    question: 'Have you reached out to a trusted family member or friend for technical help?',
+    noAction: 'Reach out to them for help in securing your devices, changing passwords, and monitoring your accounts. A trusted contact can also provide emotional support.'
   },
   {
     id: 'social',
-    question: 'Tighten up security/visibility on any Social media they have and stay vigilant.',
-    yesAction: 'Set your social media profiles to private. Be cautious of friend requests from strangers or duplicated accounts of people you know.'
+    question: 'Did you tighten up security/visibility on your social media accounts?',
+    noAction: 'Set your social media profiles to private. Be cautious of friend requests from strangers or duplicated accounts of people you know.'
   }
 ];
 
@@ -113,7 +113,7 @@ export default function ShutdownPage() {
                       onClick={() => handleAnswer(item.id, 'yes')}
                       className={`px-6 py-2 rounded-lg font-medium transition-colors border ${
                         currentAnswer === 'yes'
-                          ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
+                          ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
@@ -123,7 +123,7 @@ export default function ShutdownPage() {
                       onClick={() => handleAnswer(item.id, 'no')}
                       className={`px-6 py-2 rounded-lg font-medium transition-colors border ${
                         currentAnswer === 'no'
-                          ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
+                          ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
@@ -136,20 +136,20 @@ export default function ShutdownPage() {
                 {currentAnswer && (
                   <div className={`mt-5 p-4 rounded-lg flex items-start gap-3 animate-fade-in ${
                     currentAnswer === 'yes'
-                      ? 'bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30'
-                      : 'bg-green-50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/30'
+                      ? 'bg-green-50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/30'
+                      : 'bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30'
                   }`}>
                     {currentAnswer === 'yes' ? (
-                      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    ) : (
                       <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                     )}
                     <p className={`text-sm ${
                       currentAnswer === 'yes'
-                        ? 'text-red-800 dark:text-red-300'
-                        : 'text-green-800 dark:text-green-300'
+                        ? 'text-green-800 dark:text-green-300'
+                        : 'text-red-800 dark:text-red-300'
                     }`}>
-                      {currentAnswer === 'yes' ? item.yesAction : 'No action needed.'}
+                      {currentAnswer === 'yes' ? 'Retain proof and receipt, then proceed to the next item.' : item.noAction}
                     </p>
                   </div>
                 )}

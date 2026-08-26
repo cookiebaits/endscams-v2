@@ -40,7 +40,6 @@ export default function Navigation() {
     { to: '/stream-safety', label: 'Streamer Safety', shortLabel: 'Streamer Safety', icon: MonitorPlay },
     { to: '/report', label: 'Report Scam', shortLabel: 'Report', icon: Megaphone },
     { to: '/triage', label: 'Scam Checker', shortLabel: 'Checker', icon: ShieldCheck },
-    { to: '/shutdown', label: 'Shutdown', shortLabel: 'Shutdown', icon: ShieldAlert },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -78,6 +77,13 @@ export default function Navigation() {
 
           {/* Right section: Actions */}
           <div className="flex flex-1 justify-end items-center gap-1 lg:gap-2 shrink-0">
+            <Link
+              to="/shutdown"
+              className="hidden md:flex items-center justify-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm animate-pulse-slow"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
+              Been Scammed? Click here
+            </Link>
             <a
               href="https://endscams.org/donate"
               className="hidden md:flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm"
@@ -132,6 +138,14 @@ export default function Navigation() {
                 {link.label}
               </Link>
             ))}
+            <Link
+              to="/shutdown"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-red-600 hover:bg-red-700 transition-colors shadow-sm mt-2"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Been Scammed? Click here
+            </Link>
             <a
               href="https://endscams.org/donate"
               target="_blank"
