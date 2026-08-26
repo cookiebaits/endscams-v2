@@ -297,9 +297,9 @@ interface ScamEntry {
 async function runPipeline(): Promise<Record<string, unknown>> {
   const started = Date.now();
 
-  /* 1. Purge >31-day rows */
-  const cutoff = toIsoDate(new Date(Date.now() - 31 * 86400_000));
-  const { error: purgeErr } = await supabase.from("tracker_entries").delete().lt("report_date", cutoff);
+  /* 1. Purge expired rows */
+  const nowIso = new Date().toISOString();
+  const { error: purgeErr } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
   if (purgeErr) console.warn("purge:", purgeErr.message);
 
   const collected: ScamEntry[] = [];
@@ -483,8 +483,8 @@ async function scheduler() {
 
   // Hourly purge belt-and-suspenders
   if (minute === 30) {
-    const cutoff = toIsoDate(new Date(Date.now() - 31 * 86400_000));
-    const { error } = await supabase.from("tracker_entries").delete().lt("report_date", cutoff);
+    const nowIso = new Date().toISOString();
+    const { error } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
     if (error) console.warn("[purge] err", error.message);
   }
 }
