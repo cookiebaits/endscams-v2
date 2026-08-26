@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Menu, X, Sun, Moon, FileSearch, TrendingUp, GraduationCap, Megaphone, ShieldCheck, MonitorPlay } from 'lucide-react';
+import { Menu, X, Sun, Moon, FileSearch, GraduationCap, Megaphone, ShieldCheck, MonitorPlay, ShieldAlert } from 'lucide-react';
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,11 +36,11 @@ export default function Navigation() {
   const navLinks = [
     { to: '/', label: 'Home', shortLabel: 'Home' },
     { to: '/tracker', label: 'Scam Tracker', shortLabel: 'Tracker', icon: FileSearch },
-    { to: '/ftc-scams', label: 'Top Scams', shortLabel: 'Top Scams', icon: TrendingUp },
     { to: '/education', label: 'Education', shortLabel: 'Education', icon: GraduationCap },
     { to: '/stream-safety', label: 'Streamer Safety', shortLabel: 'Streamer Safety', icon: MonitorPlay },
     { to: '/report', label: 'Report Scam', shortLabel: 'Report', icon: Megaphone },
     { to: '/triage', label: 'Scam Checker', shortLabel: 'Checker', icon: ShieldCheck },
+    { to: '/shutdown', label: 'Shutdown', shortLabel: 'Shutdown', icon: ShieldAlert },
   ];
 
   const isActive = (path: string) => location.pathname === path;
