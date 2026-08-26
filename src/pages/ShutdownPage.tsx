@@ -5,52 +5,52 @@ const CHECKLIST_ITEMS = [
   {
     id: 'police',
     question: 'Did you file a police report?',
-    noAction: 'Immediately file a police report for being a victim of a scam.'
+    noAction: 'Immediately file a police report for being a victim of a scam. Provide them with all the details, communication logs, and transaction receipts you have gathered. This report is critical for disputing fraudulent charges with your bank and placing hard blocks on your credit.'
   },
   {
     id: 'phone',
     question: 'Did you get a new phone number?',
-    noAction: 'Immediately go to your cell phone provider store to get a new number.'
+    noAction: 'Immediately go to your cell phone provider store to get a new number. Scammers often sell active numbers on the dark web, leading to relentless follow-up calls and potential SIM-swapping attacks if your number remains unchanged.'
   },
   {
     id: 'contact',
     question: "Did you block the scammer's contact and close any phone lines you opened for them?",
-    noAction: 'Make sure to talk to your provider about closing extra lines and get help blocking their number on your new line.'
+    noAction: 'Make sure to talk to your provider about closing extra lines and get help blocking their number on your new line. Scammers rely on keeping communication open to manipulate you further; severing all ties is your strongest defense.'
   },
   {
     id: 'bank',
     question: 'Did you report to your bank as a victim of fraud?',
-    noAction: 'Contact your bank immediately to report the fraud. They can help secure your accounts, issue new cards, and potentially reverse unauthorized transactions.'
+    noAction: 'Contact your bank immediately to report the fraud. Speak to their dedicated fraud department to secure your accounts, freeze existing funds, issue new debit/credit cards, and initiate potential chargebacks or reversals for unauthorized transactions.'
   },
   {
     id: 'id',
-    question: 'Did you place a fraud alert if you gave them your ID or Social Security number?',
-    noAction: 'If you provided your ID or SSN, you are at risk of identity theft. Place a fraud alert or freeze on your credit reports immediately.'
+    question: 'Did you confirm your Social Security number and Credit has been compromised?',
+    noAction: 'If you provided your social security number, assume its compromised. Go to the local social security office to get resources on identity theft prevention, and immediately place a fraud alert across all major credit bureaus.'
   },
   {
     id: 'access',
     question: 'Did you change passwords if you provided them access to any accounts (Bank, social media, email etc)?',
-    noAction: 'Change all your passwords immediately. Enable two-factor authentication (2FA) wherever possible, and check for any unrecognized recovery emails or phone numbers.'
+    noAction: 'Change all your passwords immediately from a secure, uncompromised device. Enable strong two-factor authentication (2FA) using an authenticator app wherever possible, and meticulously check your account settings for any unrecognized recovery emails or phone numbers.'
   },
   {
     id: 'freeze',
-    question: 'Did you freeze your credit if your identity was compromised?',
-    noAction: 'Contact the three major credit bureaus (Equifax, Experian, TransUnion) to freeze your credit. This prevents scammers from opening new accounts in your name.'
+    question: 'Did you check if you sent the scammer any form of ID such as passport or driver license?',
+    noAction: 'Check if you sent any messages and photos containing your ID. If you did, head to the DMV and the U.S. Department of State to report that you were a victim of fraud so they can flag your documents.'
   },
   {
     id: 'recovery',
-    question: 'Have you ignored recovery agents who contacted you? (Recovery is just another form of Advanced Fee Fraud)',
-    noAction: 'Do not trust anyone claiming they can recover your lost money for a fee. Legitimate agencies (like law enforcement) do not charge fees to help victims.'
-  },
-  {
-    id: 'help',
-    question: 'Have you reached out to a trusted family member or friend for technical help?',
-    noAction: 'Reach out to them for help in securing your devices, changing passwords, and monitoring your accounts. A trusted contact can also provide emotional support.'
+    question: "Have you ignored 'money recovery agents' who contacted you? (Recovery is just another form of Advanced Fee Fraud)",
+    noAction: 'Do not trust anyone claiming they can recover your lost money or hack the scammers for an upfront fee. Legitimate agencies (like law enforcement or your bank) do not charge fees to investigate fraud or help victims.'
   },
   {
     id: 'social',
     question: 'Did you tighten up security/visibility on your social media accounts?',
-    noAction: 'Set your social media profiles to private. Be cautious of friend requests from strangers or duplicated accounts of people you know.'
+    noAction: 'Set your social media profiles to strictly private. Scammers scrape public profiles to map your family and friends for future targeted attacks. Be extremely cautious of friend requests from strangers or duplicated accounts of people you already know.'
+  },
+  {
+    id: 'help',
+    question: 'Have you reached out to a trusted family member or friend for technical help?',
+    noAction: 'Reach out to a trusted tech-savvy contact for help in securing your devices, running anti-virus scans, changing passwords, and monitoring your accounts. A trusted contact can also provide much-needed emotional support during this stressful time.'
   }
 ];
 
@@ -144,7 +144,7 @@ export default function ShutdownPage() {
                     ) : (
                       <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                     )}
-                    <p className={`text-sm ${
+                    <p className={`text-[17px] font-bold ${
                       currentAnswer === 'yes'
                         ? 'text-green-800 dark:text-green-300'
                         : 'text-red-800 dark:text-red-300'
