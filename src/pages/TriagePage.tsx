@@ -163,6 +163,26 @@ export default function TriagePage() {
 
   const progress = (currentQuestion / 6) * 100;
 
+  const NowWhatCard = () => (
+    <div className="card p-6 mb-6 border-brand-500/30 bg-white dark:bg-slate-900 shadow-md">
+      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+        <Shield className="w-5 h-5 text-brand-500" />
+        Now What?
+      </h3>
+      <div className="space-y-3 text-sm leading-relaxed">
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-800 dark:text-red-200">
+          <p className="font-semibold mb-1">We Are Not Law Enforcement</p>
+          <p>
+            If you or someone you know is having thoughts of suicide or experiencing distress, please call or text <strong className="underline">988</strong> immediately for free, confidential support (Suicide &amp; Crisis Lifeline).
+          </p>
+        </div>
+        <p className="text-slate-700 dark:text-slate-300">
+          You should be working directly with your bank and local law enforcement. Our organization does not handle refunds, financial recovery, or any legal issues.
+        </p>
+      </div>
+    </div>
+  );
+
   if (resultType) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
@@ -228,6 +248,8 @@ export default function TriagePage() {
                   ))}
                 </ul>
               </div>
+
+              <NowWhatCard />
 
               <div className="grid sm:grid-cols-3 gap-3 mb-6">
                 <a
@@ -303,6 +325,8 @@ export default function TriagePage() {
                 </ul>
               </div>
 
+              <NowWhatCard />
+
               <div className="grid sm:grid-cols-2 gap-3 mb-6">
                 <a
                   href="https://search.brave.com/search?q=local+sheriff+non-emergency+hotline+near+me"
@@ -352,6 +376,8 @@ export default function TriagePage() {
                   ))}
                 </ul>
               </div>
+
+              <NowWhatCard />
 
               <div className="grid sm:grid-cols-2 gap-3 mb-6">
                 <a
