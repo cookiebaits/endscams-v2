@@ -23,7 +23,7 @@ export default function GlobalBanner() {
       <div className="flex items-center gap-2 max-w-7xl mx-auto flex-1 justify-center">
         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
         <span>
-          <strong>ALERT:</strong> Active threat bulletin. Multiple reports of new tech support scams targeting vulnerable users.
+          <strong>ALERT:</strong> Active threat bulletin. Multiple reports of scams targeting vulnerable users, see Scam Tracker for more details.
         </span>
       </div>
       <button

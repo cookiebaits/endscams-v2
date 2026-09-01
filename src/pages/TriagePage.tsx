@@ -11,6 +11,9 @@ type QuestionnaireAnswers = {
   hasCents: boolean;
   paymentMethod: string | null;
   companyName: string | null;
+  urgency: string | null;
+  secrecy: string | null;
+  initiation: string | null;
 };
 
 type ResultType = 'very-likely' | 'likely' | 'not-likely' | null;
@@ -25,6 +28,9 @@ export default function TriagePage() {
     hasCents: false,
     paymentMethod: null,
     companyName: null,
+    urgency: null,
+    secrecy: null,
+    initiation: null,
   });
   const [resultType, setResultType] = useState<ResultType>(null);
   const [resultData, setResultData] = useState<{ flags: string[]; explanation: string; }>({ flags: [], explanation: '' });
@@ -62,6 +68,41 @@ export default function TriagePage() {
         );
         return;
       }
+    } else if (questionNum === 7) {
+      newAnswers.urgency = answer;
+      if (answer === 'yes') {
+        showResult(
+          'very-likely',
+          ["They are creating a sense of extreme urgency or threatening action"],
+          'Scammers use urgency and threats to make you panic and skip verifying their claims. Real organizations give you time to respond.'
+        );
+        return;
+      }
+    } else if (questionNum === 8) {
+      newAnswers.secrecy = answer;
+      if (answer === 'yes') {
+        showResult(
+          'very-likely',
+          ["They told you to keep this a secret"],
+          'Scammers isolate victims to prevent others from warning them it\'s a scam. Your bank or family should always be consulted if you are unsure.'
+        );
+        return;
+      }
+    } else if (questionNum === 9) {
+      newAnswers.initiation = answer;
+      if (answer === 'they-contacted-first') {
+        showResult(
+          'likely',
+          ["They contacted you first out of the blue"],
+          'Unexpected contact about a problem is a common scam tactic. Always hang up and call the official number yourself.'
+        );
+        return;
+      } else {
+        // Proceed to final results if they didn't get flagged here
+        setAnswers(newAnswers);
+        showResults();
+        return;
+      }
     }
 
     setAnswers(newAnswers);
@@ -69,7 +110,7 @@ export default function TriagePage() {
   };
 
   const moveToNextQuestion = () => {
-    setCurrentQuestion(prev => (prev < 6 ? prev + 1 : prev));
+    setCurrentQuestion(prev => (prev < 9 ? prev + 1 : prev));
   };
 
   const handleAmountChange = (value: string) => {
@@ -156,12 +197,15 @@ export default function TriagePage() {
       hasCents: false,
       paymentMethod: null,
       companyName: null,
+      urgency: null,
+      secrecy: null,
+      initiation: null,
     });
     setResultType(null);
     setResultData({ flags: [], explanation: '' });
   };
 
-  const progress = (currentQuestion / 6) * 100;
+  const progress = (currentQuestion / 9) * 100;
 
   if (resultType) {
     return (
@@ -395,7 +439,7 @@ export default function TriagePage() {
 
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Question {currentQuestion} of 6</span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Question {currentQuestion} of 9</span>
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{Math.round(progress)}%</span>
           </div>
           <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -633,8 +677,87 @@ export default function TriagePage() {
                 placeholder="Enter company name"
                 className="input-field w-full mb-4"
               />
-              <button onClick={showResults} className="btn-primary w-full py-3">
-                Get Results
+              <button onClick={() => {
+                const companyName = (document.getElementById('companyInput') as HTMLInputElement)?.value.trim() || '';
+                setAnswers(prev => ({ ...prev, companyName }));
+                moveToNextQuestion();
+              }} className="btn-primary w-full py-3">
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentQuestion === 7 && (
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-brand-500 text-slate-900 dark:text-white flex items-center justify-center font-bold text-sm">7</div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Are they creating a sense of extreme urgency or threatening legal/police action?
+              </h2>
+            </div>
+            <div className="space-y-3 mt-6">
+              <button
+                onClick={() => handleAnswer(7, 'yes')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">Yes, they said I need to act immediately or mentioned police/arrest</span>
+              </button>
+              <button
+                onClick={() => handleAnswer(7, 'no')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">No, they are being patient</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentQuestion === 8 && (
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-brand-500 text-slate-900 dark:text-white flex items-center justify-center font-bold text-sm">8</div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Did they tell you to keep this a secret from family or bank tellers?
+              </h2>
+            </div>
+            <div className="space-y-3 mt-6">
+              <button
+                onClick={() => handleAnswer(8, 'yes')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">Yes, they said not to tell anyone</span>
+              </button>
+              <button
+                onClick={() => handleAnswer(8, 'no')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">No</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {currentQuestion === 9 && (
+          <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg animate-slide-up">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-brand-500 text-slate-900 dark:text-white flex items-center justify-center font-bold text-sm">9</div>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Did they contact you first, or did you initiate the call from a trusted official number?
+              </h2>
+            </div>
+            <div className="space-y-3 mt-6">
+              <button
+                onClick={() => handleAnswer(9, 'they-contacted-first')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">They contacted me first (Outbound call/email/pop-up)</span>
+              </button>
+              <button
+                onClick={() => handleAnswer(9, 'i-contacted-first')}
+                className="w-full p-4 text-left bg-slate-100 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-xl hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/20 transition-all"
+              >
+                <span className="font-medium text-slate-900 dark:text-white">I called them using a number from their official website or back of my card</span>
               </button>
             </div>
           </div>

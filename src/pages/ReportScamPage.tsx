@@ -258,6 +258,21 @@ export default function ReportScamPage() {
       setStatus('error');
       setErrorMsg('Failed to submit report. Please try again.');
     } else {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 60);
+
+      // Insert into tracker_entries
+      await supabase.from('tracker_entries').upsert({
+        phone_number: formatPhoneDisplay(digits),
+        phone_digits: digits,
+        source_name: 'User Report',
+        source_url: '/report',
+        report_date: form.incidentDate,
+        category: form.category,
+        description: form.description.trim(),
+        expires_at: expiresAt.toISOString(),
+      }, { onConflict: 'phone_digits,source_name' });
+
       await sendEmail(fileUrl, fileName, fileType);
       setStatus('success');
     }

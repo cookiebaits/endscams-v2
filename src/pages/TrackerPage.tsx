@@ -47,7 +47,7 @@ export default function TrackerPage() {
           </div>
         )}
         <iframe
-          src="https://esscan.ai.studio"
+          src="https://esscan.ai.studio?auto=false"
           className="min-w-[1024px] w-full h-full border-0"
           onLoad={() => setIsLoaded(true)}
           title="End Scam Scan"

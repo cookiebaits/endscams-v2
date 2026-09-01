@@ -7,7 +7,7 @@ import HomePage from './pages/HomePage';
 import TrackerPage from './pages/TrackerPage';
 import ReportScamPage from './pages/ReportScamPage';
 import EducationPage from './pages/EducationPage';
-import FTCScamsPage from './pages/FTCScamsPage';
+import ShutdownPage from './pages/ShutdownPage';
 import DisclaimerPage from './pages/DisclaimerPage';
 import TriagePage from './pages/TriagePage';
 import LivestreamSafetyPage from './pages/LivestreamSafetyPage';
@@ -49,7 +49,7 @@ function App() {
                       <Route path="/" element={<Navigate to="/home" replace />} />
                       <Route path="/home" element={<HomePage />} />
                       <Route path="/tracker" element={<TrackerPage />} />
-                      <Route path="/ftc-scams" element={<FTCScamsPage />} />
+                      <Route path="/shutdown" element={<ShutdownPage />} />
                       <Route path="/report" element={<ReportScamPage />} />
                       <Route path="/education" element={<EducationPage />} />
                       <Route path="/stream-safety" element={<LivestreamSafetyPage />} />

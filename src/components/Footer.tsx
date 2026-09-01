@@ -43,7 +43,7 @@ export default function Footer() {
                 <li><a href="/" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Home</a></li>
                 <li><a href="/tracker" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Scam Tracker</a></li>
                 <li><a href="/education" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Education</a></li>
-                <li><a href="/ftc-scams" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Top Scams</a></li>
+                <li><a href="/shutdown" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Shutdown</a></li>
               </ul>
             </div>
 
