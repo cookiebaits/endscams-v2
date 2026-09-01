@@ -1,5 +1,16 @@
 import { useState } from 'react';
-import { ShieldAlert, AlertTriangle, CheckCircle } from 'lucide-react';
+import {
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle,
+  PhoneCall,
+  Landmark,
+  Building2,
+  FileText,
+  Info,
+  HeartHandshake,
+  ShieldCheck
+} from 'lucide-react';
 
 const CHECKLIST_ITEMS = [
   {
@@ -61,21 +72,67 @@ export default function ShutdownPage() {
     setAnswers(prev => ({ ...prev, [id]: answer }));
   };
 
+  const answeredCount = Object.keys(answers).length;
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
       <div className="max-w-4xl mx-auto px-4 pt-8">
 
         {/* Header Section */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-6">
             <ShieldAlert className="w-8 h-8 text-red-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-red-500 pl-4">
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-red-500 pl-4 inline-block text-left">
             Scam Shutdown Checklist
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg">
+          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg mt-2">
             If you have been compromised, follow these next steps to shut down scammers and protect your identity.
           </p>
+        </div>
+
+        {/* Top Reminder Section (P2) */}
+        <div className="mb-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Info className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              Important Notice & Our Scope of Operation
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-1.5 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-brand-500" />
+                Our Focus
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                We focus on investigating scam operations, providing educational guidance, and directing victims to legitimate support channels.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-1.5 flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-amber-500" />
+                Refunds & Police Reports
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                For financial refunds, work directly with your bank. For criminal case updates, follow up with the law enforcement agency handling your police report.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-red-500/5 dark:bg-red-950/20 border border-red-200/60 dark:border-red-900/40">
+              <h3 className="font-semibold text-red-700 dark:text-red-400 mb-1.5 flex items-center gap-2">
+                <PhoneCall className="w-4 h-4 text-red-500" />
+                Mental Health Support
+              </h3>
+              <p className="text-red-800 dark:text-red-300 leading-relaxed">
+                We understand this is a stressful time, but we cannot handle mental health crises. If you are struggling emotionally, please call or text <strong className="text-red-600 dark:text-red-400 font-bold">988</strong> immediately.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Disclaimer */}
@@ -87,7 +144,7 @@ export default function ShutdownPage() {
         </div>
 
         {/* Checklist */}
-        <div className="space-y-6">
+        <div className="space-y-6 mb-14">
           {CHECKLIST_ITEMS.map((item, index) => {
             const currentAnswer = answers[item.id];
 
@@ -156,6 +213,135 @@ export default function ShutdownPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* "Now What?" Section (P1 & P3) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-md">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-5 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                <HeartHandshake className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-wide">
+                  Now What?
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  What to do after completing the 10 checklist questions above
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 1. Suicide & Mental Health Crisis Callout (Put FIRST per P1) */}
+          <div className="mb-6 p-5 rounded-xl bg-red-500/10 dark:bg-red-950/40 border-2 border-red-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <PhoneCall className="w-7 h-7 text-red-500 flex-shrink-0 mt-1 md:mt-0" />
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Need Immediate Mental Health Support?
+                </h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
+                  <strong>We are NOT law enforcement or mental health professionals.</strong> If you are feeling overwhelmed, hopeless, or having thoughts of suicide, please call or text <strong className="text-red-600 dark:text-red-400">988</strong> immediately for free, confidential, 24/7 help.
+                </p>
+              </div>
+            </div>
+            <a
+              href="tel:988"
+              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors shadow-sm"
+            >
+              <PhoneCall className="w-5 h-5" />
+              Call or Text 988
+            </a>
+          </div>
+
+          {/* 2. Official Channels & Financial/Legal Recovery */}
+          <div className="mb-8">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-brand-500" />
+              Working with Official Authorities
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Our organization does not handle refunds, legal proceedings, or criminal investigations. You must work through official, accredited organizations:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                    <Landmark className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">
+                    1. Bank & Financial Claims
+                  </h4>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Contact your bank's dedicated fraud department immediately. Only your financial institution can process chargebacks, place freezes, or assist with potential financial reversals.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">
+                    2. Law Enforcement Updates
+                  </h4>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  For updates regarding criminal investigations or prosecution, maintain contact directly with the police department or law enforcement group where you filed your official report.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Action Plan after completing the 10 questions */}
+          <div className="p-5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-brand-500" />
+              Summary Checklist Next Steps ({answeredCount}/10 completed)
+            </h3>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 text-brand-500 font-bold text-xs flex-shrink-0 mt-0.5">
+                  A
+                </div>
+                <div>
+                  <strong className="text-slate-900 dark:text-white">Address any "No" answers:</strong>
+                  <span className="text-slate-600 dark:text-slate-300 ml-1">
+                    Every "No" represents an open vulnerability. Prioritize completing the recommended actions for those specific items first.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 text-brand-500 font-bold text-xs flex-shrink-0 mt-0.5">
+                  B
+                </div>
+                <div>
+                  <strong className="text-slate-900 dark:text-white">Organize your records:</strong>
+                  <span className="text-slate-600 dark:text-slate-300 ml-1">
+                    Keep a dedicated folder with call logs, chat transcripts, reference numbers from your bank, and your official police report file number.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 text-brand-500 font-bold text-xs flex-shrink-0 mt-0.5">
+                  C
+                </div>
+                <div>
+                  <strong className="text-slate-900 dark:text-white">Beware of secondary scams:</strong>
+                  <span className="text-slate-600 dark:text-slate-300 ml-1">
+                    Never pay upfront fees to unsolicited "recovery specialists" on social media or email. Legitimate authorities will never charge money to recover funds.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
