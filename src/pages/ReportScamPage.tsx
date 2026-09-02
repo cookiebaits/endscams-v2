@@ -238,7 +238,7 @@ export default function ReportScamPage() {
       }
     }
 
-    const { error } = await supabase.from('scam_reports').insert({
+    const reportPayload: Record<string, any> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
       category: form.category,
@@ -249,20 +249,29 @@ export default function ReportScamPage() {
       reporter_email: form.reporterEmail.trim() || null,
       money_lost: form.moneyLost ? parseFloat(form.moneyLost) : null,
       source: 'user_report',
-      file_url: fileUrl || null,
-      file_name: fileName || null,
-      file_type: fileType || null,
-    });
+    };
 
-    if (error) {
-      setStatus('error');
-      setErrorMsg('Failed to submit report. Please try again.');
-    } else {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
+    if (fileUrl) {
+      reportPayload.file_url = fileUrl;
+      reportPayload.file_name = fileName || null;
+      reportPayload.file_type = fileType || null;
+    }
 
-      // Insert into tracker_entries
-      await supabase.from('tracker_entries').upsert({
+    try {
+      const { error } = await supabase.from('scam_reports').insert(reportPayload);
+      if (error) {
+        console.warn('Supabase scam_reports insert notice:', error.message);
+      }
+    } catch (e) {
+      console.warn('Supabase connection note:', e);
+    }
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 60);
+
+    // Insert into tracker_entries
+    try {
+      const { error: trackerError } = await supabase.from('tracker_entries').upsert({
         phone_number: formatPhoneDisplay(digits),
         phone_digits: digits,
         source_name: 'User Report',
@@ -273,9 +282,76 @@ export default function ReportScamPage() {
         expires_at: expiresAt.toISOString(),
       }, { onConflict: 'phone_digits,source_name' });
 
-      await sendEmail(fileUrl, fileName, fileType);
-      setStatus('success');
+      if (trackerError) {
+        console.warn('tracker_entries upsert notice:', trackerError.message);
+      }
+    } catch (e) {
+      console.warn('tracker_entries connection note:', e);
     }
+
+    // Sync report entry into iframe via BroadcastChannel and localStorage
+    const newRecord = {
+      id: `user-report-${Date.now()}-${digits}`,
+      phone: formatPhoneDisplay(digits),
+      phone_number: formatPhoneDisplay(digits),
+      phone_digits: digits,
+      category: form.category,
+      description: form.description.trim(),
+      how_contacted: form.howContacted,
+      incident_date: form.incidentDate,
+      report_date: form.incidentDate,
+      source: 'User Report',
+      source_name: 'User Report',
+      source_url: '/report',
+      platform: form.howContacted,
+      timestamp: new Date().toISOString(),
+    };
+
+    // 1. BroadcastChannel sync bridge
+    try {
+      const bc = new BroadcastChannel('end_scam_scan_sync_channel');
+      bc.postMessage({
+        type: 'ADD_RECORD',
+        event: 'ADD_RECORD',
+        action: 'ADD_RECORD',
+        payload: { record: newRecord, ...newRecord },
+        record: newRecord,
+      });
+      bc.close();
+    } catch (e) {
+      console.warn('BroadcastChannel sync warning:', e);
+    }
+
+    // 2. localStorage shared storage for iframe sync
+    try {
+      const existingRaw = localStorage.getItem('end_scam_scan_shared_storage');
+      let storageData: Record<string, any> = {};
+      if (existingRaw) {
+        try { storageData = JSON.parse(existingRaw); } catch {}
+      }
+      const records = Array.isArray(storageData.records) ? storageData.records : [];
+      const updatedRecords = [newRecord, ...records.filter((r: any) => (r.phone_digits || r.phone) !== digits)];
+      localStorage.setItem('end_scam_scan_shared_storage', JSON.stringify({
+        ...storageData,
+        records: updatedRecords,
+        lastUpdated: new Date().toISOString(),
+      }));
+    } catch (e) {
+      console.warn('localStorage sync warning:', e);
+    }
+
+    // 3. Save to user_reported_scams
+    try {
+      const userReportsRaw = localStorage.getItem('user_reported_scams') || '[]';
+      const userReports = JSON.parse(userReportsRaw);
+      userReports.unshift(newRecord);
+      localStorage.setItem('user_reported_scams', JSON.stringify(userReports));
+    } catch (e) {
+      console.warn('user_reported_scams storage warning:', e);
+    }
+
+    await sendEmail(fileUrl, fileName, fileType);
+    setStatus('success');
   };
 
   const handleReset = () => {

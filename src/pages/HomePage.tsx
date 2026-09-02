@@ -288,7 +288,67 @@ export default function HomePage() {
 
       const reports = reportsRes.data || [];
       const trackerEntries = trackerRes.data || [];
-      setResult({ found: reports.length > 0 || trackerEntries.length > 0, reports, trackerEntries });
+
+      // Check iframe tracker records from shared storage and user reported scams
+      const iframeMatches: Array<{ id: string; source_name: string; source_url: string; report_date: string; category: string; description: string }> = [];
+
+      try {
+        const sharedRaw = localStorage.getItem('end_scam_scan_shared_storage');
+        if (sharedRaw) {
+          const parsed = JSON.parse(sharedRaw);
+          const recs = Array.isArray(parsed.records) ? parsed.records : [];
+          for (const r of recs) {
+            const rDigits = (r.phone_digits || r.phone || r.phoneNumber || '').replace(/\D/g, '');
+            if (rDigits === digits) {
+              iframeMatches.push({
+                id: r.id || `iframe-${Math.random()}`,
+                source_name: r.source_name || r.source || 'Scam Tracker',
+                source_url: r.source_url || r.url || '/tracker',
+                report_date: r.report_date || r.incident_date || r.date || new Date().toISOString().split('T')[0],
+                category: r.category || 'Scam',
+                description: r.description || r.notes || '',
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading shared tracker storage:', e);
+      }
+
+      try {
+        const userReportsRaw = localStorage.getItem('user_reported_scams');
+        if (userReportsRaw) {
+          const recs = JSON.parse(userReportsRaw);
+          if (Array.isArray(recs)) {
+            for (const r of recs) {
+              const rDigits = (r.phone_digits || r.phone || '').replace(/\D/g, '');
+              if (rDigits === digits) {
+                iframeMatches.push({
+                  id: r.id || `user-report-${Math.random()}`,
+                  source_name: 'User Report',
+                  source_url: '/report',
+                  report_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
+                  category: r.category || 'Scam',
+                  description: r.description || '',
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Error reading user reported scams storage:', e);
+      }
+
+      // Deduplicate tracker entries and iframe matches
+      const combinedTrackerEntries = [...trackerEntries];
+      for (const match of iframeMatches) {
+        if (!combinedTrackerEntries.some(t => t.id === match.id || (t.source_name === match.source_name && t.description === match.description))) {
+          combinedTrackerEntries.push(match);
+        }
+      }
+
+      const totalFound = reports.length > 0 || combinedTrackerEntries.length > 0;
+      setResult({ found: totalFound, reports, trackerEntries: combinedTrackerEntries });
     } catch {
       setResult({ found: false, reports: [], trackerEntries: [] });
     } finally {
