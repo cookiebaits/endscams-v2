@@ -17,7 +17,8 @@ export default function TrackerPage() {
         const customCssJs = `
         <style>
           #btn-open-diagnostics-header,
-          #btn-open-sync-bridge {
+          #btn-open-sync-bridge,
+          .bg-red-500\\/10.border-red-500\\/30 {
             display: none !important;
           }
         </style>
