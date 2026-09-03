@@ -7,7 +7,7 @@ interface StatsCardsProps {
   isSearching: boolean;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ records, isSearching }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({ records }) => {
   const totalNumbers = records.length;
   const downCount = records.filter((r) => r.isNumberDown).length;
   const activeCount = totalNumbers - downCount;

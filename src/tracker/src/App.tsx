@@ -8,6 +8,7 @@ import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { supabase, formatPhoneDisplay } from '../../lib/supabase';
+import { getFetcherUrl } from './utils/fetcherUrl';
 
 export default function App() {
   const [records, setRecords] = useState<ScamPhoneRecord[]>([]);
@@ -245,26 +246,26 @@ export default function App() {
     setStatusMessage(`Initiating manual harvester scan...`);
 
     try {
-      const response = await fetch('/api/scan-now', {
+      const fetcherUrl = getFetcherUrl();
+      const response = await fetch(`${fetcherUrl}/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
         const data = await response.json();
-        setStatusMessage(data.message || 'Harvester scan started.');
-        // Poll quickly for updates
-        setTimeout(fetchRecords, 1000);
-        setTimeout(fetchRecords, 2000);
-        setTimeout(fetchRecords, 3000);
-        setTimeout(fetchRecords, 8000);
-        setTimeout(fetchRecords, 15000);
+        setStatusMessage(data.message || `Harvester scan completed successfully. Processed & retained entries.`);
+        await fetchRecords();
+      } else if (response.status === 429) {
+        const data = await response.json().catch(() => ({}));
+        setErrorMessage(data.error || 'Scan rate limit exceeded. Please wait 1 minute between scans.');
       } else {
         throw new Error(`Server returned HTTP ${response.status}`);
       }
     } catch (err: any) {
       console.error('Error triggering harvester scan:', err);
       setErrorMessage(err.message || 'Failed to start harvester scan.');
+    } finally {
       setIsScanning(false);
     }
   };

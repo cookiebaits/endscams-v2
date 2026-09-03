@@ -13,7 +13,6 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Terminal,
-  ExternalLink,
   Code2,
   Trash2,
   Play
@@ -35,10 +34,6 @@ export const IFrameSyncModal: React.FC<IFrameSyncModalProps> = ({
   isOpen,
   onClose,
   records,
-  isScanning,
-  lastScanTime,
-  nextScheduledRefresh,
-  onTriggerScan,
 }) => {
   const [activeTab, setActiveTab] = useState<'status' | 'tester' | 'snippets'>('status');
   const [status, setStatus] = useState<SyncBridgeStatus>(syncBridge.getStatus());

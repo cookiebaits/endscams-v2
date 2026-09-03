@@ -459,6 +459,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
 // trigger the pipeline. Every 60 minutes also purges old rows.
 let lastRunHour = -1;
 let running = false;
+let lastManualRefreshTime = 0;
 
 async function scheduler() {
   const now = new Date();
@@ -565,12 +566,19 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/refresh") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
-    if (running) return json({ error: "already running" }, 429);
+    if (running) return cors(json({ error: "Harvester scan is already running. Please wait." }, 429));
+
+    const now = Date.now();
+    if (now - lastManualRefreshTime < 60_000) {
+      return cors(json({ error: "Scan rate limit exceeded. Please wait 1 minute between scans." }, 429));
+    }
+
     running = true;
+    lastManualRefreshTime = now;
     try {
       const stats = await runPipeline();
-      return json(stats);
-    } catch (e) { return json({ success: false, error: String(e) }, 500); } finally { running = false; }
+      return cors(json(stats));
+    } catch (e) { return cors(json({ success: false, error: String(e) }, 500)); } finally { running = false; }
   }
 
   return json({ error: "not found" }, 404);

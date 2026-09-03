@@ -9,7 +9,6 @@ import {
   MessageCircle,
   Download,
   X,
-  XCircle,
   Plus,
   Search,
   Filter,
@@ -18,14 +17,10 @@ import {
   AlertCircle,
   PhoneCall,
   Calendar,
-  Camera,
   Building2,
   DollarSign,
   Hash,
   Info,
-  Sparkles,
-  Smartphone,
-  Monitor,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder, TableFilterState } from '../types';
 import { formatPST, getPSTDateStamp } from '../utils/dateUtils';
@@ -55,7 +50,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   onAddManualRecord,
   onThreatSearchSuccess,
   onReloadRecords,
-  isSearching,
   isMobileActive = false,
 }) => {
   const handleToggleRecordDown = (id: string) => {
@@ -220,8 +214,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
           return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
         }
 
-        let valA = (a[sortField] || '').toString().toLowerCase();
-        let valB = (b[sortField] || '').toString().toLowerCase();
+        const valA = (a[sortField] || '').toString().toLowerCase();
+        const valB = (b[sortField] || '').toString().toLowerCase();
 
         if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
         if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
@@ -1185,7 +1179,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
       <ScreenshotExtractorModal
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
-        onExtractionComplete={(newRecords, summary) => {
+        onExtractionComplete={(_newRecords, summary) => {
           if (onReloadRecords) {
             onReloadRecords();
           }

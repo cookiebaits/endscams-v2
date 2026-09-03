@@ -12,13 +12,11 @@ import {
   Hash,
   ChevronDown,
   ChevronUp,
-  ShieldAlert,
   ArrowUpDown,
   Download,
   FileSpreadsheet,
   FileText,
   AlertCircle,
-  Share2,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder } from '../types';
 import { formatPST } from '../utils/dateUtils';
@@ -55,8 +53,6 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
   onExportCSV,
   onExportJSON,
   onExportTXT,
-  onOpenAddModal,
-  onOpenSearchModal,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedRecordIds, setExpandedRecordIds] = useState<Set<string>>(new Set());

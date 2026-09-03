@@ -8,18 +8,14 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
-  PhoneCall,
-  FileText,
   DollarSign,
   Building2,
   Hash,
   ExternalLink,
   MessageCircle,
   Globe,
-  ArrowRight,
   Maximize2,
   Minimize2,
-  RefreshCw,
   Eye,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
