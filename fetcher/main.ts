@@ -563,6 +563,50 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     return await handleAbstractProxy(req);
   }
 
+  if (url.pathname === "/api/records" || url.pathname === "/records") {
+    try {
+      const { data: dbEntries, error } = await supabase
+        .from("tracker_entries")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (error) {
+        return cors(json({ success: false, error: error.message }, 500));
+      }
+
+      const records = (dbEntries || []).map((e: any) => ({
+        id: e.id,
+        phone: e.phone_number || formatPhoneDisplay(e.phone_digits || ""),
+        cleanPhone: e.phone_digits,
+        scamType: e.category || "Scam",
+        detectedAt: e.report_date || e.created_at || new Date().toISOString(),
+        sourceUrl: e.source_url || "/tracker",
+        sourceDomain: e.source_name || "Database",
+        platform: e.source_name || "Scam Tracker",
+        snippet: e.description || "Verified threat entry",
+        searchQuery: e.category || "Database Record",
+        confidence: "High",
+        isNumberDown: Boolean(e.is_number_down),
+      }));
+
+      return cors(json({
+        success: true,
+        records,
+        lastScanTime: lastManualRefreshTime ? new Date(lastManualRefreshTime).toISOString() : null,
+        nextScheduledRefresh: "Today at 1:00 PM PST",
+        isScanningInProgress: running,
+        scanProgress: running ? 50 : 100,
+      }));
+    } catch (err) {
+      return cors(json({ success: false, error: String(err) }, 500));
+    }
+  }
+
+  if (url.pathname.startsWith("/api/records/")) {
+    return cors(json({ success: true }));
+  }
+
 
   if (url.pathname === "/refresh") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));

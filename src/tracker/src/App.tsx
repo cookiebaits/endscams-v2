@@ -145,8 +145,9 @@ export default function App() {
   // Fetch records directly from Supabase & local storage fallback
   const fetchRecords = async () => {
     try {
-      // 1. Try backend API endpoint first
-      const response = await fetch('/api/records').catch(() => null);
+      // 1. Try backend API endpoint first via getFetcherUrl() or relative endpoint
+      const fetcherUrl = getFetcherUrl();
+      const response = await fetch(`${fetcherUrl}/api/records`).catch(() => fetch('/api/records').catch(() => null));
       let fetchedList: ScamPhoneRecord[] = [];
 
       if (response && response.ok) {
@@ -264,7 +265,12 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Error triggering harvester scan:', err);
-      setErrorMessage(err.message || 'Failed to start harvester scan.');
+      const isNetworkError = err.name === 'TypeError' || err.message?.includes('fetch');
+      if (isNetworkError) {
+        setErrorMessage('Unable to connect to the Threat Harvester service. The server may be restarting or undergoing scheduled maintenance.');
+      } else {
+        setErrorMessage(err.message || 'Failed to start harvester scan.');
+      }
     } finally {
       setIsScanning(false);
     }
