@@ -1,6 +1,0 @@
-{
-  "name": "End Scam Scan",
-  "description": "Scam phone threat intelligence harvester scanning Tech Support United (techscammersunited.com), Scammer.info, and cyber fraud feeds with 24-hour freshness filters, toll-free & geographic DID capture, and 60-day persistent retention.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
