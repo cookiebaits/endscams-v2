@@ -3,9 +3,48 @@ import { supabase, formatPhoneDisplay } from "../lib/supabase";
 
 export default function TrackerPage() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [srcDoc, setSrcDoc] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [frameHeight, setFrameHeight] = useState("700px");
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("https://esscan.ai.studio?auto=false")
+      .then((res) => res.text())
+      .then((html) => {
+        if (!isMounted) return;
+        const customCssJs = `
+        <style>
+          #btn-open-diagnostics-header,
+          #btn-open-sync-bridge {
+            display: none !important;
+          }
+        </style>
+        <script>
+          (function() {
+            function moveBadge() {
+              var badge = document.getElementById('btn-open-diagnostics-badge');
+              var headerRight = document.querySelector('header .flex.items-center.gap-2.flex-wrap');
+              if (badge && headerRight && badge.parentElement !== headerRight) {
+                headerRight.appendChild(badge);
+              }
+            }
+            setInterval(moveBadge, 250);
+            document.addEventListener('DOMContentLoaded', moveBadge);
+          })();
+        </script>
+        `;
+        const modifiedHtml = html.replace('<head>', '<head><base href="https://esscan.ai.studio/" />' + customCssJs);
+        setSrcDoc(modifiedHtml);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch esscan.ai.studio html:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Function to sync user-reported scams to the iframe
   const syncUserReportsToIframe = () => {
@@ -168,7 +207,8 @@ export default function TrackerPage() {
         )}
         <iframe
           ref={iframeRef}
-          src="https://esscan.ai.studio?auto=false"
+          src={!srcDoc ? "https://esscan.ai.studio?auto=false" : undefined}
+          srcDoc={srcDoc || undefined}
           className="min-w-[1024px] w-full h-full border-0"
           style={{ height: frameHeight }}
           onLoad={handleIframeLoad}
