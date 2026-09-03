@@ -238,7 +238,7 @@ export default function ReportScamPage() {
       }
     }
 
-    const reportPayload: Record<string, any> = {
+    const reportPayload: Record<string, unknown> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
       category: form.category,
@@ -290,8 +290,14 @@ export default function ReportScamPage() {
     }
 
     // Sync report entry into iframe via BroadcastChannel and localStorage
-    const contextSnippet = form.description.trim() + (form.moneyLost ? ` [Lost: $${form.moneyLost}]` : '');
-    const detailedSummaryStr = `${form.description.trim()}${form.howContacted ? ` | Contacted via: ${form.howContacted}` : ''}${form.moneyLost ? ` | Amount lost: $${form.moneyLost}` : ''}`;
+    const contextSnippet = form.description.trim();
+
+    const summaryParts = [form.description.trim()];
+    if (form.howContacted) summaryParts.push(`Contacted via: ${form.howContacted}`);
+    if (form.reporterName.trim()) summaryParts.push(`Reporter Name: ${form.reporterName.trim()}`);
+    if (form.moneyLost) summaryParts.push(`Amount Lost: $${form.moneyLost}`);
+
+    const detailedSummaryStr = summaryParts.join(' | ');
 
     const newRecord = {
       id: `user-report-${Date.now()}-${digits}`,
@@ -301,11 +307,16 @@ export default function ReportScamPage() {
       cleanPhone: digits,
       scamType: form.category,
       scam_type: form.category,
+      type_of_scam: form.category,
       category: form.category,
       snippet: contextSnippet,
+      summary: contextSnippet,
       description: contextSnippet,
       detailedSummary: detailedSummaryStr,
+      scam_intelligence: detailedSummaryStr,
       how_contacted: form.howContacted,
+      reporter_name: form.reporterName.trim() || undefined,
+      money_lost: form.moneyLost || undefined,
       incident_date: form.incidentDate,
       report_date: form.incidentDate,
       detectedAt: form.incidentDate ? new Date(form.incidentDate).toISOString() : new Date().toISOString(),
@@ -336,12 +347,16 @@ export default function ReportScamPage() {
     // 2. localStorage shared storage for iframe sync
     try {
       const existingRaw = localStorage.getItem('end_scam_scan_shared_storage');
-      let storageData: Record<string, any> = {};
+      let storageData: Record<string, unknown> = {};
       if (existingRaw) {
-        try { storageData = JSON.parse(existingRaw); } catch {}
+        try {
+          storageData = JSON.parse(existingRaw);
+        } catch {
+          // Ignore JSON parse error
+        }
       }
       const records = Array.isArray(storageData.records) ? storageData.records : [];
-      const updatedRecords = [newRecord, ...records.filter((r: any) => (r.phone_digits || r.phone) !== digits)];
+      const updatedRecords = [newRecord, ...records.filter((r: Record<string, unknown>) => (r.phone_digits || r.phone) !== digits)];
       localStorage.setItem('end_scam_scan_shared_storage', JSON.stringify({
         ...storageData,
         records: updatedRecords,
