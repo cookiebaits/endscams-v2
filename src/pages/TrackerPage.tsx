@@ -16,12 +16,20 @@ export default function TrackerPage() {
       const userReports = JSON.parse(userReportsRaw);
       if (Array.isArray(userReports)) {
         for (const report of userReports) {
+          const rawPhone = report.phone_digits || report.cleanPhone || report.phone || '';
+          const digits = rawPhone.replace(/\D/g, '');
+          const normalizedReport = {
+            ...report,
+            scamType: report.scamType || report.scam_type || report.category || 'User Report',
+            snippet: report.snippet || report.description || 'User submitted scam report',
+            cleanPhone: digits,
+          };
           iframeRef.current.contentWindow.postMessage({
             type: 'ADD_RECORD',
             event: 'ADD_RECORD',
             action: 'ADD_RECORD',
-            payload: { record: report, ...report },
-            record: report,
+            payload: { record: normalizedReport, ...normalizedReport },
+            record: normalizedReport,
           }, '*');
         }
       }
@@ -49,8 +57,8 @@ export default function TrackerPage() {
           source_name: r.source_name || r.source || 'Scam Tracker',
           source_url: r.source_url || r.url || '/tracker',
           report_date: r.report_date || r.incident_date || r.date || new Date().toISOString().split('T')[0],
-          category: r.category || 'Scam',
-          description: r.description || r.notes || '',
+          category: r.scamType || r.scam_type || r.category || 'Scam',
+          description: r.snippet || r.detailedSummary || r.description || r.notes || '',
           expires_at: expiresAt.toISOString(),
         };
       }).filter(Boolean);

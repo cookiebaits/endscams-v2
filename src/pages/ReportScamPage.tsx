@@ -290,20 +290,31 @@ export default function ReportScamPage() {
     }
 
     // Sync report entry into iframe via BroadcastChannel and localStorage
+    const contextSnippet = form.description.trim() + (form.moneyLost ? ` [Lost: $${form.moneyLost}]` : '');
+    const detailedSummaryStr = `${form.description.trim()}${form.howContacted ? ` | Contacted via: ${form.howContacted}` : ''}${form.moneyLost ? ` | Amount lost: $${form.moneyLost}` : ''}`;
+
     const newRecord = {
       id: `user-report-${Date.now()}-${digits}`,
       phone: formatPhoneDisplay(digits),
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
+      cleanPhone: digits,
+      scamType: form.category,
+      scam_type: form.category,
       category: form.category,
-      description: form.description.trim(),
+      snippet: contextSnippet,
+      description: contextSnippet,
+      detailedSummary: detailedSummaryStr,
       how_contacted: form.howContacted,
       incident_date: form.incidentDate,
       report_date: form.incidentDate,
+      detectedAt: form.incidentDate ? new Date(form.incidentDate).toISOString() : new Date().toISOString(),
       source: 'User Report',
       source_name: 'User Report',
       source_url: '/report',
-      platform: form.howContacted,
+      sourceDomain: 'endscams.org',
+      platform: form.howContacted || 'User Report',
+      confidence: 'High',
       timestamp: new Date().toISOString(),
     };
 
