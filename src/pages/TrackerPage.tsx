@@ -18,10 +18,17 @@ export default function TrackerPage() {
         for (const report of userReports) {
           const rawPhone = report.phone_digits || report.cleanPhone || report.phone || '';
           const digits = rawPhone.replace(/\D/g, '');
+          const category = report.scamType || report.scam_type || report.type_of_scam || report.category || 'User Report';
           const normalizedReport = {
             ...report,
-            scamType: report.scamType || report.scam_type || report.category || 'User Report',
-            snippet: report.snippet || report.description || 'User submitted scam report',
+            scamType: category,
+            scam_type: category,
+            type_of_scam: category,
+            category: category,
+            snippet: report.snippet || report.summary || report.description || 'User submitted scam report',
+            summary: report.summary || report.snippet || report.description || 'User submitted scam report',
+            detailedSummary: report.detailedSummary || report.scam_intelligence || report.description || '',
+            scam_intelligence: report.scam_intelligence || report.detailedSummary || report.description || '',
             cleanPhone: digits,
           };
           iframeRef.current.contentWindow.postMessage({
@@ -39,26 +46,26 @@ export default function TrackerPage() {
   };
 
   // Function to retain records from iframe into Postgres database
-  const retainRecordsToPostgres = async (records: any[]) => {
+  const retainRecordsToPostgres = async (records: Record<string, unknown>[]) => {
     if (!Array.isArray(records) || records.length === 0) return;
 
     try {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 31);
 
-      const entriesToUpsert = records.map((r: any) => {
-        const rawPhone = r.phone_digits || r.phone || r.phoneNumber || '';
+      const entriesToUpsert = records.map((r: Record<string, unknown>) => {
+        const rawPhone = String(r.phone_digits || r.phone || r.phoneNumber || '');
         const digits = rawPhone.replace(/\D/g, '');
         if (!digits) return null;
 
         return {
-          phone_number: r.phone || formatPhoneDisplay(digits),
+          phone_number: String(r.phone || formatPhoneDisplay(digits)),
           phone_digits: digits,
-          source_name: r.source_name || r.source || 'Scam Tracker',
-          source_url: r.source_url || r.url || '/tracker',
-          report_date: r.report_date || r.incident_date || r.date || new Date().toISOString().split('T')[0],
-          category: r.scamType || r.scam_type || r.category || 'Scam',
-          description: r.snippet || r.detailedSummary || r.description || r.notes || '',
+          source_name: String(r.source_name || r.source || 'Scam Tracker'),
+          source_url: String(r.source_url || r.url || '/tracker'),
+          report_date: String(r.report_date || r.incident_date || r.date || new Date().toISOString().split('T')[0]),
+          category: String(r.scamType || r.scam_type || r.type_of_scam || r.category || 'Scam'),
+          description: String(r.detailedSummary || r.scam_intelligence || r.snippet || r.description || r.notes || ''),
           expires_at: expiresAt.toISOString(),
         };
       }).filter(Boolean);
