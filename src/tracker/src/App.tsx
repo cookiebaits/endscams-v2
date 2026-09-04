@@ -9,6 +9,7 @@ import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { supabase, formatPhoneDisplay } from '../../lib/supabase';
 import { getFetcherUrl } from './utils/fetcherUrl';
+import { INITIAL_SAMPLE_RECORDS } from './data/presets';
 
 export default function App() {
   const [records, setRecords] = useState<ScamPhoneRecord[]>([]);
@@ -46,6 +47,20 @@ export default function App() {
   useEffect(() => {
     nextScheduledRefreshRef.current = nextScheduledRefresh;
   }, [nextScheduledRefresh]);
+
+  // Log page activation for troubleshooting and diagnostics
+  useEffect(() => {
+    const fetcherUrl = getFetcherUrl();
+    const activationLog = {
+      event: 'TRACKER_PAGE_ACTIVATED',
+      timestamp: new Date().toISOString(),
+      location: typeof window !== 'undefined' ? window.location.href : 'N/A',
+      fetcherUrl,
+      isDev: import.meta.env.DEV,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A',
+    };
+    console.log('🚀 [/tracker] Page Activated:', activationLog);
+  }, []);
 
   // Initialize Bi-Directional Parent / Iframe Sync Bridge
   useEffect(() => {
@@ -162,11 +177,15 @@ export default function App() {
       }
 
       // 2. Fetch directly from Supabase tracker_entries table
-      const { data: dbEntries } = await supabase
+      const { data: dbEntries, error: sbError } = await supabase
         .from('tracker_entries')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);
+
+      if (sbError) {
+        console.warn('[Tracker] Supabase query returned error:', sbError.message);
+      }
 
       if (dbEntries && dbEntries.length > 0) {
         const mappedDbRecords: ScamPhoneRecord[] = dbEntries.map((e: any) => ({
@@ -227,9 +246,17 @@ export default function App() {
         console.warn('Error reading local user reports:', err);
       }
 
+      // 4. If no records retrieved from API or DB, fall back to initial preset records
+      if (fetchedList.length === 0) {
+        fetchedList = INITIAL_SAMPLE_RECORDS;
+      }
+
       setRecords(fetchedList);
     } catch (err) {
       console.error('Error fetching records:', err);
+      if (records.length === 0) {
+        setRecords(INITIAL_SAMPLE_RECORDS);
+      }
     }
   };
 
@@ -240,40 +267,55 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Trigger manual harvester scan
+  // Trigger manual harvester scan with multi-stage endpoint fallback
   const handleRunScanNow = async () => {
     setIsScanning(true);
     setErrorMessage(null);
     setStatusMessage(`Initiating manual harvester scan...`);
 
-    try {
-      const fetcherUrl = getFetcherUrl();
-      const response = await fetch(`${fetcherUrl}/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+    const primaryUrl = `${getFetcherUrl()}/refresh`;
+    const fallbackUrls = ['/refresh', '/api/scan-now'];
+    const endpointsToTry = [primaryUrl, ...fallbackUrls.filter((u) => u !== primaryUrl)];
 
-      if (response.ok) {
-        const data = await response.json();
-        setStatusMessage(data.message || `Harvester scan completed successfully. Processed & retained entries.`);
-        await fetchRecords();
-      } else if (response.status === 429) {
-        const data = await response.json().catch(() => ({}));
-        setErrorMessage(data.error || 'Scan rate limit exceeded. Please wait 1 minute between scans.');
-      } else {
-        throw new Error(`Server returned HTTP ${response.status}`);
+    let lastErrMessage = '';
+    let succeeded = false;
+
+    for (const endpoint of endpointsToTry) {
+      try {
+        console.log(`[Tracker] Attempting harvester scan via endpoint: ${endpoint}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setStatusMessage(data.message || `Harvester scan completed successfully via ${endpoint}. Processed & retained entries.`);
+          await fetchRecords();
+          succeeded = true;
+          break;
+        } else if (response.status === 429) {
+          const data = await response.json().catch(() => ({}));
+          setErrorMessage(data.error || 'Scan rate limit exceeded. Please wait 1 minute between scans.');
+          succeeded = true;
+          break;
+        } else {
+          lastErrMessage = `Endpoint ${endpoint} returned HTTP ${response.status}`;
+        }
+      } catch (e: any) {
+        console.warn(`[Tracker] Endpoint ${endpoint} unreachable:`, e);
+        lastErrMessage = e?.message || 'Network error';
       }
-    } catch (err: any) {
-      console.error('Error triggering harvester scan:', err);
-      const isNetworkError = err.name === 'TypeError' || err.message?.includes('fetch');
-      if (isNetworkError) {
-        setErrorMessage('Unable to connect to the Threat Harvester service. The server may be restarting or undergoing scheduled maintenance.');
-      } else {
-        setErrorMessage(err.message || 'Failed to start harvester scan.');
-      }
-    } finally {
-      setIsScanning(false);
     }
+
+    if (!succeeded) {
+      console.error('[Tracker] All harvester scan endpoints failed:', lastErrMessage);
+      setErrorMessage(
+        `Unable to connect to the Threat Harvester service (${primaryUrl}). The backend fetcher container may be offline or restarting.`
+      );
+    }
+
+    setIsScanning(false);
   };
 
   // Mark / toggle "Number down" for a single record
@@ -506,17 +548,31 @@ export default function App() {
         )}
 
         {errorMessage && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between text-xs text-red-300">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <span>{errorMessage}</span>
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-2 text-xs text-red-300 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="text-red-400 hover:text-red-300 text-xs font-bold"
+              >
+                Dismiss
+              </button>
             </div>
-            <button
-              onClick={() => setErrorMessage(null)}
-              className="text-red-400 hover:text-red-300 text-xs font-bold"
-            >
-              Dismiss
-            </button>
+
+            <details className="mt-1 pt-1 border-t border-red-500/20 text-[11px] text-red-400/90">
+              <summary className="cursor-pointer font-semibold hover:underline">
+                Technical Diagnostics &amp; Troubleshooting Info
+              </summary>
+              <div className="mt-2 space-y-1 font-mono bg-slate-950/80 p-2.5 rounded-lg border border-red-500/20 text-slate-300">
+                <p>• <strong>Fetcher Backend URL:</strong> {getFetcherUrl()}</p>
+                <p>• <strong>Attempted Scan Endpoint:</strong> {getFetcherUrl()}/refresh</p>
+                <p>• <strong>Page Location:</strong> {typeof window !== 'undefined' ? window.location.href : ''}</p>
+                <p>• <strong>Troubleshooting Steps:</strong> Verify that the Deno/Node fetcher service at <code>{getFetcherUrl()}</code> is running in Docker/Dokploy and accessible over port 8000 or proxy with valid CORS headers.</p>
+              </div>
+            </details>
           </div>
         )}
 

@@ -41,6 +41,14 @@ export default defineConfig({
         target: 'https://serpapi.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/serpapi/, '')
+      },
+      '/refresh': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   }
