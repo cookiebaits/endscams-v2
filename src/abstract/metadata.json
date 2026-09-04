@@ -1,0 +1,6 @@
+{
+  "name": "Abstract Tools Hub",
+  "description": "Lightweight suite featuring Phone Intelligence, Email Reputation, IP Intelligence, and Web Scraper with encrypted key proxy and Dokploy integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
