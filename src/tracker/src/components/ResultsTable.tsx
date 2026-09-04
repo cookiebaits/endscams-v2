@@ -8,7 +8,9 @@ import {
   ExternalLink,
   MessageCircle,
   Download,
+  Upload,
   X,
+  XCircle,
   Plus,
   Search,
   Filter,
@@ -17,16 +19,23 @@ import {
   AlertCircle,
   PhoneCall,
   Calendar,
+  Camera,
   Building2,
   DollarSign,
   Hash,
   Info,
+  Sparkles,
+  Smartphone,
+  Monitor,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder, TableFilterState } from '../types';
 import { formatPST, getPSTDateStamp } from '../utils/dateUtils';
+import { exportRecordsToCSV } from '../utils/csvHandler';
 import { ScamSummaryHoverCard } from './ScamSummaryHoverCard';
 import { ScreenshotExtractorModal } from './ScreenshotExtractorModal';
 import { MobileResultsList } from './MobileResultsList';
+import { ImportCsvModal } from './ImportCsvModal';
+import { ManualAddModal } from './ManualAddModal';
 
 interface ResultsTableProps {
   records: ScamPhoneRecord[];
@@ -50,6 +59,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   onAddManualRecord,
   onThreatSearchSuccess,
   onReloadRecords,
+  isSearching,
   isMobileActive = false,
 }) => {
   const handleToggleRecordDown = (id: string) => {
@@ -93,13 +103,9 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
 
   // Manual Add Modal state
   const [showAddModal, setShowAddModal] = useState(false);
-  const [manualForm, setManualForm] = useState({
-    phone: '',
-    scamType: 'Tech Support & Refund Scam',
-    sourceUrl: '',
-    platform: 'Scammer.info',
-    snippet: '',
-  });
+
+  // Import CSV Modal state
+  const [showImportCsvModal, setShowImportCsvModal] = useState(false);
 
   // Targeted Threat Search Modal state
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -214,8 +220,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
           return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
         }
 
-        const valA = (a[sortField] || '').toString().toLowerCase();
-        const valB = (b[sortField] || '').toString().toLowerCase();
+        let valA = (a[sortField] || '').toString().toLowerCase();
+        let valB = (b[sortField] || '').toString().toLowerCase();
 
         if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
         if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
@@ -247,93 +253,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // CSV Export
+  // CSV Export - Uses exportRecordsToCSV with Blob & UTF-8 BOM to prevent any truncation
   const exportToCSV = (targetRecords = processedRecords) => {
     if (targetRecords.length === 0) return;
     const pstDateStamp = getPSTDateStamp();
-    const headers = ['Type of Scam', 'Phone Number', 'Clean Digits', 'Date Detected (PST)', 'Source URL', 'Platform', 'Country', 'Snippet'];
-    const rows = targetRecords.map((r) => [
-      `"${r.scamType.replace(/"/g, '""')}"`,
-      `"${r.phone.replace(/"/g, '""')}"`,
-      `"${r.cleanPhone}"`,
-      `"${formatDate(r.detectedAt)}"`,
-      `"${r.sourceUrl.replace(/"/g, '""')}"`,
-      `"${r.platform}"`,
-      `"${r.countryName || r.countryCode || ''}"`,
-      `"${r.snippet.replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `scam_phone_numbers_${pstDateStamp}_PST.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportRecordsToCSV(targetRecords, `scam_phone_numbers_${pstDateStamp}_PST.csv`);
   };
 
-  // JSON Export
-  const exportToJSON = (targetRecords = processedRecords) => {
-    if (targetRecords.length === 0) return;
-    const pstDateStamp = getPSTDateStamp();
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(targetRecords, null, 2));
-    const link = document.createElement('a');
-    link.setAttribute('href', dataStr);
-    link.setAttribute('download', `scam_phones_${pstDateStamp}_PST.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // TXT Phone List Export
-  const exportToTXT = (targetRecords = processedRecords) => {
-    if (targetRecords.length === 0) return;
-    const pstDateStamp = getPSTDateStamp();
-    const txtContent = targetRecords.map((r) => `${r.phone} | ${r.scamType} | ${formatDate(r.detectedAt)} | ${r.sourceUrl}`).join('\n');
-    const dataStr = 'data:text/plain;charset=utf-8,' + encodeURIComponent(txtContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', dataStr);
-    link.setAttribute('download', `scam_phone_list_${pstDateStamp}_PST.txt`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Add Manual Record Handler
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualForm.phone.trim()) return;
-
-    let domain = 'web';
-    try {
-      if (manualForm.sourceUrl) {
-        domain = new URL(manualForm.sourceUrl).hostname.replace('www.', '');
-      }
-    } catch (err) {
-      domain = 'web';
-    }
-
-    onAddManualRecord({
-      phone: manualForm.phone.trim(),
-      cleanPhone: manualForm.phone.replace(/\D/g, ''),
-      scamType: manualForm.scamType,
-      sourceUrl: manualForm.sourceUrl.trim() || 'https://scammer.info',
-      sourceDomain: domain,
-      platform: manualForm.platform,
-      snippet: manualForm.snippet.trim() || 'Manually entered record',
-      searchQuery: 'Manual Entry',
-      confidence: 'High',
-    });
-
-    setManualForm({
-      phone: '',
-      scamType: 'Tech Support & Refund Scam',
-      sourceUrl: '',
-      platform: 'Scammer.info',
-      snippet: '',
-    });
-    setShowAddModal(false);
+  // CSV Import Success Handler
+  const handleImportCsvSuccess = (importedRecords: ScamPhoneRecord[], summary: string) => {
+    onThreatSearchSuccess?.(summary);
+    onReloadRecords?.();
   };
 
   // Targeted Threat Search (Last 24 Hours) Handler
@@ -436,26 +366,15 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
               <span>Export CSV</span>
             </button>
 
+            {/* Import CSV Button */}
             <button
-              id="btn-export-json"
-              onClick={() => exportToJSON()}
-              disabled={processedRecords.length === 0}
-              className="inline-flex items-center space-x-1 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold rounded-lg transition-colors disabled:opacity-40"
-              title="Export to JSON"
+              id="btn-import-csv"
+              onClick={() => setShowImportCsvModal(true)}
+              className="inline-flex items-center space-x-1 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              title="Import CSV matching export template"
             >
-              <FileText className="w-3.5 h-3.5" />
-              <span>JSON</span>
-            </button>
-
-            <button
-              id="btn-export-txt"
-              onClick={() => exportToTXT()}
-              disabled={processedRecords.length === 0}
-              className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-40"
-              title="Export plain text phone list"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>TXT</span>
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import CSV</span>
             </button>
 
             {selectedIds.length > 0 && (
@@ -598,8 +517,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
             sortOrder={sortOrder}
             onSortChange={handleSort}
             onExportCSV={() => exportToCSV()}
-            onExportJSON={() => exportToJSON()}
-            onExportTXT={() => exportToTXT()}
+            onImportCSV={() => setShowImportCsvModal(true)}
             onOpenAddModal={() => setShowAddModal(true)}
             onOpenSearchModal={() => setShowSearchModal(true)}
           />
@@ -935,113 +853,19 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
       )}
 
       {/* Manual Add Entry Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <PhoneCall className="w-5 h-5 text-amber-400" />
-              Add Manual Phone Entry
-            </h3>
+      <ManualAddModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAddRecord={onAddManualRecord}
+      />
 
-            <form onSubmit={handleAddSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Phone Number *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={manualForm.phone}
-                  onChange={(e) => setManualForm({ ...manualForm, phone: e.target.value })}
-                  placeholder="e.g. +234 812 345 6789 or +1 888 123 4567"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Type of Scam
-                </label>
-                <select
-                  value={manualForm.scamType}
-                  onChange={(e) => setManualForm({ ...manualForm, scamType: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-                >
-                  <option value="Tech Support / Geek Squad Impersonation">Tech Support / Geek Squad Impersonation</option>
-                  <option value="Spellcaster Scam">Spellcaster Scam</option>
-                  <option value="Crypto / BTC Recovery Scam">Crypto / BTC Recovery Scam</option>
-                  <option value="Guestbook Spam">Guestbook Spam</option>
-                  <option value="Romance / Relationship Scam">Romance Scam</option>
-                  <option value="Manual Verification">Manual Verification</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Source URL
-                </label>
-                <input
-                  type="url"
-                  value={manualForm.sourceUrl}
-                  onChange={(e) => setManualForm({ ...manualForm, sourceUrl: e.target.value })}
-                  placeholder="https://scammer.info/t/..."
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Platform
-                </label>
-                <select
-                  value={manualForm.platform}
-                  onChange={(e) => setManualForm({ ...manualForm, platform: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-                >
-                  <option value="Scammer.info">Scammer.info</option>
-                  <option value="Tech Support United">Tech Support United</option>
-                  <option value="Tech Scammers United">Tech Scammers United</option>
-                  <option value="WhoCallsMe">WhoCallsMe</option>
-                  <option value="800notes">800notes</option>
-                  <option value="Social Media">Social Media</option>
-                  <option value="Telegram">Telegram</option>
-                  <option value="Guestbook">Guestbook</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Context Snippet
-                </label>
-                <textarea
-                  value={manualForm.snippet}
-                  onChange={(e) => setManualForm({ ...manualForm, snippet: e.target.value })}
-                  rows={2}
-                  placeholder="Short note or report description..."
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow"
-                >
-                  Add Record
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Import CSV Modal */}
+      <ImportCsvModal
+        isOpen={showImportCsvModal}
+        onClose={() => setShowImportCsvModal(false)}
+        onImportSuccess={handleImportCsvSuccess}
+        existingRecords={records}
+      />
 
       {/* Targeted Threat Search Modal (Strict 24-Hour Scope) */}
       {showSearchModal && (
@@ -1179,7 +1003,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
       <ScreenshotExtractorModal
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
-        onExtractionComplete={(_newRecords, summary) => {
+        onExtractionComplete={(newRecords, summary) => {
           if (onReloadRecords) {
             onReloadRecords();
           }

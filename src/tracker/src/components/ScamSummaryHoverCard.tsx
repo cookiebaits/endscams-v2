@@ -270,6 +270,27 @@ export const ScamSummaryHoverCard: React.FC<ScamSummaryHoverCardProps> = ({
           </p>
         </div>
 
+        {/* Attached Evidence Screenshot if present */}
+        {record.imageUrl && (
+          <div className="p-2 bg-slate-950/90 rounded-xl border border-slate-800/90 space-y-1">
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              Attached Evidence Screenshot:
+            </div>
+            <a
+              href={record.imageUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-lg overflow-hidden border border-slate-800 hover:border-amber-500/50 transition-colors max-h-36"
+            >
+              <img
+                src={record.imageUrl}
+                alt="Evidence screenshot"
+                className="w-full h-auto max-h-36 object-contain bg-black/40"
+              />
+            </a>
+          </div>
+        )}
+
         {/* Phone Number & Direct Action Links */}
         <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center space-x-1.5 font-mono font-bold text-amber-400">

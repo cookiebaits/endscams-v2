@@ -8,14 +8,18 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  PhoneCall,
+  FileText,
   DollarSign,
   Building2,
   Hash,
   ExternalLink,
   MessageCircle,
   Globe,
+  ArrowRight,
   Maximize2,
   Minimize2,
+  RefreshCw,
   Eye,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
@@ -157,19 +161,19 @@ export const ScreenshotExtractorModal: React.FC<ScreenshotExtractorModalProps> =
 }) => {
   const [activeTab, setActiveTab] = useState<'auto' | 'upload'>('auto');
   const [presetFilter, setPresetFilter] = useState<'all' | 'tsu' | 'scammer-info'>('all');
-
+  
   // Auto-screenshot state
   const [selectedPresetId, setSelectedPresetId] = useState<string>('tsu-paypal');
   const [quickKeyword, setQuickKeyword] = useState<string>('PayPal');
   const [quickPlatform, setQuickPlatform] = useState<'tsu' | 'scammer-info'>('tsu');
   const [customUrl, setCustomUrl] = useState<string>('');
   const [customPlatform, setCustomPlatform] = useState<string>('Tech Support United');
-
+  
   // Manual upload state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/png');
   const [platformContext, setPlatformContext] = useState<string>('Tech Support United');
-
+  
   // Execution & results state
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

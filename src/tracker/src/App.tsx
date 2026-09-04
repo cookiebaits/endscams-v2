@@ -1,27 +1,32 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatsCards } from './components/StatsCards';
 import { ResultsTable } from './components/ResultsTable';
 import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPanel';
+import { BackupRestoreModal } from './components/BackupRestoreModal';
 import { ScamPhoneRecord, SyncBridgeStatus } from './types';
-import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, RefreshCw, Zap, Monitor, Smartphone } from 'lucide-react';
-import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
+import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, Activity, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
+import { formatPSTTimeOnly, formatPST, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
-import { supabase, formatPhoneDisplay } from '../../lib/supabase';
-import { getFetcherUrl } from './utils/fetcherUrl';
-import { INITIAL_SAMPLE_RECORDS } from './data/presets';
+import { noSqlDatabase } from './db/noSqlDatabase';
 
 export default function App() {
   const [records, setRecords] = useState<ScamPhoneRecord[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [scanStatusMessage, setScanStatusMessage] = useState("");
   const [lastScanTime, setLastScanTime] = useState<string | null>(null);
+  const [lastScanSummary, setLastScanSummary] = useState<string>('Database loaded.');
   const [nextScheduledRefresh, setNextScheduledRefresh] = useState<string>('Today at 1:00 PM PST');
+  const [nextExecutionPST, setNextExecutionPST] = useState<string | null>(null);
+  const [nextExecutionCountdown, setNextExecutionCountdown] = useState<string | null>(null);
+  const [schedulerActive, setSchedulerActive] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
-  const [, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
+  const [isBackupRestoreOpen, setIsBackupRestoreOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
 
   // Auto-detect mobile devices and responsive screen widths with manual override
   const { isMobile, preference, setPreference } = useDeviceMode();
@@ -47,20 +52,6 @@ export default function App() {
   useEffect(() => {
     nextScheduledRefreshRef.current = nextScheduledRefresh;
   }, [nextScheduledRefresh]);
-
-  // Log page activation for troubleshooting and diagnostics
-  useEffect(() => {
-    const fetcherUrl = getFetcherUrl();
-    const activationLog = {
-      event: 'TRACKER_PAGE_ACTIVATED',
-      timestamp: new Date().toISOString(),
-      location: typeof window !== 'undefined' ? window.location.href : 'N/A',
-      fetcherUrl,
-      isDev: import.meta.env.DEV,
-      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A',
-    };
-    console.log('🚀 [/tracker] Page Activated:', activationLog);
-  }, []);
 
   // Initialize Bi-Directional Parent / Iframe Sync Bridge
   useEffect(() => {
@@ -125,7 +116,7 @@ export default function App() {
     const checkScheduleAndTrigger = () => {
       try {
         const { hour, dateStr } = getPacificParts(new Date());
-
+        
         // Target slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
         if (hour === 7 || hour === 13) {
           const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
@@ -135,7 +126,7 @@ export default function App() {
             localStorage.setItem(slotKey, new Date().toISOString());
             const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
             console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering the "Manual Refresh" button...`);
-
+            
             setStatusMessage(`[Auto-Scan Active] ${slotLabel} reached — Automatically triggered "Manual Refresh" to populate the database.`);
 
             // Trigger the manual refresh directly & click the footer button
@@ -157,105 +148,38 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Fetch records directly from Supabase & local storage fallback
+  // Fetch records from backend API with automatic built-in NoSQL fallback
   const fetchRecords = async () => {
     try {
-      // 1. Try backend API endpoint first via getFetcherUrl() or relative endpoint
-      const fetcherUrl = getFetcherUrl();
-      const response = await fetch(`${fetcherUrl}/api/records`).catch(() => fetch('/api/records').catch(() => null));
-      let fetchedList: ScamPhoneRecord[] = [];
-
-      if (response && response.ok) {
+      const response = await fetch('/api/records');
+      if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.records)) {
-          fetchedList = data.records;
+          setRecords(data.records);
           setLastScanTime(data.lastScanTime);
+          if (data.lastScanSummary) setLastScanSummary(data.lastScanSummary);
           if (data.nextScheduledRefresh) setNextScheduledRefresh(data.nextScheduledRefresh);
+          if (data.nextExecutionPST) setNextExecutionPST(data.nextExecutionPST);
+          if (data.nextExecutionCountdown) setNextExecutionCountdown(data.nextExecutionCountdown);
+          if (data.schedulerActive !== undefined) setSchedulerActive(data.schedulerActive);
           setIsScanning(Boolean(data.isScanningInProgress));
           if (data.scanProgress !== undefined) setScanProgress(data.scanProgress);
+          if (data.scanStatusMessage !== undefined) setScanStatusMessage(data.scanStatusMessage);
+
+          // Mirror into client-side built-in NoSQL database
+          noSqlDatabase.getRecordsCollection().clear();
+          noSqlDatabase.getRecordsCollection().insertMany(data.records);
+          noSqlDatabase.persist();
         }
+      } else {
+        throw new Error(`Server returned HTTP ${response.status}`);
       }
-
-      // 2. Fetch directly from Supabase tracker_entries table
-      const { data: dbEntries, error: sbError } = await supabase
-        .from('tracker_entries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      if (sbError) {
-        console.warn('[Tracker] Supabase query returned error:', sbError.message);
-      }
-
-      if (dbEntries && dbEntries.length > 0) {
-        const mappedDbRecords: ScamPhoneRecord[] = dbEntries.map((e: any) => ({
-          id: e.id,
-          phone: e.phone_number || formatPhoneDisplay(e.phone_digits),
-          cleanPhone: e.phone_digits,
-          scamType: e.category || 'Scam',
-          detectedAt: e.report_date || e.created_at || new Date().toISOString(),
-          sourceUrl: e.source_url || '/tracker',
-          sourceDomain: e.source_name || 'Database',
-          platform: e.source_name || 'Scam Tracker',
-          snippet: e.description || 'Verified threat entry',
-          searchQuery: e.category || 'Database Record',
-          confidence: 'High',
-          isNumberDown: Boolean(e.is_number_down),
-        }));
-
-        // Merge backend and Supabase records by unique phone digits
-        const phoneMap = new Map<string, ScamPhoneRecord>();
-        [...fetchedList, ...mappedDbRecords].forEach((rec) => {
-          const key = rec.cleanPhone || rec.phone.replace(/\D/g, '');
-          if (key && !phoneMap.has(key)) {
-            phoneMap.set(key, rec);
-          }
-        });
-        fetchedList = Array.from(phoneMap.values());
-      }
-
-      // 3. Merge user reports from local storage
-      const userReportsRaw = localStorage.getItem('user_reported_scams') || '[]';
-      try {
-        const userReports = JSON.parse(userReportsRaw);
-        if (Array.isArray(userReports)) {
-          const phoneMap = new Map<string, ScamPhoneRecord>();
-          fetchedList.forEach((r) => phoneMap.set(r.cleanPhone || r.phone.replace(/\D/g, ''), r));
-
-          userReports.forEach((ur: any) => {
-            const digits = (ur.phone_digits || ur.cleanPhone || ur.phone || '').replace(/\D/g, '');
-            if (digits && !phoneMap.has(digits)) {
-              phoneMap.set(digits, {
-                id: ur.id || `user-report-${digits}`,
-                phone: ur.phone || formatPhoneDisplay(digits),
-                cleanPhone: digits,
-                scamType: ur.scamType || ur.scam_type || ur.category || 'User Report',
-                detectedAt: ur.created_at || ur.detectedAt || new Date().toISOString(),
-                sourceUrl: '/report',
-                sourceDomain: 'EndScams Community',
-                platform: 'User Submission',
-                snippet: ur.snippet || ur.summary || ur.description || 'User submitted scam report',
-                searchQuery: ur.scamType || 'User Report',
-                confidence: 'High',
-              });
-            }
-          });
-          fetchedList = Array.from(phoneMap.values());
-        }
-      } catch (err) {
-        console.warn('Error reading local user reports:', err);
-      }
-
-      // 4. If no records retrieved from API or DB, fall back to initial preset records
-      if (fetchedList.length === 0) {
-        fetchedList = INITIAL_SAMPLE_RECORDS;
-      }
-
-      setRecords(fetchedList);
     } catch (err) {
-      console.error('Error fetching records:', err);
-      if (records.length === 0) {
-        setRecords(INITIAL_SAMPLE_RECORDS);
+      console.warn('[Built-in NoSQL] Backend API unreachable, falling back to local built-in NoSQL database:', err);
+      // Seamlessly hydrate from built-in NoSQL store (bundled with code export)
+      const localDocs = noSqlDatabase.getRecordsCollection().getAll();
+      if (localDocs.length > 0) {
+        setRecords((prev) => (prev.length === 0 ? localDocs : prev));
       }
     }
   };
@@ -267,58 +191,38 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Trigger manual harvester scan with multi-stage endpoint fallback
+  // Trigger manual harvester scan
   const handleRunScanNow = async () => {
     setIsScanning(true);
     setErrorMessage(null);
     setStatusMessage(`Initiating manual harvester scan...`);
 
-    const primaryUrl = `${getFetcherUrl()}/refresh`;
-    const fallbackUrls = ['/refresh', '/api/scan-now'];
-    const endpointsToTry = [primaryUrl, ...fallbackUrls.filter((u) => u !== primaryUrl)];
+    try {
+      const response = await fetch('/api/scan-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-    let lastErrMessage = '';
-    let succeeded = false;
-
-    for (const endpoint of endpointsToTry) {
-      try {
-        console.log(`[Tracker] Attempting harvester scan via endpoint: ${endpoint}`);
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setStatusMessage(data.message || `Harvester scan completed successfully via ${endpoint}. Processed & retained entries.`);
-          await fetchRecords();
-          succeeded = true;
-          break;
-        } else if (response.status === 429) {
-          const data = await response.json().catch(() => ({}));
-          setErrorMessage(data.error || 'Scan rate limit exceeded. Please wait 1 minute between scans.');
-          succeeded = true;
-          break;
-        } else {
-          lastErrMessage = `Endpoint ${endpoint} returned HTTP ${response.status}`;
-        }
-      } catch (e: any) {
-        console.warn(`[Tracker] Endpoint ${endpoint} unreachable:`, e);
-        lastErrMessage = e?.message || 'Network error';
+      if (response.ok) {
+        const data = await response.json();
+        setStatusMessage(data.message || 'Harvester scan started.');
+        // Poll quickly for updates
+        setTimeout(fetchRecords, 1000);
+        setTimeout(fetchRecords, 2000);
+        setTimeout(fetchRecords, 3000);
+        setTimeout(fetchRecords, 8000);
+        setTimeout(fetchRecords, 15000);
+      } else {
+        throw new Error(`Server returned HTTP ${response.status}`);
       }
+    } catch (err: any) {
+      console.error('Error triggering harvester scan:', err);
+      setErrorMessage(err.message || 'Failed to start harvester scan.');
+      setIsScanning(false);
     }
-
-    if (!succeeded) {
-      console.error('[Tracker] All harvester scan endpoints failed:', lastErrMessage);
-      setErrorMessage(
-        `Unable to connect to the Threat Harvester service (${primaryUrl}). The backend fetcher container may be offline or restarting.`
-      );
-    }
-
-    setIsScanning(false);
   };
 
-  // Mark / toggle "Number down" for a single record
+  // Mark / toggle "Number down" for a single record (retains number in DB)
   const handleToggleNumberDown = async (id: string) => {
     setRecords((prev) =>
       prev.map((r) =>
@@ -332,24 +236,15 @@ export default function App() {
       )
     );
     try {
-      await fetch(`/api/records/${id}/toggle-down`, { method: 'POST' }).catch(() => null);
-      const target = records.find((r) => r.id === id);
-      if (target) {
-        await supabase
-          .from('tracker_entries')
-          .update({ is_number_down: !target.isNumberDown })
-          .eq('phone_digits', target.cleanPhone);
-      }
+      await fetch(`/api/records/${id}/toggle-down`, { method: 'POST' });
     } catch (err) {
       console.warn('Number down error:', err);
     }
   };
 
-  // Mark bulk selected records as "Number down"
+  // Mark bulk selected records as "Number down" (retains numbers in DB)
   const handleMarkNumberDownSelected = async (ids: string[]) => {
     const idsSet = new Set(ids);
-    const targetDigits = records.filter((r) => idsSet.has(r.id)).map((r) => r.cleanPhone);
-
     setRecords((prev) =>
       prev.map((r) =>
         idsSet.has(r.id)
@@ -362,61 +257,37 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, isNumberDown: true }),
-      }).catch(() => null);
-
-      if (targetDigits.length > 0) {
-        await supabase
-          .from('tracker_entries')
-          .update({ is_number_down: true })
-          .in('phone_digits', targetDigits);
-      }
+      });
     } catch (err) {
       console.warn('Bulk number down error:', err);
     }
   };
 
-  // Add manual record directly to state & Supabase
+  // Add manual record
   const handleAddManualRecord = async (recordData: Omit<ScamPhoneRecord, 'id' | 'detectedAt'>) => {
     try {
-      const cleanDigits = recordData.cleanPhone || recordData.phone.replace(/\D/g, '');
-      const newRec: ScamPhoneRecord = {
-        ...recordData,
-        id: `manual-${Date.now()}-${cleanDigits}`,
-        cleanPhone: cleanDigits,
-        detectedAt: new Date().toISOString(),
-      };
-
-      setRecords((prev) => [newRec, ...prev]);
-      setStatusMessage(`Added manual scam record for ${newRec.phone}. Data retained.`);
-
-      // Persist directly to Supabase
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
-
-      await supabase.from('tracker_entries').upsert({
-        phone_number: newRec.phone,
-        phone_digits: cleanDigits,
-        source_name: newRec.platform || 'Manual Entry',
-        source_url: newRec.sourceUrl || '/tracker',
-        report_date: new Date().toISOString().split('T')[0],
-        category: newRec.scamType,
-        description: newRec.snippet,
-        expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'phone_digits,source_name' });
-
-      // Try API sync if running
-      await fetch('/api/records/manual', {
+      const response = await fetch('/api/records/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(recordData),
-      }).catch(() => null);
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.record) {
+          setRecords((prev) => [data.record, ...prev]);
+          setStatusMessage(`Added manual scam record for ${data.record.phone}. Data retained.`);
+        }
+      } else {
+        const errData = await response.json();
+        setErrorMessage(errData.error || 'Failed to add manual record.');
+      }
     } catch (err) {
       console.error('Error adding manual record:', err);
     }
   };
 
   return (
-    <div className="bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6">
         {/* Automated Harvester Live Control Banner */}
@@ -548,31 +419,17 @@ export default function App() {
         )}
 
         {errorMessage && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl space-y-2 text-xs text-red-300 animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-              <button
-                onClick={() => setErrorMessage(null)}
-                className="text-red-400 hover:text-red-300 text-xs font-bold"
-              >
-                Dismiss
-              </button>
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between text-xs text-red-300">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-red-400" />
+              <span>{errorMessage}</span>
             </div>
-
-            <details className="mt-1 pt-1 border-t border-red-500/20 text-[11px] text-red-400/90">
-              <summary className="cursor-pointer font-semibold hover:underline">
-                Technical Diagnostics &amp; Troubleshooting Info
-              </summary>
-              <div className="mt-2 space-y-1 font-mono bg-slate-950/80 p-2.5 rounded-lg border border-red-500/20 text-slate-300">
-                <p>• <strong>Fetcher Backend URL:</strong> {getFetcherUrl()}</p>
-                <p>• <strong>Attempted Scan Endpoint:</strong> {getFetcherUrl()}/refresh</p>
-                <p>• <strong>Page Location:</strong> {typeof window !== 'undefined' ? window.location.href : ''}</p>
-                <p>• <strong>Troubleshooting Steps:</strong> Verify that the Deno/Node fetcher service at <code>{getFetcherUrl()}</code> is running in Docker/Dokploy and accessible over port 8000 or proxy with valid CORS headers.</p>
-              </div>
-            </details>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-red-400 hover:text-red-300 text-xs font-bold"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -614,6 +471,45 @@ export default function App() {
         isScanning={isScanning}
       />
 
+      {/* Database Backup & Restore Modal */}
+      <BackupRestoreModal
+        isOpen={isBackupRestoreOpen}
+        onClose={() => setIsBackupRestoreOpen(false)}
+        records={records}
+        onRestoreSuccess={(newRecords, message) => {
+          setRecords(newRecords);
+          setStatusMessage(message);
+          fetchRecords();
+        }}
+      />
+
+      {/* Clean Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-3.5 text-center text-xs text-slate-500 mt-auto">
+        <p className="flex items-center justify-center space-x-2 flex-wrap px-3">
+          <span>End Scam Scan &bull; Auto Refreshes @ 7:00 AM & 1:00 PM PST &bull; 60-Day Auto-Retention</span>
+          <span>&bull;</span>
+          <button
+            id="btn-footer-backup-restore"
+            onClick={() => setIsBackupRestoreOpen(true)}
+            className="inline-flex items-center space-x-1 text-slate-400 hover:text-amber-400 font-medium transition-colors cursor-pointer py-1 px-1.5 rounded hover:bg-slate-900"
+            title="Backup Database to Excel or Restore Database from Excel File"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Backup and Restore</span>
+          </button>
+          <span>&bull;</span>
+          <button
+            id="btn-footer-manual-refresh"
+            onClick={handleRunScanNow}
+            disabled={isScanning}
+            className={`focus:outline-none transition-colors ${isScanning ? 'text-emerald-400 opacity-80 cursor-not-allowed' : 'hover:text-emerald-400 font-medium'}`}
+            title="Trigger Manual Refresh Scan"
+          >
+            {isScanning ? (scanStatusMessage ? `${scanStatusMessage} (${scanProgress}%)` : `Refreshing... ${scanProgress}%`) : 'Manual Refresh'}
+          </button>
+        </p>
+      </footer>
     </div>
   );
 }
+

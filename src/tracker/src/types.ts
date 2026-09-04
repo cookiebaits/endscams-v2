@@ -44,6 +44,7 @@ export interface ScamPhoneRecord {
   numberDownAt?: string;      // Timestamp when marked as down
   updatedAt?: string;         // Timestamp when record was updated/edited
   notes?: string;
+  imageUrl?: string;          // Uploaded or pasted screenshot/evidence image
 }
 
 export type SortField = 'scamType' | 'phone' | 'sourceUrl' | 'platform' | 'detectedAt';
@@ -183,3 +184,4 @@ export interface SyncBridgeStatus {
   lastSyncTimestamp: string | null;
   lastMessageSummary?: string;
 }
+

@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Terminal,
+  ExternalLink,
   Code2,
   Trash2,
   Play
@@ -34,6 +35,10 @@ export const IFrameSyncModal: React.FC<IFrameSyncModalProps> = ({
   isOpen,
   onClose,
   records,
+  isScanning,
+  lastScanTime,
+  nextScheduledRefresh,
+  onTriggerScan,
 }) => {
   const [activeTab, setActiveTab] = useState<'status' | 'tester' | 'snippets'>('status');
   const [status, setStatus] = useState<SyncBridgeStatus>(syncBridge.getStatus());
@@ -102,11 +107,11 @@ export const IFrameSyncModal: React.FC<IFrameSyncModalProps> = ({
   });
 
   const parentEmbedHtmlSnippet = `<!-- 1. HTML Iframe Embed Code for https://endscams.org/tracker -->
-<iframe
+<iframe 
   id="end-scam-scanner-frame"
   src="${typeof window !== 'undefined' ? window.location.origin : 'https://your-scanner-app-url'}"
-  width="100%"
-  height="750px"
+  width="100%" 
+  height="750px" 
   style="border: 1px solid #334155; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);"
   allow="clipboard-write; storage-access"
 ></iframe>
@@ -125,7 +130,7 @@ export const IFrameSyncModal: React.FC<IFrameSyncModalProps> = ({
       const records = data.payload?.records || data.records || [];
       console.log('✅ [EndScams Tracker] Received fresh scam records:', records);
       console.log('Total Active Threats:', records.length);
-
+      
       // Update your tracker state or store:
       // window.endScamsTracker.updateRecords(records);
     }

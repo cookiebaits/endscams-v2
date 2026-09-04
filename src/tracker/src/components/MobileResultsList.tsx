@@ -12,11 +12,14 @@ import {
   Hash,
   ChevronDown,
   ChevronUp,
+  ShieldAlert,
   ArrowUpDown,
   Download,
+  Upload,
   FileSpreadsheet,
   FileText,
   AlertCircle,
+  Share2,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder } from '../types';
 import { formatPST } from '../utils/dateUtils';
@@ -33,8 +36,7 @@ interface MobileResultsListProps {
   sortOrder: SortOrder;
   onSortChange: (field: SortField) => void;
   onExportCSV: () => void;
-  onExportJSON: () => void;
-  onExportTXT: () => void;
+  onImportCSV?: () => void;
   onOpenAddModal: () => void;
   onOpenSearchModal: () => void;
 }
@@ -51,8 +53,9 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
   sortOrder,
   onSortChange,
   onExportCSV,
-  onExportJSON,
-  onExportTXT,
+  onImportCSV,
+  onOpenAddModal,
+  onOpenSearchModal,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedRecordIds, setExpandedRecordIds] = useState<Set<string>>(new Set());
@@ -127,26 +130,18 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
                     <FileSpreadsheet className="w-3.5 h-3.5" />
                     <span>Export CSV</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      onExportJSON();
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-300 hover:bg-blue-500/10 flex items-center space-x-2"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Export JSON</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onExportTXT();
-                      setShowExportMenu(false);
-                    }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 flex items-center space-x-2"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export TXT</span>
-                  </button>
+                  {onImportCSV && (
+                    <button
+                      onClick={() => {
+                        onImportCSV();
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium text-cyan-300 hover:bg-cyan-500/10 flex items-center space-x-2"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Import CSV</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -398,6 +393,25 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
                       <p className="italic text-slate-300 bg-slate-950 p-2.5 rounded-lg border border-slate-800/80 text-xs leading-relaxed break-words">
                         "{record.snippet}"
                       </p>
+                      {record.imageUrl && (
+                        <div className="mt-2">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
+                            Evidence Screenshot:
+                          </span>
+                          <a
+                            href={record.imageUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block rounded-lg overflow-hidden border border-slate-800 hover:border-amber-500 transition-colors max-h-40"
+                          >
+                            <img
+                              src={record.imageUrl}
+                              alt="Evidence"
+                              className="w-full h-auto max-h-40 object-contain bg-black/40"
+                            />
+                          </a>
+                        </div>
+                      )}
                     </div>
 
                     {/* Source Link & Copy */}

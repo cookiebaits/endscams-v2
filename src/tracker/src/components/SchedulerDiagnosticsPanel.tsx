@@ -13,9 +13,12 @@ import {
   ShieldCheck,
   Zap,
   X,
+  ChevronDown,
+  ChevronUp,
   Flame,
+  Info,
 } from 'lucide-react';
-import { SchedulerDiagnosticsData } from '../types';
+import { SchedulerDiagnosticsData, SchedulerLogEntry } from '../types';
 
 interface SchedulerDiagnosticsPanelProps {
   isOpen: boolean;

@@ -30,7 +30,8 @@ class SyncBridgeManager {
   private broadcastChannel: BroadcastChannel | null = null;
   private isEmbeddedInIframe = false;
   private hasParentWindow = false;
-    private heartbeatInterval: any = null;
+  private isEndScamsParentDetected = false;
+  private heartbeatInterval: any = null;
   private messagesSentCount = 0;
   private messagesReceivedCount = 0;
   private lastSyncTimestamp: string | null = null;
@@ -45,10 +46,11 @@ class SyncBridgeManager {
     try {
       this.isEmbeddedInIframe = typeof window !== 'undefined' && window.self !== window.top;
       this.hasParentWindow = typeof window !== 'undefined' && Boolean(window.parent && window.parent !== window.self);
-
+      
       if (typeof document !== 'undefined' && document.referrer) {
         if (document.referrer.includes('endscams.org')) {
-                    this.lastMessageSummary = 'Detected parent embedding from https://endscams.org/tracker';
+          this.isEndScamsParentDetected = true;
+          this.lastMessageSummary = 'Detected parent embedding from https://endscams.org/tracker';
         }
       }
     } catch {
@@ -128,7 +130,8 @@ class SyncBridgeManager {
     if (event.data.source === 'react-devtools' || event.data.type?.startsWith?.('webpack')) return;
 
     if (event.origin && event.origin.includes('endscams.org')) {
-          }
+      this.isEndScamsParentDetected = true;
+    }
 
     this.handleIncomingRawMessage(event.data, 'postMessage', event.origin);
   };
