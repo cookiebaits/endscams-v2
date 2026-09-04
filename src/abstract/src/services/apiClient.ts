@@ -8,12 +8,18 @@ export function getProxyBaseUrl(): string {
   if (saved && saved.trim()) {
     return saved.trim().replace(/\/+$/, '');
   }
-  // Otherwise use Vite env or relative /api
-  const envUrl = (import.meta as any).env?.VITE_PROXY_URL;
+  // Check Vite env variables
+  const envUrl = (import.meta as any).env?.VITE_PROXY_URL || (import.meta as any).env?.VITE_FETCHER_URL;
   if (envUrl && envUrl.trim()) {
-    return envUrl.trim().replace(/\/+$/, '');
+    const clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
-  return '/api';
+  // On localhost, use relative /api which Vite dev proxy maps to http://localhost:8000
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return '/api';
+  }
+  // Production fallback to the backend fetcher service
+  return 'https://fetcher.endscams.org/api';
 }
 
 export function setProxyBaseUrl(url: string): void {

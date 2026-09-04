@@ -606,6 +606,7 @@ function extractHtmlMetadata(html: string) {
 }
 
 async function handlePhoneRequest(req: Request, directPhone?: string): Promise<Response> {
+  const ts = new Date().toISOString();
   let phone = directPhone;
   if (!phone && req.method === "POST") {
     try {
@@ -613,7 +614,15 @@ async function handlePhoneRequest(req: Request, directPhone?: string): Promise<R
       phone = body.phone || body.query;
     } catch { /* ignore */ }
   }
+  if (!phone) {
+    const parsedUrl = new URL(req.url);
+    phone = parsedUrl.searchParams.get("phone") || parsedUrl.searchParams.get("query") || undefined;
+  }
+
+  console.log(`[Abstract API] ${ts} - Request: ${req.method} /phone - Target phone: "${phone || "none"}"`);
+
   if (!phone || typeof phone !== "string") {
+    console.warn(`[Abstract API] ${ts} - /phone 400: Missing phone parameter`);
     return json({ error: "Please provide a valid phone number (e.g. +14152007986)" }, 400);
   }
 
@@ -625,10 +634,12 @@ async function handlePhoneRequest(req: Request, directPhone?: string): Promise<R
   const cacheKey = `phone:${cleanPhone}`;
   const cached = getFromCache(cacheKey);
   if (cached) {
+    console.log(`[Abstract API] ${ts} - /phone 200 OK (Memory Cache Hit)`);
     return json({ ...cached, source: "AbstractAPI Phone Intelligence (Cached • 0ms)" });
   }
 
   if (!ABSTRACT_PHONE_API_KEY) {
+    console.warn(`[Abstract API] ${ts} - /phone 503: ABSTRACT_PHONE_API_KEY is not configured`);
     return json({ error: "ABSTRACT_PHONE_API_KEY is not configured in environment." }, 503);
   }
 
@@ -638,6 +649,7 @@ async function handlePhoneRequest(req: Request, directPhone?: string): Promise<R
     const apiRes = await fetch(targetUrl);
     const data = await apiRes.json();
     if (!apiRes.ok) {
+      console.warn(`[Abstract API] ${ts} - /phone Upstream Error ${apiRes.status}:`, data);
       return json({ error: data.error?.message || `Phone API returned ${apiRes.status}`, details: data }, apiRes.status);
     }
 
@@ -665,13 +677,16 @@ async function handlePhoneRequest(req: Request, directPhone?: string): Promise<R
     };
 
     setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    console.log(`[Abstract API] ${ts} - /phone 200 OK - Carrier: ${normalizedData.carrier}`);
     return json(responsePayload);
   } catch (err: any) {
+    console.error(`[Abstract API] ${ts} - /phone 500 Error:`, err);
     return json({ error: err.message || "Phone proxy error" }, 500);
   }
 }
 
 async function handleEmailRequest(req: Request, directEmail?: string): Promise<Response> {
+  const ts = new Date().toISOString();
   let email = directEmail;
   if (!email && req.method === "POST") {
     try {
@@ -679,7 +694,15 @@ async function handleEmailRequest(req: Request, directEmail?: string): Promise<R
       email = body.email || body.query;
     } catch { /* ignore */ }
   }
+  if (!email) {
+    const parsedUrl = new URL(req.url);
+    email = parsedUrl.searchParams.get("email") || parsedUrl.searchParams.get("query") || undefined;
+  }
+
+  console.log(`[Abstract API] ${ts} - Request: ${req.method} /email - Target email: "${email || "none"}"`);
+
   if (!email || typeof email !== "string" || !email.includes("@")) {
+    console.warn(`[Abstract API] ${ts} - /email 400: Invalid email address`);
     return json({ error: "Please provide a valid email address" }, 400);
   }
 
@@ -687,10 +710,12 @@ async function handleEmailRequest(req: Request, directEmail?: string): Promise<R
   const cacheKey = `email:${cleanEmail}`;
   const cached = getFromCache(cacheKey);
   if (cached) {
+    console.log(`[Abstract API] ${ts} - /email 200 OK (Memory Cache Hit)`);
     return json({ ...cached, source: "AbstractAPI Email Reputation (Cached • 0ms)" });
   }
 
   if (!ABSTRACT_EMAIL_API_KEY) {
+    console.warn(`[Abstract API] ${ts} - /email 503: ABSTRACT_EMAIL_API_KEY is not configured`);
     return json({ error: "ABSTRACT_EMAIL_API_KEY is not configured in environment." }, 503);
   }
 
@@ -700,6 +725,7 @@ async function handleEmailRequest(req: Request, directEmail?: string): Promise<R
     const apiRes = await fetch(targetUrl);
     const data = await apiRes.json();
     if (!apiRes.ok) {
+      console.warn(`[Abstract API] ${ts} - /email Upstream Error ${apiRes.status}:`, data);
       return json({ error: data.error?.message || `Email API returned ${apiRes.status}`, details: data }, apiRes.status);
     }
 
@@ -710,19 +736,26 @@ async function handleEmailRequest(req: Request, directEmail?: string): Promise<R
     };
 
     setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    console.log(`[Abstract API] ${ts} - /email 200 OK`);
     return json(responsePayload);
   } catch (err: any) {
+    console.error(`[Abstract API] ${ts} - /email 500 Error:`, err);
     return json({ error: err.message || "Email proxy error" }, 500);
   }
 }
 
 async function handleIpRequest(req: Request, directIp?: string): Promise<Response> {
+  const ts = new Date().toISOString();
   let ip_address = directIp;
   if (!ip_address && req.method === "POST") {
     try {
       const body = await req.json();
       ip_address = body.ip_address || body.query;
     } catch { /* ignore */ }
+  }
+  if (!ip_address) {
+    const parsedUrl = new URL(req.url);
+    ip_address = parsedUrl.searchParams.get("ip_address") || parsedUrl.searchParams.get("ip") || parsedUrl.searchParams.get("query") || undefined;
   }
 
   if (!ip_address || ip_address === "auto" || ip_address.trim() === "") {
@@ -731,14 +764,18 @@ async function handleIpRequest(req: Request, directIp?: string): Promise<Respons
     ip_address = (clientIp.includes("127.0.0.1") || clientIp === "::1") ? "8.8.8.8" : clientIp;
   }
 
+  console.log(`[Abstract API] ${ts} - Request: ${req.method} /ip - Target IP: "${ip_address}"`);
+
   const cleanIp = ip_address.trim();
   const cacheKey = `ip:${cleanIp}`;
   const cached = getFromCache(cacheKey);
   if (cached) {
+    console.log(`[Abstract API] ${ts} - /ip 200 OK (Memory Cache Hit)`);
     return json({ ...cached, source: "AbstractAPI IP Intelligence (Cached • 0ms)" });
   }
 
   if (!ABSTRACT_IP_API_KEY) {
+    console.warn(`[Abstract API] ${ts} - /ip 503: ABSTRACT_IP_API_KEY is not configured`);
     return json({ error: "ABSTRACT_IP_API_KEY is not configured in environment." }, 503);
   }
 
@@ -748,6 +785,7 @@ async function handleIpRequest(req: Request, directIp?: string): Promise<Respons
     const apiRes = await fetch(targetUrl);
     const data = await apiRes.json();
     if (!apiRes.ok) {
+      console.warn(`[Abstract API] ${ts} - /ip Upstream Error ${apiRes.status}:`, data);
       return json({ error: data.error?.message || `IP API returned ${apiRes.status}`, details: data }, apiRes.status);
     }
 
@@ -758,13 +796,16 @@ async function handleIpRequest(req: Request, directIp?: string): Promise<Respons
     };
 
     setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    console.log(`[Abstract API] ${ts} - /ip 200 OK`);
     return json(responsePayload);
   } catch (err: any) {
+    console.error(`[Abstract API] ${ts} - /ip 500 Error:`, err);
     return json({ error: err.message || "IP proxy error" }, 500);
   }
 }
 
 async function handleScrapeRequest(req: Request, directUrl?: string, directRenderJs = false, directCountry?: string): Promise<Response> {
+  const ts = new Date().toISOString();
   let url = directUrl;
   let render_js = directRenderJs;
   let country_code = directCountry;
@@ -777,8 +818,16 @@ async function handleScrapeRequest(req: Request, directUrl?: string, directRende
       if (body.country_code) country_code = body.country_code;
     } catch { /* ignore */ }
   }
+  if (!url) {
+    const parsedUrl = new URL(req.url);
+    url = parsedUrl.searchParams.get("url") || parsedUrl.searchParams.get("query") || undefined;
+    if (parsedUrl.searchParams.get("render_js") === "true") render_js = true;
+  }
+
+  console.log(`[Abstract API] ${ts} - Request: ${req.method} /scrape - Target URL: "${url || "none"}"`);
 
   if (!url || typeof url !== "string" || !url.startsWith("http")) {
+    console.warn(`[Abstract API] ${ts} - /scrape 400: Missing or invalid URL`);
     return json({ error: "Please provide a valid URL starting with http:// or https://" }, 400);
   }
 
@@ -786,10 +835,12 @@ async function handleScrapeRequest(req: Request, directUrl?: string, directRende
   const cacheKey = `scrape:${cleanUrl}:${render_js}:${country_code || "default"}`;
   const cached = getFromCache(cacheKey);
   if (cached) {
+    console.log(`[Abstract API] ${ts} - /scrape 200 OK (Memory Cache Hit)`);
     return json({ ...cached, source: "AbstractAPI Web Scraper (Cached • 0ms)" });
   }
 
   if (!ABSTRACT_SCRAPE_API_KEY) {
+    console.log(`[Abstract API] ${ts} - /scrape: No key configured, performing direct fetch fallback`);
     try {
       const directRes = await fetch(cleanUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
@@ -808,6 +859,7 @@ async function handleScrapeRequest(req: Request, directUrl?: string, directRende
       setInCache(cacheKey, directPayload, 10 * 60 * 1000);
       return json(directPayload);
     } catch (fallbackErr: any) {
+      console.error(`[Abstract API] ${ts} - /scrape Direct Fallback Error:`, fallbackErr);
       return json({ error: `Failed to scrape target URL: ${fallbackErr.message || "Connection failed"}` }, 500);
     }
   }
@@ -831,9 +883,11 @@ async function handleScrapeRequest(req: Request, directUrl?: string, directRende
         parsed: extractHtmlMetadata(bodyText)
       };
       setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+      console.log(`[Abstract API] ${ts} - /scrape 200 OK (${bodyText.length} bytes)`);
       return json(responsePayload);
     }
 
+    console.warn(`[Abstract API] ${ts} - /scrape Upstream returned ${apiRes.status}. Retrying via direct fetch fallback...`);
     const directRes = await fetch(cleanUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
     });
@@ -851,11 +905,14 @@ async function handleScrapeRequest(req: Request, directUrl?: string, directRende
     setInCache(cacheKey, fallbackPayload, 10 * 60 * 1000);
     return json(fallbackPayload);
   } catch (err: any) {
+    console.error(`[Abstract API] ${ts} - /scrape 500 Error:`, err);
     return json({ error: err.message || "Scrape proxy error" }, 500);
   }
 }
 
 async function handleToolsProxy(req: Request): Promise<Response> {
+  const ts = new Date().toISOString();
+  console.log(`[Abstract API] ${ts} - Request: ${req.method} /api/tools`);
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
   let body;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
@@ -872,6 +929,7 @@ async function handleToolsProxy(req: Request): Promise<Response> {
 }
 
 function handleStatusRequest(): Response {
+  console.log(`[Abstract API] ${new Date().toISOString()} - Request: GET /status`);
   return json({
     status: "online",
     version: "1.0.0",
