@@ -3,23 +3,19 @@ import { ServerStatusResponse, PhoneResult, EmailResult, IpResult, ScrapeResult 
 const PROXY_STORAGE_KEY = 'abstract_proxy_base_url';
 
 export function getProxyBaseUrl(): string {
-  // If user configured a custom proxy URL (for GitHub Pages hosting)
+  // If user configured a custom proxy URL (e.g. for external testing)
   const saved = localStorage.getItem(PROXY_STORAGE_KEY);
   if (saved && saved.trim()) {
     return saved.trim().replace(/\/+$/, '');
   }
-  // Check Vite env variables
-  const envUrl = (import.meta as any).env?.VITE_PROXY_URL || (import.meta as any).env?.VITE_FETCHER_URL;
+  // Check explicit custom proxy URL env variable
+  const envUrl = (import.meta as any).env?.VITE_PROXY_URL;
   if (envUrl && envUrl.trim()) {
     const clean = envUrl.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
-  // On localhost, use relative /api which Vite dev proxy maps to http://localhost:8000
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return '/api';
-  }
-  // Production fallback to the backend fetcher service
-  return 'https://fetcher.endscams.org/api';
+  // Relative /api works for both Vite dev server (on localhost) and Nginx reverse proxy (in Docker/production)
+  return '/api';
 }
 
 export function setProxyBaseUrl(url: string): void {
@@ -32,17 +28,33 @@ export function setProxyBaseUrl(url: string): void {
 
 async function requestJson<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const baseUrl = getProxyBaseUrl();
-  const url = `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const primaryUrl = `${baseUrl}${cleanEndpoint}`;
   
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
   };
 
-  const res = await fetch(url, {
-    ...options,
-    headers
-  });
+  let res: Response;
+  try {
+    res = await fetch(primaryUrl, { ...options, headers });
+  } catch (primaryErr) {
+    // If relative /api fails with network error, try fallback to VITE_FETCHER_URL if defined
+    const fetcherUrl = (import.meta as any).env?.VITE_FETCHER_URL;
+    if (fetcherUrl && fetcherUrl.trim() && !primaryUrl.startsWith('http')) {
+      const cleanFetcher = fetcherUrl.trim().replace(/\/+$/, '');
+      const fallbackBase = cleanFetcher.endsWith('/api') ? cleanFetcher : `${cleanFetcher}/api`;
+      const fallbackUrl = `${fallbackBase}${cleanEndpoint}`;
+      try {
+        res = await fetch(fallbackUrl, { ...options, headers });
+      } catch {
+        throw primaryErr;
+      }
+    } else {
+      throw primaryErr;
+    }
+  }
 
   const data = await res.json().catch(() => null);
 

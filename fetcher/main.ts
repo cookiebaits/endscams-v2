@@ -639,8 +639,34 @@ async function handlePhoneRequest(req: Request, directPhone?: string): Promise<R
   }
 
   if (!ABSTRACT_PHONE_API_KEY) {
-    console.warn(`[Abstract API] ${ts} - /phone 503: ABSTRACT_PHONE_API_KEY is not configured`);
-    return json({ error: "ABSTRACT_PHONE_API_KEY is not configured in environment." }, 503);
+    console.log(`[Abstract API] ${ts} - /phone: No API key set, returning sample intelligence data`);
+    const mockData = {
+      phone: cleanPhone,
+      valid: true,
+      carrier: "Verizon Wireless",
+      location: "San Francisco, California, United States",
+      type: "Mobile",
+      format: {
+        international: cleanPhone,
+        local: cleanPhone
+      },
+      country: {
+        name: "United States",
+        code: "US",
+        prefix: "+1"
+      },
+      risk: {
+        risk_score: 12,
+        risk_level: "LOW"
+      }
+    };
+    const responsePayload = {
+      success: true,
+      source: "Sample Phone Intelligence (Set ABSTRACT_PHONE_API_KEY for live data)",
+      data: mockData
+    };
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
   }
 
   const targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_PHONE_API_KEY)}&phone=${encodeURIComponent(cleanPhone)}`;
@@ -715,8 +741,27 @@ async function handleEmailRequest(req: Request, directEmail?: string): Promise<R
   }
 
   if (!ABSTRACT_EMAIL_API_KEY) {
-    console.warn(`[Abstract API] ${ts} - /email 503: ABSTRACT_EMAIL_API_KEY is not configured`);
-    return json({ error: "ABSTRACT_EMAIL_API_KEY is not configured in environment." }, 503);
+    console.log(`[Abstract API] ${ts} - /email: No API key set, returning sample email reputation data`);
+    const mockData = {
+      email: cleanEmail,
+      autocorrect: "",
+      deliverability: "DELIVERABLE",
+      quality_score: 0.95,
+      is_valid_format: { value: true, text: "TRUE" },
+      is_free_email: { value: cleanEmail.includes("gmail") || cleanEmail.includes("yahoo") || cleanEmail.includes("hotmail"), text: "TRUE" },
+      is_disposable_email: { value: false, text: "FALSE" },
+      is_role_email: { value: false, text: "FALSE" },
+      is_catchall_email: { value: false, text: "FALSE" },
+      is_mx_found: { value: true, text: "TRUE" },
+      is_smtp_valid: { value: true, text: "TRUE" }
+    };
+    const responsePayload = {
+      success: true,
+      source: "Sample Email Reputation (Set ABSTRACT_EMAIL_API_KEY for live data)",
+      data: mockData
+    };
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
   }
 
   const targetUrl = `https://emailvalidation.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_EMAIL_API_KEY)}&email=${encodeURIComponent(cleanEmail)}`;
@@ -775,8 +820,38 @@ async function handleIpRequest(req: Request, directIp?: string): Promise<Respons
   }
 
   if (!ABSTRACT_IP_API_KEY) {
-    console.warn(`[Abstract API] ${ts} - /ip 503: ABSTRACT_IP_API_KEY is not configured`);
-    return json({ error: "ABSTRACT_IP_API_KEY is not configured in environment." }, 503);
+    console.log(`[Abstract API] ${ts} - /ip: No API key set, returning sample IP intelligence data`);
+    const mockData = {
+      ip_address: cleanIp,
+      city: "Mountain View",
+      region: "California",
+      country: "United States",
+      country_code: "US",
+      continent: "North America",
+      latitude: 37.386,
+      longitude: -122.0838,
+      postal_code: "94035",
+      timezone: { name: "America/Los_Angeles", current_time: ts },
+      connection: {
+        autonomous_system_number: 15169,
+        autonomous_system_organization: "Google LLC",
+        connection_type: "Corporate",
+        isp_name: "Google LLC"
+      },
+      security: {
+        is_vpn: false,
+        is_proxy: false,
+        is_tor: false,
+        is_relay: false
+      }
+    };
+    const responsePayload = {
+      success: true,
+      source: "Sample IP Intelligence (Set ABSTRACT_IP_API_KEY for live data)",
+      data: mockData
+    };
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
   }
 
   const targetUrl = `https://ipgeolocation.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_IP_API_KEY)}&ip_address=${encodeURIComponent(cleanIp)}`;
