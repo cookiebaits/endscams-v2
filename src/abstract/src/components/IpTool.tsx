@@ -9,8 +9,6 @@ import {
   ShieldCheck, 
   MapPin, 
   Server, 
-  Clock, 
-  DollarSign, 
   Copy, 
   Check, 
   RefreshCw, 

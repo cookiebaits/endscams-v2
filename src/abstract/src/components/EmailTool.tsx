@@ -16,8 +16,7 @@ import {
   ChevronDown, 
   ChevronUp, 
   Database,
-  Calendar,
-  Filter
+  Calendar
 } from 'lucide-react';
 
 export const EmailTool: React.FC = () => {

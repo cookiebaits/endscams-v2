@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ServerStatusResponse } from './types';
 import { apiClient } from './services/apiClient';
 import { OverviewDashboard } from './components/OverviewDashboard';
@@ -96,7 +96,7 @@ export default function App() {
       <ProxyConfigModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        onSave={() => fetchStatus()}
+        onSaved={() => fetchStatus()}
       />
     </div>
   );

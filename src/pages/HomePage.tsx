@@ -3,6 +3,10 @@ import { Link } from 'react-router';
 import { Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, Network, Globe } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 import Banner from '../components/Banner';
+import { PhoneTool } from '../abstract/src/components/PhoneTool';
+import { EmailTool } from '../abstract/src/components/EmailTool';
+import { IpTool } from '../abstract/src/components/IpTool';
+import { ScraperTool } from '../abstract/src/components/ScraperTool';
 
 type ImpactStats = {
   money_saved: number;
@@ -106,106 +110,6 @@ function useCountUp(end: number, duration: number = 2000) {
 export default function HomePage() {
 
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
-
-
-  const [phoneToolInput, setPhoneToolInput] = useState('');
-  const [phoneToolLoading, setPhoneToolLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [phoneToolResult, setPhoneToolResult] = useState<any>(null);
-
-  const [emailToolInput, setEmailToolInput] = useState('');
-  const [emailToolLoading, setEmailToolLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [emailToolResult, setEmailToolResult] = useState<any>(null);
-
-  const [ipToolInput, setIpToolInput] = useState('');
-  const [ipToolLoading, setIpToolLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [ipToolResult, setIpToolResult] = useState<any>(null);
-
-  const [scrapeToolInput, setScrapeToolInput] = useState('');
-  const [scrapeToolLoading, setScrapeToolLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
-
-  const rawFetcherUrl = import.meta.env.DEV ? 'http://localhost:8000' : (import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org');
-  const fetcherUrl = rawFetcherUrl.replace(/\/+$/, '');
-
-  const handlePhoneToolSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneToolInput) return;
-    setPhoneToolLoading(true);
-    setPhoneToolResult(null);
-    try {
-      const response = await fetch(`${fetcherUrl}/api/tools`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'phone', query: phoneToolInput })
-      });
-      const data = await response.json();
-      setPhoneToolResult(data);
-    } catch {
-      setPhoneToolResult({ error: 'Failed to fetch' });
-    }
-    setPhoneToolLoading(false);
-  };
-
-  const handleEmailToolSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailToolInput) return;
-    setEmailToolLoading(true);
-    setEmailToolResult(null);
-    try {
-      const response = await fetch(`${fetcherUrl}/api/tools`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'email', query: emailToolInput })
-      });
-      const data = await response.json();
-      setEmailToolResult(data);
-    } catch {
-      setEmailToolResult({ error: 'Failed to fetch' });
-    }
-    setEmailToolLoading(false);
-  };
-
-  const handleIpToolSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!ipToolInput) return;
-    setIpToolLoading(true);
-    setIpToolResult(null);
-    try {
-      const response = await fetch(`${fetcherUrl}/api/tools`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'ip', query: ipToolInput })
-      });
-      const data = await response.json();
-      setIpToolResult(data);
-    } catch {
-      setIpToolResult({ error: 'Failed to fetch' });
-    }
-    setIpToolLoading(false);
-  };
-
-  const handleScrapeToolSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scrapeToolInput) return;
-    setScrapeToolLoading(true);
-    setScrapeToolResult(null);
-    try {
-      const response = await fetch(`${fetcherUrl}/api/tools`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'scrape', query: scrapeToolInput })
-      });
-      const data = await response.json();
-      setScrapeToolResult(data);
-    } catch {
-      setScrapeToolResult({ error: 'Failed to fetch' });
-    }
-    setScrapeToolLoading(false);
-  };
   const [input, setInput] = useState('');
   const [searching, setSearching] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -562,29 +466,29 @@ export default function HomePage() {
           <p className="section-subtitle text-center mb-12">
             Access our comprehensive database and educational materials to stay protected.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <button onClick={() => setActiveTool(activeTool === 'phone' ? null : 'phone')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'phone' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90' : 'bg-white dark:bg-slate-900/80'}`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <button onClick={() => setActiveTool(activeTool === 'phone' ? null : 'phone')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'phone' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90 ring-2 ring-brand-500/30' : 'bg-white dark:bg-slate-900/80'}`}>
               <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
                 <Phone className="w-6 h-6 text-brand-500" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">Phone Search</h3>
               <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">Confirm if a number is fraudulent.</p>
             </button>
-            <button onClick={() => setActiveTool(activeTool === 'email' ? null : 'email')} className={`card p-6 text-left hover:border-brand-500/50 transition-all duration-300 hover:shadow-md group block ${activeTool === 'email' ? 'border-brand-500 bg-slate-900/90' : ''}`}>
+            <button onClick={() => setActiveTool(activeTool === 'email' ? null : 'email')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'email' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90 ring-2 ring-brand-500/30' : 'bg-white dark:bg-slate-900/80'}`}>
               <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
                 <Mail className="w-6 h-6 text-brand-500" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">Email Scanner</h3>
               <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">Predict if an email is spam.</p>
             </button>
-            <button onClick={() => setActiveTool(activeTool === 'ip' ? null : 'ip')} className={`card p-6 text-left hover:border-brand-500/50 transition-all duration-300 hover:shadow-md group block ${activeTool === 'ip' ? 'border-brand-500 bg-slate-900/90' : ''}`}>
+            <button onClick={() => setActiveTool(activeTool === 'ip' ? null : 'ip')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'ip' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90 ring-2 ring-brand-500/30' : 'bg-white dark:bg-slate-900/80'}`}>
               <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
                 <Network className="w-6 h-6 text-brand-500" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 group-hover:text-brand-500 transition-colors">IP Intelligence</h3>
               <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">Scan an IP address.</p>
             </button>
-            <button onClick={() => setActiveTool(activeTool === 'scrape' ? null : 'scrape')} className={`card p-6 text-left hover:border-brand-500/50 transition-all duration-300 hover:shadow-md group block ${activeTool === 'scrape' ? 'border-brand-500 bg-slate-900/90' : ''}`}>
+            <button onClick={() => setActiveTool(activeTool === 'scrape' ? null : 'scrape')} className={`card p-6 text-left hover:border-brand-500/50 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group block ${activeTool === 'scrape' ? 'border-brand-500 bg-slate-100 dark:bg-slate-900/90 ring-2 ring-brand-500/30' : 'bg-white dark:bg-slate-900/80'}`}>
               <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4 group-hover:bg-brand-500/20 transition-colors">
                 <Globe className="w-6 h-6 text-brand-500" />
               </div>
@@ -594,180 +498,26 @@ export default function HomePage() {
           </div>
 
           {activeTool === 'phone' && (
-            <div className="mt-8 card p-6 bg-slate-900/80 backdrop-blur-md">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Phone Searcher</h3>
-              <form onSubmit={handlePhoneToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={phoneToolInput} onChange={(e) => setPhoneToolInput(e.target.value)} placeholder="Enter phone number (e.g. +14152000000)" className="input-field flex-1" />
-                <button type="submit" disabled={phoneToolLoading} className="btn-primary px-6 flex items-center gap-2">
-                  {phoneToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Search
-                </button>
-              </form>
-              {phoneToolResult && (
-                <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                  {phoneToolResult.error ? (
-                     <p className="text-red-500 font-medium">{phoneToolResult.error}</p>
-                  ) : (
-                    <div className="flex flex-col gap-4 text-left">
-                      {(() => {
-                        const carrier = phoneToolResult.phone_carrier?.name?.toLowerCase() || '';
-                        const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'text free'];
-                        const majors = ['t-mobile', 'at&t', 'verizon', 'boost mobile', 'dish wireless'];
-
-                        const isWholesaler = wholesalers.some(w => carrier.includes(w));
-                        const isMajor = majors.some(m => carrier.includes(m));
-
-                        if (isWholesaler) {
-                          return <div className="text-red-500 font-bold px-4 py-3 bg-red-500/10 rounded-lg inline-block self-start border border-red-500/20">Risk: Likely Spam or Scam (Wholesaler detected)</div>;
-                        } else if (isMajor) {
-                          return <div className="text-green-500 font-bold px-4 py-3 bg-green-500/10 rounded-lg inline-block self-start border border-green-500/20">Risk: Low (Major Carrier)</div>;
-                        }
-                        return null;
-                      })()}
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-brand-500" />
-                            Validation & Status
-                          </p>
-                          <div className="space-y-2 text-sm text-slate-400">
-                            <p className="flex justify-between">
-                              <span>Valid Number:</span>
-                              <span className={`font-medium ${phoneToolResult.is_valid ? 'text-green-400' : 'text-red-400'}`}>
-                                {phoneToolResult.is_valid ? 'Yes' : 'No'}
-                              </span>
-                            </p>
-                            <p className="flex justify-between">
-                              <span>Line Status:</span>
-                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.line_status || 'Unknown'}</span>
-                            </p>
-                            <p className="flex justify-between">
-                              <span>VOIP:</span>
-                              <span className={`font-medium ${phoneToolResult.is_voip ? 'text-yellow-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                                {phoneToolResult.is_voip ? 'Yes' : 'No'}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            <Network className="w-4 h-4 text-blue-500" />
-                            Carrier Details
-                          </p>
-                          <div className="space-y-2 text-sm text-slate-400">
-                            <p className="flex flex-col">
-                              <span className="text-xs">Carrier Name:</span>
-                              <span className="text-slate-200 font-medium">{phoneToolResult.phone_carrier?.name || 'Unknown'}</span>
-                            </p>
-                            <p className="flex justify-between">
-                              <span>Line Type:</span>
-                              <span className="text-slate-700 dark:text-slate-300 font-medium capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 md:col-span-2 lg:col-span-1">
-                          <p className="font-bold text-slate-200 mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
-                            <Globe className="w-4 h-4 text-purple-500" />
-                            Formatting & Region
-                          </p>
-                          <div className="space-y-2 text-sm text-slate-400">
-                            <p className="flex flex-col">
-                              <span className="text-xs">International Format:</span>
-                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.international || 'N/A'}</span>
-                            </p>
-                            <p className="flex flex-col">
-                              <span className="text-xs">National Format:</span>
-                              <span className="text-slate-700 dark:text-slate-300 font-medium font-mono">{phoneToolResult.format?.national || 'N/A'}</span>
-                            </p>
-                            {phoneToolResult.location && (
-                               <p className="flex justify-between pt-1 border-t border-slate-700/50 mt-1">
-                                 <span>Region:</span>
-                                 <span className="text-slate-700 dark:text-slate-300">{phoneToolResult.location}</span>
-                               </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="mt-8 text-left animate-fade-in">
+              <PhoneTool />
             </div>
           )}
 
           {activeTool === 'email' && (
-            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Email Scanner</h3>
-              <form onSubmit={handleEmailToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={emailToolInput} onChange={(e) => setEmailToolInput(e.target.value)} placeholder="Enter email address" className="input-field flex-1" />
-                <button type="submit" disabled={emailToolLoading} className="btn-primary px-6 flex items-center gap-2">
-                  {emailToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scan
-                </button>
-              </form>
-              {emailToolResult && (
-                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
-                  {emailToolResult.error ? (
-                     <p className="text-red-500 font-medium">{emailToolResult.error}</p>
-                  ) : (
-                    <div>
-                      <div className="mb-2">
-                         <span className="font-bold text-slate-800 dark:text-white">Risk Status:</span>
-                         <span className={`ml-2 px-2 py-1 rounded text-sm font-bold ${emailToolResult.email_risk?.address_risk_status === 'high' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>{emailToolResult.email_risk?.address_risk_status || 'Unknown'}</span>
-                         {emailToolResult.email_quality?.is_disposable && <span className="ml-2 px-2 py-1 bg-red-500/10 text-red-500 rounded text-sm font-bold">(Disposable Email Detected!)</span>}
-                      </div>
-                      <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(emailToolResult, (key, value) => key === 'breaches' ? undefined : value, 2)}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="mt-8 text-left animate-fade-in">
+              <EmailTool />
             </div>
           )}
 
           {activeTool === 'ip' && (
-            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">IP Intelligence</h3>
-              <form onSubmit={handleIpToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={ipToolInput} onChange={(e) => setIpToolInput(e.target.value)} placeholder="Enter IP address" className="input-field flex-1" />
-                <button type="submit" disabled={ipToolLoading} className="btn-primary px-6 flex items-center gap-2">
-                  {ipToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scan
-                </button>
-              </form>
-              {ipToolResult && (
-                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
-                  {ipToolResult.error ? (
-                     <p className="text-red-500 font-medium">{ipToolResult.error}</p>
-                  ) : (
-                    <div>
-                      <pre className="text-xs text-slate-600 dark:text-slate-400 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(ipToolResult, null, 2)}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="mt-8 text-left animate-fade-in">
+              <IpTool />
             </div>
           )}
 
           {activeTool === 'scrape' && (
-            <div className="mt-8 card p-6 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Web Scraper</h3>
-              <form onSubmit={handleScrapeToolSearch} className="flex gap-2 mb-6">
-                <input type="text" value={scrapeToolInput} onChange={(e) => setScrapeToolInput(e.target.value)} placeholder="Enter URL (e.g. https://example.com)" className="input-field flex-1" />
-                <button type="submit" disabled={scrapeToolLoading} className="btn-primary px-6 flex items-center gap-2">
-                  {scrapeToolLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />} Scrape
-                </button>
-              </form>
-              {scrapeToolResult && (
-                <div className="p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
-                  {scrapeToolResult.error ? (
-                     <p className="text-red-500 font-medium">{scrapeToolResult.error}</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap max-h-96 overflow-y-auto">{typeof scrapeToolResult === 'string' ? scrapeToolResult.substring(0, 5000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 5000)}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
+            <div className="mt-8 text-left animate-fade-in">
+              <ScraperTool />
             </div>
           )}
         </div>

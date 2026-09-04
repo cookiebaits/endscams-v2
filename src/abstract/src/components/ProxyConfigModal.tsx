@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getProxyBaseUrl, setProxyBaseUrl } from '../services/apiClient';
-import { Server, CheckCircle2, AlertCircle, RefreshCw, X, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Server, CheckCircle2, AlertCircle, RefreshCw, X, ShieldCheck } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;

@@ -9,13 +9,8 @@ import {
   Copy, 
   Check, 
   ExternalLink, 
-  AlertCircle, 
   ShieldAlert, 
-  RefreshCw, 
-  Layers, 
-  CheckCircle2,
-  Sparkles,
-  SlidersHorizontal
+  RefreshCw
 } from 'lucide-react';
 
 export const ScraperTool: React.FC = () => {

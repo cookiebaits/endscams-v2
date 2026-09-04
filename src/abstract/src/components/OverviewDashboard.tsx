@@ -9,13 +9,11 @@ import {
   RefreshCw, 
   CheckCircle2, 
   XCircle,
-  ExternalLink,
   Copy,
   Check,
   Eye,
   FileText,
   Code,
-  Sparkles,
   Zap
 } from 'lucide-react';
 
@@ -72,7 +70,7 @@ interface Props {
   status: ServerStatusResponse | null;
 }
 
-export const OverviewDashboard: React.FC<Props> = ({ status }) => {
+export const OverviewDashboard: React.FC<Props> = () => {
   // Phone state
   const [phoneInput, setPhoneInput] = useState('+14152007986');
   const [phoneLoading, setPhoneLoading] = useState(false);

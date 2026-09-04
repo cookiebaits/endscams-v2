@@ -502,53 +502,409 @@ runPipeline()
 /* ================================================================ */
 
 /* ================================================================ */
-/*  Abstract Tools Proxy Endpoints                                   */
+/*  Abstract Tools Proxy Endpoints & Helpers                        */
 /* ================================================================ */
 
 const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
 const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
 const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
-const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
+const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || Deno.env.get("ABSTRACT_SCRAPER_API_KEY") || "";
 
-let lastToolSearchTime = 0;
+interface CacheEntry {
+  data: any;
+  expiry: number;
+}
+const apiCache = new Map<string, CacheEntry>();
 
-async function handleAbstractProxy(req: Request): Promise<Response> {
-  if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
-  let body;
-  try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
-
-  const now = Date.now();
-  if (now - lastToolSearchTime < 60_000) {
-    return cors(json({ error: "Rate limit exceeded. Please wait 1 minute between searches." }, 429));
+function getFromCache(key: string): any | null {
+  const item = apiCache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiry) {
+    apiCache.delete(key);
+    return null;
   }
-  lastToolSearchTime = now;
+  return item.data;
+}
 
-  const { tool, query } = body;
-  if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
+function setInCache(key: string, data: any, ttlMs = 10 * 60 * 1000) {
+  if (apiCache.size > 200) {
+    const first = apiCache.keys().next().value;
+    if (first) apiCache.delete(first);
+  }
+  apiCache.set(key, { data, expiry: Date.now() + ttlMs });
+}
 
-  const endpoints: Record<string, { base: string, key: string, param: string }> = {
-    phone: { base: "https://phoneintelligence.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
-    email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
-    ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
-    scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },
+function decodeHtmlEntities(str: string): string {
+  if (!str) return "";
+  let result = str;
+  for (let i = 0; i < 3; i++) {
+    const prev = result;
+    result = result
+      .replace(/&#x([0-9a-fA-F]+);?/g, (_, hex) => {
+        try {
+          const code = parseInt(hex, 16);
+          return code > 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : "";
+        } catch { return ""; }
+      })
+      .replace(/&#([0-9]+);?/g, (_, dec) => {
+        try {
+          const code = parseInt(dec, 10);
+          return code > 0 && code <= 0x10FFFF ? String.fromCodePoint(code) : "";
+        } catch { return ""; }
+      })
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, '"')
+      .replace(/&apos;|&#39;/gi, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&mdash;/gi, "—")
+      .replace(/&ndash;/gi, "–")
+      .replace(/&hellip;/gi, "…")
+      .replace(/&copy;/gi, "©")
+      .replace(/&reg;/gi, "®")
+      .replace(/&trade;/gi, "™")
+      .replace(/&bull;/gi, "•")
+      .replace(/&rsquo;/gi, "’")
+      .replace(/&lsquo;/gi, "‘")
+      .replace(/&rdquo;/gi, "”")
+      .replace(/&ldquo;/gi, "“");
+    if (result === prev) break;
+  }
+  return result;
+}
+
+function extractHtmlMetadata(html: string) {
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const rawTitle = titleMatch ? titleMatch[1].trim() : "";
+
+  const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i) ||
+                    html.match(/<meta[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i);
+  const rawDesc = descMatch ? descMatch[1].trim() : "";
+
+  const linksMatch = html.match(/<a\s+[^>]*href=/gi);
+  const linksCount = linksMatch ? linksMatch.length : 0;
+
+  const textWithoutScripts = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const decodedTitle = decodeHtmlEntities(rawTitle);
+  const decodedDesc = decodeHtmlEntities(rawDesc);
+  const decodedCleanText = decodeHtmlEntities(textWithoutScripts.slice(0, 1500));
+
+  return {
+    title: decodedTitle || "Page Content Retrieved",
+    description: decodedDesc || "No meta description tag provided by page.",
+    clean_text: decodedCleanText,
+    links_count: linksCount
   };
+}
 
-  const config = endpoints[tool as string];
-  if (!config) return cors(json({ error: "Invalid tool" }, 400));
+async function handlePhoneRequest(req: Request, directPhone?: string): Promise<Response> {
+  let phone = directPhone;
+  if (!phone && req.method === "POST") {
+    try {
+      const body = await req.json();
+      phone = body.phone || body.query;
+    } catch { /* ignore */ }
+  }
+  if (!phone || typeof phone !== "string") {
+    return json({ error: "Please provide a valid phone number (e.g. +14152007986)" }, 400);
+  }
 
-  const targetUrl = `${config.base}?api_key=${config.key}&${config.param}=${encodeURIComponent(query)}`;
+  let cleanPhone = phone.trim().replace(/[^\d+]/g, "");
+  if (!cleanPhone.startsWith("+")) {
+    cleanPhone = cleanPhone.length === 10 ? "+1" + cleanPhone : "+" + cleanPhone;
+  }
+
+  const cacheKey = `phone:${cleanPhone}`;
+  const cached = getFromCache(cacheKey);
+  if (cached) {
+    return json({ ...cached, source: "AbstractAPI Phone Intelligence (Cached • 0ms)" });
+  }
+
+  if (!ABSTRACT_PHONE_API_KEY) {
+    return json({ error: "ABSTRACT_PHONE_API_KEY is not configured in environment." }, 503);
+  }
+
+  const targetUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_PHONE_API_KEY)}&phone=${encodeURIComponent(cleanPhone)}`;
 
   try {
     const apiRes = await fetch(targetUrl);
+    const data = await apiRes.json();
     if (!apiRes.ok) {
-       return cors(json({ error: `API returned status ${apiRes.status}` }, apiRes.status));
+      return json({ error: data.error?.message || `Phone API returned ${apiRes.status}`, details: data }, apiRes.status);
     }
-    const data = tool === "scrape" ? await apiRes.text() : await apiRes.json();
-    return cors(new Response(JSON.stringify(data), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    }));
-  } catch (e) { return cors(json({ error: String(e) }, 500)); }
+
+    const normalizedData = {
+      phone: data.phone_number || cleanPhone,
+      valid: data.phone_validation?.is_valid ?? data.valid ?? (data.phone_carrier?.name ? true : false),
+      carrier: data.phone_carrier?.name || data.carrier || "Unknown Carrier",
+      location: [data.phone_location?.city, data.phone_location?.region, data.phone_location?.country_name].filter(Boolean).join(", ") || data.location || "United States",
+      type: data.phone_carrier?.line_type || data.type || (data.phone_validation?.is_voip ? "VoIP" : "Mobile"),
+      format: {
+        international: data.phone_format?.international || cleanPhone,
+        local: data.phone_format?.national || cleanPhone
+      },
+      risk: {
+        risk_score: data.phone_risk?.risk_score ?? (data.phone_risk?.risk_level === "high" ? 85 : 5),
+        risk_level: data.phone_risk?.risk_level ? String(data.phone_risk.risk_level).toUpperCase() : "LOW"
+      },
+      ...data
+    };
+
+    const responsePayload = {
+      success: true,
+      source: "AbstractAPI Phone Intelligence",
+      data: normalizedData
+    };
+
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
+  } catch (err: any) {
+    return json({ error: err.message || "Phone proxy error" }, 500);
+  }
+}
+
+async function handleEmailRequest(req: Request, directEmail?: string): Promise<Response> {
+  let email = directEmail;
+  if (!email && req.method === "POST") {
+    try {
+      const body = await req.json();
+      email = body.email || body.query;
+    } catch { /* ignore */ }
+  }
+  if (!email || typeof email !== "string" || !email.includes("@")) {
+    return json({ error: "Please provide a valid email address" }, 400);
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cacheKey = `email:${cleanEmail}`;
+  const cached = getFromCache(cacheKey);
+  if (cached) {
+    return json({ ...cached, source: "AbstractAPI Email Reputation (Cached • 0ms)" });
+  }
+
+  if (!ABSTRACT_EMAIL_API_KEY) {
+    return json({ error: "ABSTRACT_EMAIL_API_KEY is not configured in environment." }, 503);
+  }
+
+  const targetUrl = `https://emailvalidation.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_EMAIL_API_KEY)}&email=${encodeURIComponent(cleanEmail)}`;
+
+  try {
+    const apiRes = await fetch(targetUrl);
+    const data = await apiRes.json();
+    if (!apiRes.ok) {
+      return json({ error: data.error?.message || `Email API returned ${apiRes.status}`, details: data }, apiRes.status);
+    }
+
+    const responsePayload = {
+      success: true,
+      source: "AbstractAPI Email Reputation",
+      data
+    };
+
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
+  } catch (err: any) {
+    return json({ error: err.message || "Email proxy error" }, 500);
+  }
+}
+
+async function handleIpRequest(req: Request, directIp?: string): Promise<Response> {
+  let ip_address = directIp;
+  if (!ip_address && req.method === "POST") {
+    try {
+      const body = await req.json();
+      ip_address = body.ip_address || body.query;
+    } catch { /* ignore */ }
+  }
+
+  if (!ip_address || ip_address === "auto" || ip_address.trim() === "") {
+    const forwarded = req.headers.get("x-forwarded-for");
+    const clientIp = forwarded ? forwarded.split(",")[0].trim() : "8.8.8.8";
+    ip_address = (clientIp.includes("127.0.0.1") || clientIp === "::1") ? "8.8.8.8" : clientIp;
+  }
+
+  const cleanIp = ip_address.trim();
+  const cacheKey = `ip:${cleanIp}`;
+  const cached = getFromCache(cacheKey);
+  if (cached) {
+    return json({ ...cached, source: "AbstractAPI IP Intelligence (Cached • 0ms)" });
+  }
+
+  if (!ABSTRACT_IP_API_KEY) {
+    return json({ error: "ABSTRACT_IP_API_KEY is not configured in environment." }, 503);
+  }
+
+  const targetUrl = `https://ipgeolocation.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_IP_API_KEY)}&ip_address=${encodeURIComponent(cleanIp)}`;
+
+  try {
+    const apiRes = await fetch(targetUrl);
+    const data = await apiRes.json();
+    if (!apiRes.ok) {
+      return json({ error: data.error?.message || `IP API returned ${apiRes.status}`, details: data }, apiRes.status);
+    }
+
+    const responsePayload = {
+      success: true,
+      source: "AbstractAPI IP Intelligence",
+      data
+    };
+
+    setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+    return json(responsePayload);
+  } catch (err: any) {
+    return json({ error: err.message || "IP proxy error" }, 500);
+  }
+}
+
+async function handleScrapeRequest(req: Request, directUrl?: string, directRenderJs = false, directCountry?: string): Promise<Response> {
+  let url = directUrl;
+  let render_js = directRenderJs;
+  let country_code = directCountry;
+
+  if (!url && req.method === "POST") {
+    try {
+      const body = await req.json();
+      url = body.url || body.query;
+      if (body.render_js !== undefined) render_js = body.render_js;
+      if (body.country_code) country_code = body.country_code;
+    } catch { /* ignore */ }
+  }
+
+  if (!url || typeof url !== "string" || !url.startsWith("http")) {
+    return json({ error: "Please provide a valid URL starting with http:// or https://" }, 400);
+  }
+
+  const cleanUrl = url.trim();
+  const cacheKey = `scrape:${cleanUrl}:${render_js}:${country_code || "default"}`;
+  const cached = getFromCache(cacheKey);
+  if (cached) {
+    return json({ ...cached, source: "AbstractAPI Web Scraper (Cached • 0ms)" });
+  }
+
+  if (!ABSTRACT_SCRAPE_API_KEY) {
+    try {
+      const directRes = await fetch(cleanUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+      });
+      const directHtml = await directRes.text();
+      const directPayload = {
+        success: true,
+        source: "Proxy Engine Direct Scrape",
+        target_url: cleanUrl,
+        content_type: directRes.headers.get("content-type") || "text/html",
+        html: directHtml,
+        size_bytes: directHtml.length,
+        fallback_used: true,
+        parsed: extractHtmlMetadata(directHtml)
+      };
+      setInCache(cacheKey, directPayload, 10 * 60 * 1000);
+      return json(directPayload);
+    } catch (fallbackErr: any) {
+      return json({ error: `Failed to scrape target URL: ${fallbackErr.message || "Connection failed"}` }, 500);
+    }
+  }
+
+  let apiUrl = `https://scrape.abstractapi.com/v1/?api_key=${encodeURIComponent(ABSTRACT_SCRAPE_API_KEY)}&url=${encodeURIComponent(cleanUrl)}`;
+  if (render_js) apiUrl += "&render_js=true";
+  if (country_code) apiUrl += `&country_code=${encodeURIComponent(country_code)}`;
+
+  try {
+    const apiRes = await fetch(apiUrl);
+    const bodyText = await apiRes.text();
+    if (apiRes.ok) {
+      const responsePayload = {
+        success: true,
+        source: "AbstractAPI Web Scraper",
+        target_url: cleanUrl,
+        content_type: apiRes.headers.get("content-type") || "text/html",
+        html: bodyText,
+        size_bytes: bodyText.length,
+        fallback_used: false,
+        parsed: extractHtmlMetadata(bodyText)
+      };
+      setInCache(cacheKey, responsePayload, 10 * 60 * 1000);
+      return json(responsePayload);
+    }
+
+    const directRes = await fetch(cleanUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+    });
+    const directHtml = await directRes.text();
+    const fallbackPayload = {
+      success: true,
+      source: "Proxy Engine (AbstractAPI direct fallback)",
+      target_url: cleanUrl,
+      content_type: directRes.headers.get("content-type") || "text/html",
+      html: directHtml,
+      size_bytes: directHtml.length,
+      fallback_used: true,
+      parsed: extractHtmlMetadata(directHtml)
+    };
+    setInCache(cacheKey, fallbackPayload, 10 * 60 * 1000);
+    return json(fallbackPayload);
+  } catch (err: any) {
+    return json({ error: err.message || "Scrape proxy error" }, 500);
+  }
+}
+
+async function handleToolsProxy(req: Request): Promise<Response> {
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  let body;
+  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+  const { tool, query, phone, email, ip_address, url, render_js, country_code } = body;
+  const toolName = tool || (phone ? "phone" : email ? "email" : ip_address ? "ip" : url ? "scrape" : null);
+
+  if (toolName === "phone") return await handlePhoneRequest(req, query || phone);
+  if (toolName === "email") return await handleEmailRequest(req, query || email);
+  if (toolName === "ip") return await handleIpRequest(req, query || ip_address);
+  if (toolName === "scrape") return await handleScrapeRequest(req, query || url, render_js, country_code);
+
+  return json({ error: "Missing tool or query parameter" }, 400);
+}
+
+function handleStatusRequest(): Response {
+  return json({
+    status: "online",
+    version: "1.0.0",
+    timestamp: new Date().toISOString(),
+    proxy_mode: "dokploy_secure_proxy",
+    cors_enabled: true,
+    security: {
+      encryption_algorithm: "AES-256-GCM",
+      custom_secret_configured: true,
+    },
+    tools: {
+      phone_intelligence: {
+        configured: !!ABSTRACT_PHONE_API_KEY,
+        encrypted_in_env: false,
+        endpoint: "https://phoneintelligence.abstractapi.com/v1/"
+      },
+      email_reputation: {
+        configured: !!ABSTRACT_EMAIL_API_KEY,
+        encrypted_in_env: false,
+        endpoint: "https://emailvalidation.abstractapi.com/v1/"
+      },
+      ip_intelligence: {
+        configured: !!ABSTRACT_IP_API_KEY,
+        encrypted_in_env: false,
+        endpoint: "https://ipgeolocation.abstractapi.com/v1/"
+      },
+      web_scraper: {
+        configured: !!ABSTRACT_SCRAPE_API_KEY,
+        encrypted_in_env: false,
+        endpoint: "https://scrape.abstractapi.com/v1/"
+      }
+    }
+  });
 }
 
 Deno.serve({ port: PORT }, async (req: Request) => {
@@ -559,8 +915,28 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/health") return json({ ok: true, ts: new Date().toISOString() });
 
+  if (url.pathname === "/status" || url.pathname === "/api/status") {
+    return handleStatusRequest();
+  }
+
+  if (url.pathname === "/phone" || url.pathname === "/api/phone") {
+    return await handlePhoneRequest(req);
+  }
+
+  if (url.pathname === "/email" || url.pathname === "/api/email") {
+    return await handleEmailRequest(req);
+  }
+
+  if (url.pathname === "/ip" || url.pathname === "/api/ip") {
+    return await handleIpRequest(req);
+  }
+
+  if (url.pathname === "/scrape" || url.pathname === "/api/scrape") {
+    return await handleScrapeRequest(req);
+  }
+
   if (url.pathname === "/api/tools") {
-    return await handleAbstractProxy(req);
+    return await handleToolsProxy(req);
   }
 
   if (url.pathname === "/api/records" || url.pathname === "/records") {

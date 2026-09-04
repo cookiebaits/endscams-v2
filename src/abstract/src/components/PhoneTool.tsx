@@ -14,7 +14,6 @@ import {
   Check, 
   Clock, 
   RefreshCw,
-  Info,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';

@@ -11,11 +11,7 @@ import {
   Server, 
   Terminal, 
   FileCode, 
-  ExternalLink,
-  Sparkles,
-  HelpCircle,
   RefreshCw,
-  Cpu,
   Boxes
 } from 'lucide-react';
 
@@ -24,13 +20,12 @@ interface Props {
   onRefreshStatus: () => void;
 }
 
-export const DokployHub: React.FC<Props> = ({ status, onRefreshStatus }) => {
+export const DokployHub: React.FC<Props> = ({ status: _status, onRefreshStatus: _onRefreshStatus }) => {
   const [customSecret, setCustomSecret] = useState('');
   const [testInput, setTestInput] = useState('');
   const [encryptedOutput, setEncryptedOutput] = useState('');
   const [encrypting, setEncrypting] = useState(false);
   const [envContent, setEnvContent] = useState('');
-  const [loadingEnv, setLoadingEnv] = useState(false);
   const [copiedEnv, setCopiedEnv] = useState(false);
   const [copiedEnc, setCopiedEnc] = useState(false);
   const [copiedDocker, setCopiedDocker] = useState(false);
@@ -38,14 +33,11 @@ export const DokployHub: React.FC<Props> = ({ status, onRefreshStatus }) => {
 
   // Load environment template on mount or secret change
   const loadTemplate = async (secretVal = customSecret) => {
-    setLoadingEnv(true);
     try {
       const res = await apiClient.getDokployEnvTemplate(secretVal);
       setEnvContent(res.env_content);
     } catch (err) {
       console.error('Failed to load Dokploy env template:', err);
-    } finally {
-      setLoadingEnv(false);
     }
   };
 
