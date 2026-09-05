@@ -20,5 +20,11 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/tracker/server.ts",
+    "src/tracker/checkUrl.ts",
+    "src/tracker/test_*.ts",
+    "src/tracker/vite.config.ts"
+  ]
 }

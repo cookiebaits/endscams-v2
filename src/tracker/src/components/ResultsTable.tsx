@@ -7,32 +7,24 @@ import {
   Check,
   ExternalLink,
   MessageCircle,
-  Download,
   Upload,
   X,
-  XCircle,
   Plus,
   Search,
   Filter,
   FileSpreadsheet,
-  FileText,
   AlertCircle,
-  PhoneCall,
   Calendar,
-  Camera,
   Building2,
   DollarSign,
   Hash,
   Info,
-  Sparkles,
-  Smartphone,
-  Monitor,
   Gift,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder, TableFilterState } from '../types';
 import { formatPST, getPSTDateStamp } from '../utils/dateUtils';
 import { exportRecordsToCSV } from '../utils/csvHandler';
-import { isPrizeOrExtendedRetentionRecord, getRecordRetentionLabel } from '../utils/retentionUtils';
+import { isPrizeOrExtendedRetentionRecord } from '../utils/retentionUtils';
 import { ScamSummaryHoverCard } from './ScamSummaryHoverCard';
 import { ScreenshotExtractorModal } from './ScreenshotExtractorModal';
 import { MobileResultsList } from './MobileResultsList';
@@ -61,7 +53,6 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   onAddManualRecord,
   onThreatSearchSuccess,
   onReloadRecords,
-  isSearching,
   isMobileActive = false,
 }) => {
   const handleToggleRecordDown = (id: string) => {
@@ -226,8 +217,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
           return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
         }
 
-        let valA = (a[sortField] || '').toString().toLowerCase();
-        let valB = (b[sortField] || '').toString().toLowerCase();
+        const valA = (a[sortField] || '').toString().toLowerCase();
+        const valB = (b[sortField] || '').toString().toLowerCase();
 
         if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
         if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
@@ -267,7 +258,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   };
 
   // CSV Import Success Handler
-  const handleImportCsvSuccess = (importedRecords: ScamPhoneRecord[], summary: string) => {
+  const handleImportCsvSuccess = (_importedRecords: ScamPhoneRecord[], summary: string) => {
     onThreatSearchSuccess?.(summary);
     onReloadRecords?.();
   };
@@ -1025,7 +1016,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
       <ScreenshotExtractorModal
         isOpen={showScreenshotModal}
         onClose={() => setShowScreenshotModal(false)}
-        onExtractionComplete={(newRecords, summary) => {
+        onExtractionComplete={(_newRecords, summary) => {
           if (onReloadRecords) {
             onReloadRecords();
           }

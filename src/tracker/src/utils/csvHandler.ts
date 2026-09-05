@@ -25,7 +25,7 @@ export const CSV_EXPORT_HEADERS = [
 /**
  * Robust RFC-compliant CSV line parser handling quotes, commas, and escaped quotes.
  */
-function parseCSVLine(line: string): string[] {
+export function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let cur = '';
   let inQuotes = false;
@@ -267,9 +267,6 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   );
   const phoneIndex = normalizedHeaders.findIndex(
     (h) => h === 'phonenumber' || h === 'phone' || h === 'phoneno' || h === 'number'
-  );
-  const cleanDigitsIndex = normalizedHeaders.findIndex(
-    (h) => h === 'cleandigits' || h === 'cleanphone' || h === 'digits'
   );
   const dateIndex = normalizedHeaders.findIndex(
     (h) => h.includes('datedetected') || h === 'date' || h === 'detectedat'

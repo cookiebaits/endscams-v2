@@ -118,7 +118,9 @@ class SyncBridgeManager {
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.close();
-      } catch {}
+      } catch {
+        /* ignore close errors */
+      }
       this.broadcastChannel = null;
     }
     this.isInitialized = false;
@@ -141,7 +143,9 @@ class SyncBridgeManager {
       try {
         const parsed = JSON.parse(event.newValue);
         this.handleIncomingRawMessage(parsed, 'StorageEvent', window.location.origin);
-      } catch {}
+      } catch {
+        /* ignore parse errors */
+      }
     }
   };
 
@@ -296,7 +300,9 @@ class SyncBridgeManager {
       messagesSentCount: this.messagesSentCount,
       messagesReceivedCount: this.messagesReceivedCount,
       lastSyncTimestamp: this.lastSyncTimestamp,
-      lastMessageSummary: this.lastMessageSummary,
+      lastMessageSummary: this.isEndScamsParentDetected
+        ? `${this.lastMessageSummary} (EndScams Parent Active)`
+        : this.lastMessageSummary,
     };
   }
 
@@ -372,7 +378,9 @@ class SyncBridgeManager {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(message));
       }
-    } catch {}
+    } catch {
+      /* ignore storage errors */
+    }
 
     // 5. SharedStorage API support (Privacy Sandbox / Fenced Frames)
     try {
@@ -386,7 +394,9 @@ class SyncBridgeManager {
           }
         }
       }
-    } catch {}
+    } catch {
+      /* ignore sharedStorage errors */
+    }
 
     // Log the outgoing message (skip flooding logs on silent heartbeats)
     if (!isSilentHeartbeat || this.logs.length === 0) {

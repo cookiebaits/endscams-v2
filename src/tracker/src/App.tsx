@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StatsCards } from './components/StatsCards';
 import { ResultsTable } from './components/ResultsTable';
 import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPanel';
 import { BackupRestoreModal } from './components/BackupRestoreModal';
 import { ScamPhoneRecord, SyncBridgeStatus } from './types';
-import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, Activity, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
-import { formatPSTTimeOnly, formatPST, getPacificParts } from './utils/dateUtils';
+import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
+import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { noSqlDatabase } from './db/noSqlDatabase';
@@ -16,17 +16,17 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState(0);
   const [scanStatusMessage, setScanStatusMessage] = useState("");
   const [lastScanTime, setLastScanTime] = useState<string | null>(null);
-  const [lastScanSummary, setLastScanSummary] = useState<string>('Database loaded.');
+  const [, setLastScanSummary] = useState<string>('Database loaded.');
   const [nextScheduledRefresh, setNextScheduledRefresh] = useState<string>('Today at 1:00 PM PST');
-  const [nextExecutionPST, setNextExecutionPST] = useState<string | null>(null);
-  const [nextExecutionCountdown, setNextExecutionCountdown] = useState<string | null>(null);
-  const [schedulerActive, setSchedulerActive] = useState<boolean>(true);
+  const [, setNextExecutionPST] = useState<string | null>(null);
+  const [, setNextExecutionCountdown] = useState<string | null>(null);
+  const [, setSchedulerActive] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isBackupRestoreOpen, setIsBackupRestoreOpen] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
+  const [, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
 
   // Auto-detect mobile devices and responsive screen widths with manual override
   const { isMobile, preference, setPreference } = useDeviceMode();
