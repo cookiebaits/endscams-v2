@@ -34,16 +34,6 @@ const SCAM_CATALOG = [
     defense: 'Never scan Discord login QR codes on screen or for "verification". Check Discord User Settings -> Sessions / Authorized Apps to remove unknown devices, and disable "Allow direct messages from server members" in your Privacy & Safety settings.'
   },
   {
-    id: 'fake-game-keys',
-    title: 'Fake Game Keys / Phishing',
-    threat: 'Moderate',
-    threatColor: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
-    vector: 'Discord DMs, Email',
-    pitch: 'Someone claiming to be an indie developer or PR firm offers you early access or free keys to a new game. They send a link to a fake login portal or a suspicious file download.',
-    tactic: 'Social engineering and credential harvesting. If a link, it\'s a pixel-perfect clone of a Steam/Twitch login page designed to steal your username, password, and 2FA code.',
-    defense: 'Hover over links to check the actual URL. Never log into an external site to "claim" a key. Real keys are either sent as plain text codes or distributed via verified platforms like Keymailer or Terminals.'
-  },
-  {
     id: 'oauth-token-hijack',
     title: 'OAuth Permission Abuse & Abandoned Integrations',
     threat: 'High',
@@ -54,14 +44,14 @@ const SCAM_CATALOG = [
     defense: 'Regularly audit connected applications on Twitch and YouTube. Unlink and revoke access for any legacy, unmaintained, or unused third-party integration.'
   },
   {
-    id: 'chargeback-abuse',
-    title: 'Chargeback / Donation Abuse',
-    threat: 'Low',
-    threatColor: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
-    vector: 'Stream Chat / Donations',
-    pitch: 'A viewer drops a massive, unexpected donation during your stream, often accompanied by hype or requests for attention.',
-    tactic: 'Months later, the "donor" files a chargeback with their credit card company claiming the transaction was unauthorized. The streamer is hit with losing the money AND paying hefty chargeback dispute fees (often $15-$20 per transaction).',
-    defense: 'Use platforms that offer chargeback protection (like certain Streamlabs/StreamElements tiers). Keep funds from suspiciously large, unknown donors isolated in your account for 180 days before spending.'
+    id: 'fake-game-keys',
+    title: 'Fake Game Keys / Phishing',
+    threat: 'Moderate',
+    threatColor: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
+    vector: 'Discord DMs, Email',
+    pitch: 'Someone claiming to be an indie developer or PR firm offers you early access or free keys to a new game. They send a link to a fake login portal or a suspicious file download.',
+    tactic: 'Social engineering and credential harvesting. If a link, it\'s a pixel-perfect clone of a Steam/Twitch login page designed to steal your username, password, and 2FA code.',
+    defense: 'Hover over links to check the actual URL. Never log into an external site to "claim" a key. Real keys are either sent as plain text codes or distributed via verified platforms like Keymailer or Terminals.'
   },
   {
     id: 'copyright-extortion',
@@ -72,6 +62,16 @@ const SCAM_CATALOG = [
     pitch: 'You receive an urgent, official-looking email claiming your channel is about to be suspended for a copyright violation unless you click a link to "appeal" or pay a fine.',
     tactic: 'Phishing. The link goes to a fake login page to steal credentials, or contains ransomware/malware payloads.',
     defense: 'Ignore emails. Only check for copyright strikes directly inside your YouTube Studio or Twitch Creator Dashboard. Real platforms do not use external links for dispute resolution.'
+  },
+  {
+    id: 'chargeback-abuse',
+    title: 'Chargeback / Donation Abuse',
+    threat: 'Low',
+    threatColor: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+    vector: 'Stream Chat / Donations',
+    pitch: 'A viewer drops a massive, unexpected donation during your stream, often accompanied by hype or requests for attention.',
+    tactic: 'Months later, the "donor" files a chargeback with their credit card company claiming the transaction was unauthorized. The streamer is hit with losing the money AND paying hefty chargeback dispute fees (often $15-$20 per transaction).',
+    defense: 'Use platforms that offer chargeback protection (like certain Streamlabs/StreamElements tiers). Keep funds from suspiciously large, unknown donors isolated in your account for 180 days before spending.'
   }
 ];
 
@@ -223,9 +223,6 @@ export default function LivestreamSafetyPage() {
                     <span className="w-3 h-3 rounded-full bg-purple-500 inline-block" />
                     Twitch OAuth Connections
                   </h4>
-                  <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
-                    Twitch Account
-                  </span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
                   Review all third-party applications authorized to access your Twitch account (chatbots, overlays, extension panel tools). Disconnect any tool you no longer actively use.
@@ -250,9 +247,6 @@ export default function LivestreamSafetyPage() {
                     <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
                     YouTube & Google Connected Apps
                   </h4>
-                  <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
-                    Google Account
-                  </span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
                   Inspect third-party apps with account permissions, third-party sign-ins, and connected services. Revoke permissions for unverified or obsolete software.
