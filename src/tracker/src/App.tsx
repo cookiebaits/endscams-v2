@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { StatsCards } from './components/StatsCards';
 import { ResultsTable } from './components/ResultsTable';
 import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPanel';
@@ -62,103 +62,75 @@ export default function App() {
     console.log('🚀 [/tracker] Page Activated:', activationLog);
   }, []);
 
-  // Initialize Bi-Directional Parent / Iframe Sync Bridge
-  useEffect(() => {
-    syncBridge.init({
-      onRequestData: () => ({
-        records: recordsRef.current,
-        isScanning: isScanningRef.current,
-        lastScanTime: lastScanTimeRef.current,
-        nextScheduledRefresh: nextScheduledRefreshRef.current,
-      }),
-      onPushRecords: (incomingRecords) => {
-        setRecords((prev) => {
-          const existingKeys = new Set(prev.map((r) => r.cleanPhone || r.phone));
-          const newRecords = incomingRecords.filter((r) => !existingKeys.has(r.cleanPhone || r.phone));
-          if (newRecords.length > 0) {
-            setStatusMessage(`[Sync Bridge] Received & merged ${newRecords.length} synchronized records from parent/iframe.`);
-            return [...newRecords, ...prev];
-          }
-          return prev;
-        });
-      },
-      onAddManualRecord: (rec) => {
-        handleAddManualRecord(rec);
-      },
-      onTriggerScan: () => {
-        setStatusMessage('[Sync Bridge] Remote scan command received from parent/iframe.');
-        handleRunScanNow();
-      },
-      onToggleNumberDown: (id) => {
-        handleToggleNumberDown(id);
-      },
-      onStatusUpdate: (s) => {
-        setSyncStatus(s);
-      },
-    });
-
-    setSyncStatus(syncBridge.getStatus());
-
-    return () => {
-      syncBridge.destroy();
-    };
-  }, []);
-
-  // Broadcast state changes across bridge when records or scan status changes
-  useEffect(() => {
-    if (records.length > 0) {
-      syncBridge.broadcastCurrentState();
-    }
-  }, [records.length, isScanning, lastScanTime]);
-
-  // Update live Pacific Time clock every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentPST(formatPSTTimeOnly(new Date(), true));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Automated 7:00 AM & 1:00 PM PST Trigger:
-  // Monitors Pacific Time and literally triggers the "Manual Refresh" button when reaching 7am or 1pm PST
-  useEffect(() => {
-    const checkScheduleAndTrigger = () => {
-      try {
-        const { hour, dateStr } = getPacificParts(new Date());
-
-        // Target slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
-        if (hour === 7 || hour === 13) {
-          const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
-          const alreadyTriggered = localStorage.getItem(slotKey);
-
-          if (!alreadyTriggered && !isScanning) {
-            localStorage.setItem(slotKey, new Date().toISOString());
-            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
-            console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering the "Manual Refresh" button...`);
-
-            setStatusMessage(`[Auto-Scan Active] ${slotLabel} reached — Automatically triggered "Manual Refresh" to populate the database.`);
-
-            // Trigger the manual refresh directly & click the footer button
-            handleRunScanNow();
-            const btn = document.getElementById('btn-footer-manual-refresh');
-            if (btn) {
-              btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  // Mark / toggle "Number down" for a single record
+  const handleToggleNumberDown = useCallback(async (id: string) => {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              isNumberDown: !r.isNumberDown,
+              numberDownAt: !r.isNumberDown ? new Date().toISOString() : undefined,
             }
-          }
-        }
-      } catch (err) {
-        console.warn('Error checking Pacific schedule:', err);
+          : r
+      )
+    );
+    try {
+      await fetch(`/api/records/${id}/toggle-down`, { method: 'POST' }).catch(() => null);
+      const target = recordsRef.current.find((r) => r.id === id);
+      if (target) {
+        await supabase
+          .from('tracker_entries')
+          .update({ is_number_down: !target.isNumberDown })
+          .eq('phone_digits', target.cleanPhone);
       }
-    };
+    } catch (err) {
+      console.warn('Number down error:', err);
+    }
+  }, []);
 
-    // Check immediately on mount and every 5 seconds
-    checkScheduleAndTrigger();
-    const interval = setInterval(checkScheduleAndTrigger, 5000);
-    return () => clearInterval(interval);
-  }, [isScanning]);
+  // Add manual record directly to state & Supabase
+  const handleAddManualRecord = useCallback(async (recordData: Omit<ScamPhoneRecord, 'id' | 'detectedAt'>) => {
+    try {
+      const cleanDigits = recordData.cleanPhone || recordData.phone.replace(/\D/g, '');
+      const newRec: ScamPhoneRecord = {
+        ...recordData,
+        id: `manual-${Date.now()}-${cleanDigits}`,
+        cleanPhone: cleanDigits,
+        detectedAt: new Date().toISOString(),
+      };
+
+      setRecords((prev) => [newRec, ...prev]);
+      setStatusMessage(`Added manual scam record for ${newRec.phone}. Data retained.`);
+
+      // Persist directly to Supabase
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 60);
+
+      await supabase.from('tracker_entries').upsert({
+        phone_number: newRec.phone,
+        phone_digits: cleanDigits,
+        source_name: newRec.platform || 'Manual Entry',
+        source_url: newRec.sourceUrl || '/tracker',
+        report_date: new Date().toISOString().split('T')[0],
+        category: newRec.scamType,
+        description: newRec.snippet,
+        expires_at: expiresAt.toISOString(),
+      }, { onConflict: 'phone_digits,source_name' });
+
+      // Try API sync if running
+      await fetch('/api/records/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recordData),
+      }).catch(() => null);
+    } catch (err) {
+      console.error('Error adding manual record:', err);
+    }
+  }, []);
 
   // Fetch records directly from Supabase & local storage fallback
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     try {
       // 1. Try backend API endpoint first via getFetcherUrl() or relative endpoint
       const fetcherUrl = getFetcherUrl();
@@ -254,21 +226,12 @@ export default function App() {
       setRecords(fetchedList);
     } catch (err) {
       console.error('Error fetching records:', err);
-      if (records.length === 0) {
-        setRecords(INITIAL_SAMPLE_RECORDS);
-      }
+      setRecords((prev) => (prev.length === 0 ? INITIAL_SAMPLE_RECORDS : prev));
     }
-  };
-
-  useEffect(() => {
-    fetchRecords();
-    const pollInterval = isScanning ? 3000 : 15000;
-    const interval = setInterval(fetchRecords, pollInterval);
-    return () => clearInterval(interval);
-  }, [isScanning]);
+  }, []);
 
   // Trigger manual harvester scan with multi-stage endpoint fallback
-  const handleRunScanNow = async () => {
+  const handleRunScanNow = useCallback(async () => {
     setIsScanning(true);
     setErrorMessage(null);
     setStatusMessage(`Initiating manual harvester scan...`);
@@ -316,39 +279,114 @@ export default function App() {
     }
 
     setIsScanning(false);
-  };
+  }, [fetchRecords]);
 
-  // Mark / toggle "Number down" for a single record
-  const handleToggleNumberDown = async (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              isNumberDown: !r.isNumberDown,
-              numberDownAt: !r.isNumberDown ? new Date().toISOString() : undefined,
-            }
-          : r
-      )
-    );
-    try {
-      await fetch(`/api/records/${id}/toggle-down`, { method: 'POST' }).catch(() => null);
-      const target = records.find((r) => r.id === id);
-      if (target) {
-        await supabase
-          .from('tracker_entries')
-          .update({ is_number_down: !target.isNumberDown })
-          .eq('phone_digits', target.cleanPhone);
-      }
-    } catch (err) {
-      console.warn('Number down error:', err);
+  // Initialize Bi-Directional Parent / Iframe Sync Bridge
+  useEffect(() => {
+    syncBridge.init({
+      onRequestData: () => ({
+        records: recordsRef.current,
+        isScanning: isScanningRef.current,
+        lastScanTime: lastScanTimeRef.current,
+        nextScheduledRefresh: nextScheduledRefreshRef.current,
+      }),
+      onPushRecords: (incomingRecords) => {
+        setRecords((prev) => {
+          const existingKeys = new Set(prev.map((r) => r.cleanPhone || r.phone));
+          const newRecords = incomingRecords.filter((r) => !existingKeys.has(r.cleanPhone || r.phone));
+          if (newRecords.length > 0) {
+            setStatusMessage(`[Sync Bridge] Received & merged ${newRecords.length} synchronized records from parent/iframe.`);
+            return [...newRecords, ...prev];
+          }
+          return prev;
+        });
+      },
+      onAddManualRecord: (rec) => {
+        handleAddManualRecord(rec);
+      },
+      onTriggerScan: () => {
+        setStatusMessage('[Sync Bridge] Remote scan command received from parent/iframe.');
+        handleRunScanNow();
+      },
+      onToggleNumberDown: (id) => {
+        handleToggleNumberDown(id);
+      },
+      onStatusUpdate: (s) => {
+        setSyncStatus(s);
+      },
+    });
+
+    setSyncStatus(syncBridge.getStatus());
+
+    return () => {
+      syncBridge.destroy();
+    };
+  }, [handleAddManualRecord, handleRunScanNow, handleToggleNumberDown]);
+
+  // Broadcast state changes across bridge when records or scan status changes
+  useEffect(() => {
+    if (records.length > 0) {
+      syncBridge.broadcastCurrentState();
     }
-  };
+  }, [records.length, isScanning, lastScanTime]);
+
+  // Update live Pacific Time clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentPST(formatPSTTimeOnly(new Date(), true));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Automated 7:00 AM & 1:00 PM PST Trigger:
+  // Monitors Pacific Time and literally triggers the "Manual Refresh" button when reaching 7am or 1pm PST
+  useEffect(() => {
+    const checkScheduleAndTrigger = () => {
+      try {
+        const { hour, dateStr } = getPacificParts(new Date());
+
+        // Target slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
+        if (hour === 7 || hour === 13) {
+          const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
+          const alreadyTriggered = localStorage.getItem(slotKey);
+
+          if (!alreadyTriggered && !isScanning) {
+            localStorage.setItem(slotKey, new Date().toISOString());
+            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
+            console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering the "Manual Refresh" button...`);
+
+            setStatusMessage(`[Auto-Scan Active] ${slotLabel} reached — Automatically triggered "Manual Refresh" to populate the database.`);
+
+            // Trigger the manual refresh directly & click the footer button
+            handleRunScanNow();
+            const btn = document.getElementById('btn-footer-manual-refresh');
+            if (btn) {
+              btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error checking Pacific schedule:', err);
+      }
+    };
+
+    // Check immediately on mount and every 5 seconds
+    checkScheduleAndTrigger();
+    const interval = setInterval(checkScheduleAndTrigger, 5000);
+    return () => clearInterval(interval);
+  }, [handleRunScanNow, isScanning]);
+
+  useEffect(() => {
+    fetchRecords();
+    const pollInterval = isScanning ? 3000 : 15000;
+    const interval = setInterval(fetchRecords, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchRecords, isScanning]);
 
   // Mark bulk selected records as "Number down"
-  const handleMarkNumberDownSelected = async (ids: string[]) => {
+  const handleMarkNumberDownSelected = useCallback(async (ids: string[]) => {
     const idsSet = new Set(ids);
-    const targetDigits = records.filter((r) => idsSet.has(r.id)).map((r) => r.cleanPhone);
+    const targetDigits = recordsRef.current.filter((r) => idsSet.has(r.id)).map((r) => r.cleanPhone);
 
     setRecords((prev) =>
       prev.map((r) =>
@@ -373,47 +411,7 @@ export default function App() {
     } catch (err) {
       console.warn('Bulk number down error:', err);
     }
-  };
-
-  // Add manual record directly to state & Supabase
-  const handleAddManualRecord = async (recordData: Omit<ScamPhoneRecord, 'id' | 'detectedAt'>) => {
-    try {
-      const cleanDigits = recordData.cleanPhone || recordData.phone.replace(/\D/g, '');
-      const newRec: ScamPhoneRecord = {
-        ...recordData,
-        id: `manual-${Date.now()}-${cleanDigits}`,
-        cleanPhone: cleanDigits,
-        detectedAt: new Date().toISOString(),
-      };
-
-      setRecords((prev) => [newRec, ...prev]);
-      setStatusMessage(`Added manual scam record for ${newRec.phone}. Data retained.`);
-
-      // Persist directly to Supabase
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
-
-      await supabase.from('tracker_entries').upsert({
-        phone_number: newRec.phone,
-        phone_digits: cleanDigits,
-        source_name: newRec.platform || 'Manual Entry',
-        source_url: newRec.sourceUrl || '/tracker',
-        report_date: new Date().toISOString().split('T')[0],
-        category: newRec.scamType,
-        description: newRec.snippet,
-        expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'phone_digits,source_name' });
-
-      // Try API sync if running
-      await fetch('/api/records/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recordData),
-      }).catch(() => null);
-    } catch (err) {
-      console.error('Error adding manual record:', err);
-    }
-  };
+  }, []);
 
   return (
     <div className="bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">

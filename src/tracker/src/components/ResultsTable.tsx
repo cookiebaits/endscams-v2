@@ -310,7 +310,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
       if (manualForm.sourceUrl) {
         domain = new URL(manualForm.sourceUrl).hostname.replace('www.', '');
       }
-    } catch (err) {
+    } catch {
       domain = 'web';
     }
 

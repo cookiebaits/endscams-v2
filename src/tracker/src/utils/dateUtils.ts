@@ -28,7 +28,7 @@ export function formatPST(dateInput?: string | number | Date | null, includeSeco
     }
 
     return date.toLocaleString('en-US', options) + ' PST';
-  } catch (err) {
+  } catch {
     return String(dateInput);
   }
 }
@@ -48,7 +48,7 @@ export function formatPSTDateOnly(dateInput?: string | number | Date | null): st
       month: 'short',
       day: '2-digit',
     });
-  } catch (err) {
+  } catch {
     return String(dateInput);
   }
 }
@@ -68,7 +68,7 @@ export function formatPSTTimeOnly(dateInput: Date = new Date(), includeSeconds =
       options.second = '2-digit';
     }
     return dateInput.toLocaleTimeString('en-US', options) + ' PST';
-  } catch (err) {
+  } catch {
     return dateInput.toLocaleTimeString();
   }
 }
@@ -84,7 +84,7 @@ export function getPSTDateStamp(dateInput: Date = new Date()): string {
       month: '2-digit',
       day: '2-digit',
     }).format(dateInput);
-  } catch (err) {
+  } catch {
     return dateInput.toISOString().slice(0, 10);
   }
 }

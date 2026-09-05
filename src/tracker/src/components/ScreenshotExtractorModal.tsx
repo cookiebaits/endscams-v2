@@ -270,7 +270,7 @@ export const ScreenshotExtractorModal: React.FC<ScreenshotExtractorModalProps> =
         }
       }
       setErrorMsg('No image found on clipboard. You can press Ctrl+V / Cmd+V or browse a file.');
-    } catch (err: any) {
+    } catch {
       setErrorMsg('Clipboard access denied or unavailable. Use Ctrl+V / Cmd+V to paste directly.');
     }
   };
