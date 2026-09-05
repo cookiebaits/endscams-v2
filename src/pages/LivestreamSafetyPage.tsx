@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, Radio, XOctagon } from 'lucide-react';
+import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, XOctagon, ExternalLink, Link2, MessageSquare, Lock } from 'lucide-react';
 import Banner from '../components/Banner';
 
 const SCAM_CATALOG = [
@@ -14,6 +14,26 @@ const SCAM_CATALOG = [
     defense: 'Never download unsolicited executables or password-protected ZIPs. Verify the sender domain carefully (e.g., @brand.com vs @brand-collab.com). When in doubt, run suspicious files in a cloud sandbox like Any.Run.'
   },
   {
+    id: 'discord-playtest-scam',
+    title: 'Discord Game Playtest & "Join My Game" Scams',
+    threat: 'Critical',
+    threatColor: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-500 border-red-300 dark:border-red-500/30',
+    vector: 'Discord DMs, Server Chat',
+    pitch: 'An acquaintance or stranger asks: "Hey, I\'m developing an indie game, could you test it out on stream or give feedback?" or "Want to join my game/lobby real quick?" and sends a link or ZIP file.',
+    tactic: 'The file contains a Discord token grabber and infostealer malware disguised as a game executable (or Steam installer). Upon execution, it silently dumps saved browser credentials, Discord tokens, and session cookies, hijacking your accounts instantly.',
+    defense: 'NEVER execute `.exe`, `.scr`, `.bat`, `.py`, or `.zip` files sent directly over Discord or from unknown devs. Real indie developers distribute games through established platforms like Steam, itch.io, or GOG—not random direct download links.'
+  },
+  {
+    id: 'discord-server-tournament-scam',
+    title: 'Discord "Join My Server" & Verification Bot Phishing',
+    threat: 'High',
+    threatColor: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+    vector: 'Discord DMs, Server Invites',
+    pitch: 'You receive an invite to "help test my new Discord server", vote for a competitive team in a tournament, or verify your account using a custom verification bot in a server.',
+    tactic: 'The verification bot requires you to scan a QR code with your mobile Discord app or sign in through a fake OAuth portal. Scanning the QR code or authorizing malicious permissions grants the scammer full access to your Discord account or OAuth permissions.',
+    defense: 'Never scan Discord login QR codes on screen or for "verification". Check Discord User Settings -> Sessions / Authorized Apps to remove unknown devices, and disable "Allow direct messages from server members" in your Privacy & Safety settings.'
+  },
+  {
     id: 'fake-game-keys',
     title: 'Fake Game Keys / Phishing',
     threat: 'Moderate',
@@ -22,6 +42,16 @@ const SCAM_CATALOG = [
     pitch: 'Someone claiming to be an indie developer or PR firm offers you early access or free keys to a new game. They send a link to a fake login portal or a suspicious file download.',
     tactic: 'Social engineering and credential harvesting. If a link, it\'s a pixel-perfect clone of a Steam/Twitch login page designed to steal your username, password, and 2FA code.',
     defense: 'Hover over links to check the actual URL. Never log into an external site to "claim" a key. Real keys are either sent as plain text codes or distributed via verified platforms like Keymailer or Terminals.'
+  },
+  {
+    id: 'oauth-token-hijack',
+    title: 'OAuth Permission Abuse & Abandoned Integrations',
+    threat: 'High',
+    threatColor: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
+    vector: 'Third-party Creator Tools, Overlays, Chatbots',
+    pitch: 'You log into a third-party streamer tool, giveaway manager, chatbot, or analytics service using "Sign in with Twitch" or "Sign in with YouTube".',
+    tactic: 'Over time, if that service is compromised, acquired by malicious actors, or granted broad channel editing scope, attackers can exploit valid long-lived OAuth tokens to edit your stream details, initiate unauthorized broadcasts, or extract channel telemetry without needing your password or 2FA.',
+    defense: 'Regularly audit connected applications on Twitch and YouTube. Unlink and revoke access for any legacy, unmaintained, or unused third-party integration.'
   },
   {
     id: 'chargeback-abuse',
@@ -72,9 +102,11 @@ export default function LivestreamSafetyPage() {
 
   const CHECKLIST_ITEMS = [
     { id: 'obs-display', label: 'OBS Display Capture disabled / Window capture verified' },
-    { id: 'discord-streamer', label: 'Discord Streamer Mode active' },
+    { id: 'discord-streamer', label: 'Discord Streamer Mode active & DMs from unknown members restricted' },
     { id: 'tabs-closed', label: 'Business and personal email tabs closed' },
     { id: 'api-hidden', label: 'Sensitive overlays / API keys hidden from view' },
+    { id: 'oauth-audited', label: 'Twitch & YouTube connected OAuth applications reviewed and unlinked if unused' },
+    { id: 'discord-sessions', label: 'Discord active sessions and authorized apps audited' },
     { id: 'mods-ready', label: 'Mod bot filters and chat automations active' },
     { id: 'notifications', label: 'Desktop push notifications disabled (DND mode)' },
   ];
@@ -158,6 +190,88 @@ export default function LivestreamSafetyPage() {
         </div>
       </div>
 
+      {/* Module: OAuth Connections & Tool Permissions Management */}
+      <div id="oauth-security" className="mb-12">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+          <Link2 className="w-6 h-6 text-brand-500" />
+          OAuth Connections & Third-Party Tool Auditing
+        </h2>
+        <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-6">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            <div className="p-3 rounded-lg bg-brand-500/10 text-brand-500 flex-shrink-0">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                Why Auditing Third-Party Logins is Critical
+              </h3>
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                Streamers frequently use <strong>"Sign in with Twitch"</strong> or <strong>"Sign in with Google/YouTube"</strong> to grant permissions to overlay widgets, stream bots, analytics suites, and giveaway managers. However, every authorized OAuth application maintains active tokens that allow external servers to access or modify your account.
+              </p>
+              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                If a legacy tool is shut down, acquired, or suffers a data breach, attackers can exploit valid OAuth tokens to alter your channel metadata, run unauthorized streams, or steal personal information—<strong>even if you change your password or have 2FA enabled</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+            {/* Twitch OAuth Card */}
+            <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-purple-500 inline-block" />
+                    Twitch OAuth Connections
+                  </h4>
+                  <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
+                    Twitch Account
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                  Review all third-party applications authorized to access your Twitch account (chatbots, overlays, extension panel tools). Disconnect any tool you no longer actively use.
+                </p>
+              </div>
+              <a
+                href="https://www.twitch.tv/settings/connections"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium text-sm transition-colors shadow-sm"
+              >
+                Manage Twitch Connections
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+
+            {/* YouTube / Google OAuth Card */}
+            <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
+                    YouTube & Google Connected Apps
+                  </h4>
+                  <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-600 dark:text-red-400 font-medium">
+                    Google Account
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                  Inspect third-party apps with account permissions, third-party sign-ins, and connected services. Revoke permissions for unverified or obsolete software.
+                </p>
+              </div>
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-colors shadow-sm"
+              >
+                Manage Google Permissions
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Module 2: Streamer OPSEC & Software Hardening Matrix */}
       <div id="opsec-matrix" className="mb-12">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
@@ -188,21 +302,21 @@ export default function LivestreamSafetyPage() {
 
           <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
-              <Radio className="w-5 h-5 text-purple-400" />
-              Network & IP Protection
+              <MessageSquare className="w-5 h-5 text-purple-400" />
+              Discord & Community OPSEC
             </h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>VPN Considerations:</strong> Use a reputable VPN during stream if playing P2P games or interacting with unverified external servers to prevent DDoS attacks.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Disable Unknown DMs:</strong> Turn off "Allow direct messages from server members" in Discord Privacy & Safety settings to block unsolicited scam messages.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Discord Voice Servers:</strong> Never show your Discord server region settings on stream; malicious actors can use this to narrow down your geolocation.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Audit Discord Sessions:</strong> Regularly navigate to <em>User Settings -&gt; Devices / Sessions</em> to log out of old mobile devices or web browsers.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Avoid P2P IP Leaks:</strong> Be wary of older multiplayer games or voice protocols that expose direct IP connections to other players.</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Never Scan QR Logins:</strong> Discord QR codes instantly log the scanning device into your account. Never scan a QR code shown in a stream or sent in chat.</p>
               </li>
             </ul>
           </div>
