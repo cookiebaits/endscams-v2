@@ -20,5 +20,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/tracker/*.ts",
+    "src/tracker/*.js",
+    "src/tracker/*.cjs"
+  ]
 }
