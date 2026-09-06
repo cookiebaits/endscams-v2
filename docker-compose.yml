@@ -48,6 +48,7 @@ services:
       ABSTRACT_IP_API_KEY: ${ABSTRACT_IP_API_KEY}
       ABSTRACT_SCRAPE_API_KEY: ${ABSTRACT_SCRAPE_API_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
     expose:
       - "8000"
     networks:
