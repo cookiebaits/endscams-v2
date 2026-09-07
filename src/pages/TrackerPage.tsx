@@ -31,8 +31,8 @@ interface ThreatRecord {
   is_down?: boolean;
 }
 
-// Baseline verified intelligence records (ensures immediate data display even before initial database fetch)
-const INITIAL_BASELINE_RECORDS: ThreatRecord[] = [
+// Baseline verified intelligence records so the page has immediate data
+const BASELINE_RECORDS: ThreatRecord[] = [
   {
     id: "base-1",
     phone_number: "+1 (800) 419-0134",
@@ -86,7 +86,7 @@ const INITIAL_BASELINE_RECORDS: ThreatRecord[] = [
 ];
 
 export default function TrackerPage() {
-  const [records, setRecords] = useState<ThreatRecord[]>(INITIAL_BASELINE_RECORDS);
+  const [records, setRecords] = useState<ThreatRecord[]>(BASELINE_RECORDS);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -104,7 +104,7 @@ export default function TrackerPage() {
   const [newDescription, setNewDescription] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
-  // 1. Fetch records from Supabase tracker_entries & user_reported_scams
+  // 1. Fetch records from Supabase tracker_entries
   const fetchRecords = async () => {
     setIsRefreshing(true);
     try {
@@ -115,10 +115,8 @@ export default function TrackerPage() {
         .limit(300);
 
       if (!error && Array.isArray(dbRecords) && dbRecords.length > 0) {
-        // Merge Supabase entries with baseline
         const map = new Map<string, ThreatRecord>();
         
-        // Add database entries first
         dbRecords.forEach((r: any) => {
           const digits = r.phone_digits || String(r.phone_number || '').replace(/\D/g, '');
           if (digits) {
@@ -136,18 +134,14 @@ export default function TrackerPage() {
           }
         });
 
-        // Add baseline entries if not already present
-        INITIAL_BASELINE_RECORDS.forEach((b) => {
+        BASELINE_RECORDS.forEach((b) => {
           if (!map.has(b.phone_digits)) {
             map.set(b.phone_digits, b);
           }
         });
 
         setRecords(Array.from(map.values()));
-        setStatusNotification(`Loaded ${map.size} live threat records from database`);
-      } else {
-        // If table is still empty, retain baseline records in Supabase
-        await seedInitialRecordsToPostgres();
+        setStatusNotification(`Loaded ${map.size} live threat records`);
       }
     } catch (err) {
       console.warn('[Tracker] Error querying Supabase:', err);
@@ -157,32 +151,11 @@ export default function TrackerPage() {
     }
   };
 
-  // 2. Initial seed into Supabase if empty
-  const seedInitialRecordsToPostgres = async () => {
-    try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
-
-      const toUpsert = INITIAL_BASELINE_RECORDS.map((r) => ({
-        phone_number: r.phone_number,
-        phone_digits: r.phone_digits,
-        source_name: r.source_name,
-        source_url: r.source_url,
-        report_date: r.report_date,
-        category: r.category,
-        description: r.description,
-        expires_at: expiresAt.toISOString(),
-      }));
-
-      await supabase.from('tracker_entries').upsert(toUpsert, { onConflict: 'phone_digits,source_name' });
-    } catch {}
-  };
-
   useEffect(() => {
     fetchRecords();
   }, []);
 
-  // 3. Filter and search
+  // 2. Search & filter
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       const matchesSearch =
@@ -200,7 +173,6 @@ export default function TrackerPage() {
     });
   }, [records, searchTerm, selectedCategory, selectedSource]);
 
-  // Dynamic unique lists for filter dropdowns
   const categories = useMemo(() => {
     const set = new Set<string>();
     records.forEach((r) => r.category && set.add(r.category));
@@ -213,14 +185,14 @@ export default function TrackerPage() {
     return Array.from(set);
   }, [records]);
 
-  // 4. One-click copy phone number
+  // 3. One-click copy
   const handleCopyPhone = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // 5. Toggle number down status
+  // 4. Toggle number down status
   const handleToggleNumberDown = async (record: ThreatRecord) => {
     const newStatus = !record.is_down;
     setRecords((prev) =>
@@ -232,13 +204,13 @@ export default function TrackerPage() {
         .from('tracker_entries')
         .update({ is_down: newStatus })
         .eq('phone_digits', record.phone_digits);
-      setStatusNotification(`Marked ${record.phone_number} as ${newStatus ? 'Out of Service' : 'Active'}`);
+      setStatusNotification(`Updated ${record.phone_number} to ${newStatus ? 'Out of Service' : 'Active'}`);
     } catch (e) {
       console.warn('Error updating status:', e);
     }
   };
 
-  // 6. Export to CSV (Natively inside page — no sandbox errors!)
+  // 5. Native CSV export
   const handleExportCSV = () => {
     const headers = ['Phone Number', 'Phone Digits', 'Category', 'Source', 'Source URL', 'Report Date', 'Status', 'Description'];
     const rows = filteredRecords.map((r) => [
@@ -253,16 +225,15 @@ export default function TrackerPage() {
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `scam_threat_tracker_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.href = encodeURI(csvContent);
+    link.download = `scam_threat_tracker_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // 7. Submit manual user report
+  // 6. Add manual scam report
   const handleSubmitManualReport = async (e: React.FormEvent) => {
     e.preventDefault();
     const digits = newPhone.replace(/\D/g, '');
@@ -288,10 +259,8 @@ export default function TrackerPage() {
       is_down: false,
     };
 
-    // Update local state immediately
     setRecords((prev) => [newEntry, ...prev]);
 
-    // Save to Supabase
     try {
       await supabase.from('tracker_entries').upsert({
         phone_number: newEntry.phone_number,
@@ -312,7 +281,7 @@ export default function TrackerPage() {
         source_url: newEntry.source_url,
       });
 
-      setStatusNotification(`Successfully reported ${newEntry.phone_number} and saved to database.`);
+      setStatusNotification(`Successfully saved ${newEntry.phone_number} to database.`);
     } catch (err) {
       console.warn('Error saving user report to Supabase:', err);
     } finally {
@@ -323,12 +292,11 @@ export default function TrackerPage() {
     }
   };
 
-  // Metrics
   const activeCount = records.filter((r) => !r.is_down).length;
   const downCount = records.filter((r) => r.is_down).length;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       <Head>
         <title>Threat Harvester & Scam Tracker | End Scams</title>
         <meta name="description" content="Live automated threat intelligence and community-verified scam phone numbers." />
@@ -348,7 +316,7 @@ export default function TrackerPage() {
           </div>
         )}
 
-        {/* Header Banner & Stats */}
+        {/* Header Banner & Controls */}
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1.5">
@@ -359,15 +327,14 @@ export default function TrackerPage() {
                 </span>
                 <h1 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center space-x-2">
                   <Shield className="w-5 h-5 text-amber-500" />
-                  <span>Live Threat Harvester & Intelligence Tracker</span>
+                  <span>Live Threat Intelligence Tracker</span>
                 </h1>
               </div>
               <p className="text-xs text-slate-400 max-w-2xl">
-                Real-time multi-source scam phone catalog. Threat intelligence entries are retained for 60 days to prevent repeat victimization.
+                Active scam phone catalog. Threat intelligence entries are retained for 60 days to protect victims.
               </p>
             </div>
 
-            {/* Quick Action Buttons */}
             <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
               <button
                 onClick={fetchRecords}
@@ -396,7 +363,7 @@ export default function TrackerPage() {
             </div>
           </div>
 
-          {/* Quick Metrics Bar */}
+          {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-800/80">
             <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
               <span className="text-[11px] text-slate-400 font-medium">Total Threat Records</span>
@@ -417,7 +384,7 @@ export default function TrackerPage() {
           </div>
         </section>
 
-        {/* Filter & Search Bar */}
+        {/* Search & Filters */}
         <section className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-center justify-between">
           <div className="relative w-full md:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -431,7 +398,6 @@ export default function TrackerPage() {
           </div>
 
           <div className="flex items-center space-x-2.5 w-full md:w-auto flex-wrap gap-y-2">
-            {/* Category Filter */}
             <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
               <Filter className="w-3.5 h-3.5 text-amber-400" />
               <select
@@ -446,7 +412,6 @@ export default function TrackerPage() {
               </select>
             </div>
 
-            {/* Source Filter */}
             <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
               <Database className="w-3.5 h-3.5 text-emerald-400" />
               <select
@@ -489,7 +454,6 @@ export default function TrackerPage() {
                     const isCopied = copiedId === record.id;
                     return (
                       <tr key={record.id} className="hover:bg-slate-850/60 transition-colors">
-                        {/* Phone Number with One-Click Copy */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <div className="flex items-center space-x-2">
                             <span className="font-mono font-bold text-sm text-amber-400">
@@ -505,14 +469,12 @@ export default function TrackerPage() {
                           </div>
                         </td>
 
-                        {/* Category Badge */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                             {record.category}
                           </span>
                         </td>
 
-                        {/* Source Platform with Link */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-slate-300">
                           {record.source_url && record.source_url.startsWith('http') ? (
                             <a
@@ -529,12 +491,10 @@ export default function TrackerPage() {
                           )}
                         </td>
 
-                        {/* Date */}
                         <td className="px-4 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
                           {record.report_date}
                         </td>
 
-                        {/* Status / Toggle Number Down */}
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <button
                             onClick={() => handleToggleNumberDown(record)}
@@ -543,13 +503,12 @@ export default function TrackerPage() {
                                 ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
                                 : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                             }`}
-                            title="Click to toggle active / out of service status"
+                            title="Click to toggle status"
                           >
                             {record.is_down ? 'Out of Service' : 'Active Line'}
                           </button>
                         </td>
 
-                        {/* Intel Description */}
                         <td className="px-4 py-3.5 text-slate-400 max-w-xs sm:max-w-md truncate" title={record.description}>
                           {record.description}
                         </td>
@@ -563,7 +522,7 @@ export default function TrackerPage() {
         </section>
       </main>
 
-      {/* Manual Scam Report Modal */}
+      {/* Manual Report Modal */}
       {isReportModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
@@ -581,7 +540,7 @@ export default function TrackerPage() {
 
             <form onSubmit={handleSubmitManualReport} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Phone Number (with Country/Area Code) *</label>
+                <label className="block text-slate-300 font-semibold mb-1">Phone Number *</label>
                 <input
                   type="text"
                   required
@@ -601,16 +560,15 @@ export default function TrackerPage() {
                 >
                   <option value="Tech Support Scam">Tech Support Scam (Microsoft/Apple)</option>
                   <option value="Invoice / Renewal Scam">Invoice / Renewal Scam (Geek Squad/PayPal)</option>
-                  <option value="Banking Impersonation">Banking Impersonation (Zelle/Chase/Wells Fargo)</option>
+                  <option value="Banking Impersonation">Banking Impersonation (Zelle/Chase)</option>
                   <option value="Cryptocurrency Scam">Cryptocurrency / Wallet Recovery</option>
-                  <option value="Amazon Order Fraud">Amazon Order / High Value Delivery Fraud</option>
-                  <option value="Government / IRS Fraud">IRS / Government / Social Security</option>
+                  <option value="Amazon Order Fraud">Amazon Order / Delivery Fraud</option>
                   <option value="Other Scam">Other Scam</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Source / Where did you find it?</label>
+                <label className="block text-slate-300 font-semibold mb-1">Source</label>
                 <input
                   type="text"
                   placeholder="e.g. Phishing Email, Reddit, SMS text, Popup alert"
@@ -621,10 +579,10 @@ export default function TrackerPage() {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Detailed Intel / Notes</label>
+                <label className="block text-slate-300 font-semibold mb-1">Details & Description</label>
                 <textarea
                   rows={3}
-                  placeholder="What did the scammer say? What invoice or software did they reference?"
+                  placeholder="What was the scam claim or company impersonated?"
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
@@ -644,7 +602,7 @@ export default function TrackerPage() {
                   disabled={isSubmittingReport}
                   className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition shadow disabled:opacity-50"
                 >
-                  {isSubmittingReport ? 'Submitting...' : 'Save & Retain Record'}
+                  {isSubmittingReport ? 'Submitting...' : 'Save Record'}
                 </button>
               </div>
             </form>
