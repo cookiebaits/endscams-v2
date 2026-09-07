@@ -23,6 +23,58 @@ export const CSV_EXPORT_HEADERS = [
 ];
 
 /**
+ * Robust RFC-compliant CSV line parser handling quotes, commas, and escaped quotes.
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  let i = 0;
+
+  while (i < line.length) {
+    const char = line[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          // Escaped quote ""
+          cur += '"';
+          i += 2;
+          continue;
+        } else {
+          // Closing quote
+          inQuotes = false;
+          i++;
+          continue;
+        }
+      } else {
+        cur += char;
+        i++;
+        continue;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+        i++;
+        continue;
+      } else if (char === ',') {
+        result.push(cur);
+        cur = '';
+        i++;
+        continue;
+      } else {
+        cur += char;
+        i++;
+        continue;
+      }
+    }
+  }
+
+  result.push(cur);
+  return result;
+}
+
+/**
  * Parses full multi-line CSV string handling multi-line quoted cells.
  */
 function parseFullCSV(text: string): string[][] {
@@ -215,6 +267,9 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   );
   const phoneIndex = normalizedHeaders.findIndex(
     (h) => h === 'phonenumber' || h === 'phone' || h === 'phoneno' || h === 'number'
+  );
+  const cleanDigitsIndex = normalizedHeaders.findIndex(
+    (h) => h === 'cleandigits' || h === 'cleanphone' || h === 'digits'
   );
   const dateIndex = normalizedHeaders.findIndex(
     (h) => h.includes('datedetected') || h === 'date' || h === 'detectedat'

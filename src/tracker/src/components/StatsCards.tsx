@@ -4,10 +4,10 @@ import { ScamPhoneRecord } from '../types';
 
 interface StatsCardsProps {
   records: ScamPhoneRecord[];
-  isSearching?: boolean;
+  isSearching: boolean;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ records }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({ records, isSearching }) => {
   const totalNumbers = records.length;
   const downCount = records.filter((r) => r.isNumberDown).length;
   const activeCount = totalNumbers - downCount;

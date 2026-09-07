@@ -12,11 +12,14 @@ import {
   Hash,
   ChevronDown,
   ChevronUp,
+  ShieldAlert,
   ArrowUpDown,
   Download,
   Upload,
   FileSpreadsheet,
+  FileText,
   AlertCircle,
+  Share2,
 } from 'lucide-react';
 import { ScamPhoneRecord, SortField, SortOrder } from '../types';
 import { formatPST } from '../utils/dateUtils';
@@ -34,8 +37,8 @@ interface MobileResultsListProps {
   onSortChange: (field: SortField) => void;
   onExportCSV: () => void;
   onImportCSV?: () => void;
-  onOpenAddModal?: () => void;
-  onOpenSearchModal?: () => void;
+  onOpenAddModal: () => void;
+  onOpenSearchModal: () => void;
 }
 
 export const MobileResultsList: React.FC<MobileResultsListProps> = ({
@@ -51,6 +54,8 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
   onSortChange,
   onExportCSV,
   onImportCSV,
+  onOpenAddModal,
+  onOpenSearchModal,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedRecordIds, setExpandedRecordIds] = useState<Set<string>>(new Set());

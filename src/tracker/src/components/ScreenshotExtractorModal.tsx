@@ -8,14 +8,18 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  PhoneCall,
+  FileText,
   DollarSign,
   Building2,
   Hash,
   ExternalLink,
   MessageCircle,
   Globe,
+  ArrowRight,
   Maximize2,
   Minimize2,
+  RefreshCw,
   Eye,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
@@ -270,7 +274,7 @@ export const ScreenshotExtractorModal: React.FC<ScreenshotExtractorModalProps> =
         }
       }
       setErrorMsg('No image found on clipboard. You can press Ctrl+V / Cmd+V or browse a file.');
-    } catch {
+    } catch (err: any) {
       setErrorMsg('Clipboard access denied or unavailable. Use Ctrl+V / Cmd+V to paste directly.');
     }
   };

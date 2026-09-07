@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StatsCards } from './components/StatsCards';
 import { ResultsTable } from './components/ResultsTable';
 import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPanel';
 import { BackupRestoreModal } from './components/BackupRestoreModal';
-import { ScamPhoneRecord } from './types';
-import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
-import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
+import { ScamPhoneRecord, SyncBridgeStatus } from './types';
+import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, Activity, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
+import { formatPSTTimeOnly, formatPST, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { noSqlDatabase } from './db/noSqlDatabase';
@@ -16,12 +16,17 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState(0);
   const [scanStatusMessage, setScanStatusMessage] = useState("");
   const [lastScanTime, setLastScanTime] = useState<string | null>(null);
+  const [lastScanSummary, setLastScanSummary] = useState<string>('Database loaded.');
   const [nextScheduledRefresh, setNextScheduledRefresh] = useState<string>('Today at 1:00 PM PST');
+  const [nextExecutionPST, setNextExecutionPST] = useState<string | null>(null);
+  const [nextExecutionCountdown, setNextExecutionCountdown] = useState<string | null>(null);
+  const [schedulerActive, setSchedulerActive] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isBackupRestoreOpen, setIsBackupRestoreOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
 
   // Auto-detect mobile devices and responsive screen widths with manual override
   const { isMobile, preference, setPreference } = useDeviceMode();
@@ -78,10 +83,12 @@ export default function App() {
       onToggleNumberDown: (id) => {
         handleToggleNumberDown(id);
       },
-      onStatusUpdate: () => {
-        // Status updated
+      onStatusUpdate: (s) => {
+        setSyncStatus(s);
       },
     });
+
+    setSyncStatus(syncBridge.getStatus());
 
     return () => {
       syncBridge.destroy();
@@ -150,7 +157,11 @@ export default function App() {
         if (data.success && Array.isArray(data.records)) {
           setRecords(data.records);
           setLastScanTime(data.lastScanTime);
+          if (data.lastScanSummary) setLastScanSummary(data.lastScanSummary);
           if (data.nextScheduledRefresh) setNextScheduledRefresh(data.nextScheduledRefresh);
+          if (data.nextExecutionPST) setNextExecutionPST(data.nextExecutionPST);
+          if (data.nextExecutionCountdown) setNextExecutionCountdown(data.nextExecutionCountdown);
+          if (data.schedulerActive !== undefined) setSchedulerActive(data.schedulerActive);
           setIsScanning(Boolean(data.isScanningInProgress));
           if (data.scanProgress !== undefined) setScanProgress(data.scanProgress);
           if (data.scanStatusMessage !== undefined) setScanStatusMessage(data.scanStatusMessage);
@@ -276,7 +287,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6">
         {/* Automated Harvester Live Control Banner */}

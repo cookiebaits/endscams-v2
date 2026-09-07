@@ -27,13 +27,18 @@ process.on('unhandledRejection', (err) => {
 });
 
 // Trust reverse proxy headers (e.g. Dokploy, Cloudflare, Nginx, Traefik)
+// Essential for Cloudflare edge proxy & Dokploy container networking
 app.set('trust proxy', true);
 
 // Permissive CORS & IFrame embedding headers to allow embedding on other pages (e.g., https://endscams.org/tracker)
+// Supports Cloudflare specific headers (CF-Connecting-IP, CF-Ray, CF-IPCountry)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, CF-Connecting-IP, CF-Ray, CF-IPCountry, X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host, x-gemini-api-key'
+  );
   // Allow framing across any parent origin and explicitly allow https://endscams.org
   res.removeHeader('X-Frame-Options');
   res.header('Content-Security-Policy', "frame-ancestors 'self' * https://endscams.org https://*.endscams.org;");
@@ -49,12 +54,18 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 
-// Health check endpoints
+// Health check endpoints for Dokploy, Cloudflare, Traefik, Docker Swarm, and Kubernetes probes
 app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+  res.status(200).json({ status: 'ok', proxy: 'cloudflare/dokploy', time: new Date().toISOString() });
+});
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', proxy: 'cloudflare/dokploy', time: new Date().toISOString() });
+});
+app.get('/ping', (_req, res) => {
+  res.status(200).send('pong');
 });
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', time: new Date().toISOString() });
+  res.status(200).json({ status: 'ok', proxy: 'cloudflare/dokploy', time: new Date().toISOString() });
 });
 
 // Persistent Storage Configuration
@@ -540,17 +551,72 @@ function purgeExpiredRecords() {
   }
 }
 
-// Helper to initialize GenAI client
-function getGenAIClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+/**
+ * Cleans and sanitizes Gemini API keys for Dokploy and Cloudflare proxy environments.
+ * Handles:
+ * - Direct key: "AQ.Ab8R...." or "AIzaSy...."
+ * - Quoted string from Dokploy env / docker-compose: "\"AQ.Ab8R....\"" or "'AQ.Ab8R....'"
+ * - Full declaration pasted into env field: "GEMINI_API_KEY=\"AQ.Ab8R....\"" or "export GEMINI_API_KEY=..."
+ * - Whitespace, carriage returns (\r), or newlines (\n)
+ */
+function cleanApiKey(raw?: string | null): string {
+  if (!raw || typeof raw !== 'string') return '';
+  let key = raw.trim();
+
+  // Strip prefix if user pasted the entire env assignment line in Dokploy UI
+  if (/^(?:export\s+)?(?:GEMINI_API_KEY|GOOGLE_API_KEY|GEMINI_KEY|API_KEY)\s*=\s*/i.test(key)) {
+    key = key.replace(/^(?:export\s+)?(?:GEMINI_API_KEY|GOOGLE_API_KEY|GEMINI_KEY|API_KEY)\s*=\s*/i, '').trim();
+  }
+
+  // Strip surrounding quotes (double or single)
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+
+  // Also strip escaped quotes if Dokploy/Docker escaped them like \"key\"
+  if (key.startsWith('\\"') && key.endsWith('\\"')) {
+    key = key.slice(2, -2).trim();
+  }
+
+  // Remove any remaining internal carriage returns, newlines, or tabs
+  key = key.replace(/[\r\n\t]/g, '').trim();
+
+  return key;
+}
+
+function getCleanGeminiApiKey(explicitKey?: string): string {
+  if (explicitKey) {
+    const cleaned = cleanApiKey(explicitKey);
+    if (cleaned) return cleaned;
+  }
+  const candidate =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GEMINI_KEY ||
+    process.env.API_KEY ||
+    '';
+  return cleanApiKey(candidate);
+}
+
+function getMaskedApiKey(key: string): string {
+  if (!key) return 'Not Configured';
+  if (key.length <= 8) return '••••••••';
+  const start = key.slice(0, 7);
+  const end = key.slice(-4);
+  return `${start}...${end} (${key.length} chars)`;
+}
+
+// Helper to initialize GenAI client with full Dokploy & Cloudflare compatibility
+function getGenAIClient(explicitKey?: string) {
+  const apiKey = getCleanGeminiApiKey(explicitKey);
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY environment variable is required.');
+    throw new Error('GEMINI_API_KEY is not configured. Set GEMINI_API_KEY in Dokploy environment variables.');
   }
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
       headers: {
-        'User-Agent': 'aistudio-build',
+        'User-Agent': 'aistudio-build-dokploy',
       },
     },
   });
@@ -938,7 +1004,7 @@ async function fetchLiveFeedDirectItems(queryHint: string = ''): Promise<any[]> 
 
 // Resilient Query runner with Google Search Grounding, minimal thinking latency, exponential backoff, and direct feed fallback
 async function generateThreatIntelligence(ai: GoogleGenAI, prompt: string): Promise<ThreatIntelResponse> {
-  const modelsToTry = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
   let lastError: any = null;
 
   // 1. Try Google Search Grounding with generous 25s timeout and ThinkingLevel.MINIMAL to avoid excess thinking latency
@@ -1160,7 +1226,7 @@ Return ONLY a valid JSON object:
 }
 \`\`\``.trim();
 
-  const modelsToTry = ['gemini-3.7-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
   let items: any[] = [];
 
   for (const model of modelsToTry) {
@@ -1240,8 +1306,8 @@ async function executeFullHarvesterScan(slotContext?: SlotContext): Promise<{ ne
     return { newCount: 0, summary: 'Scan already in progress.' };
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    const summary = 'Harvester scan skipped: GEMINI_API_KEY environment variable is not configured.';
+  if (!getCleanGeminiApiKey()) {
+    const summary = 'Harvester scan skipped: GEMINI_API_KEY environment variable is not configured in Dokploy or .env.';
     console.warn(`[Harvester] ${summary}`);
     lastScanSummary = summary;
     addSchedulerLog('error', summary);
@@ -2013,10 +2079,12 @@ function buildSchedulerDiagnostics() {
       totalScansExecuted,
     },
     health: {
-      geminiApiKey: process.env.GEMINI_API_KEY ? ('configured' as const) : ('missing' as const),
+      geminiApiKey: getCleanGeminiApiKey() ? ('configured' as const) : ('missing' as const),
+      geminiKeyPreview: getMaskedApiKey(getCleanGeminiApiKey()),
       storage: fs.existsSync(DATA_DIR) ? ('healthy' as const) : ('error' as const),
       recordsRetained: scamRecordsStore.length,
       retentionPolicy: 'Tiered: 6 Months (PCH, Mega Millions, Reader Digest, Stake.us, Prize Scams) / 60 Days Standard',
+      proxyMode: 'Cloudflare / Dokploy Trust Proxy Enabled',
     },
     logs: schedulerLogs.slice(0, 30),
   };
@@ -2159,8 +2227,8 @@ app.post('/api/search', async (req, res) => {
   const cleanQuery = query.trim();
   const currentDateStr = new Date().toISOString().slice(0, 10);
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+  if (!getCleanGeminiApiKey()) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured. Please set GEMINI_API_KEY in Dokploy or your .env file.' });
   }
 
   try {
@@ -2359,8 +2427,8 @@ app.post('/api/scan-page-screenshot', async (req, res) => {
     return res.status(400).json({ error: 'sourceUrl parameter is required.' });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+  if (!getCleanGeminiApiKey()) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured. Please set GEMINI_API_KEY in Dokploy or your .env file.' });
   }
 
   let platformName = platform;
@@ -2495,8 +2563,8 @@ app.post('/api/extract-screenshot', async (req, res) => {
     return res.status(400).json({ error: 'Screenshot imageBase64 data is required.' });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+  if (!getCleanGeminiApiKey()) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not configured. Please set GEMINI_API_KEY in Dokploy or your .env file.' });
   }
 
   // Clean base64 string
@@ -2552,26 +2620,37 @@ Return ONLY a valid JSON object with this exact structure:
 }
 \`\`\``.trim();
 
-    // Call Gemini 3.7 Flash with Multimodal Image Content
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
-      contents: [
-        {
-          inlineData: {
-            data: cleanBase64,
-            mimeType: detectedMime,
+    // Call Gemini Flash with Multimodal Image Content (resilient model list)
+    const ocrModels = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+    let responseText = '';
+    for (const m of ocrModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: m,
+          contents: [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: detectedMime,
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+          config: {
+            temperature: 0.1,
           },
-        },
-        {
-          text: prompt,
-        },
-      ],
-      config: {
-        temperature: 0.1,
-      },
-    });
-
-    const responseText = response.text || '';
+        });
+        if (response.text && response.text.trim().length > 0) {
+          responseText = response.text;
+          break;
+        }
+      } catch (ocrErr: any) {
+        console.warn(`[Screenshot OCR] Model ${m} attempt failed: ${ocrErr.message || ocrErr}`);
+        await delay(1000);
+      }
+    }
     const items = safeExtractJsonItems(responseText);
 
     const newlyFound: ScamPhoneRecord[] = [];
@@ -2981,6 +3060,38 @@ app.get('/api/database/dump', (_req, res) => {
   res.send(JSON.stringify(noSqlDump, null, 2));
 });
 
+// GET /api/config/api-key - Check Gemini API key status in Dokploy / Cloudflare environment
+app.get('/api/config/api-key', (_req, res) => {
+  const cleanKey = getCleanGeminiApiKey();
+  return res.json({
+    configured: Boolean(cleanKey),
+    keyPreview: getMaskedApiKey(cleanKey),
+    proxyMode: 'Cloudflare Proxy & Dokploy Trust Proxy Active',
+  });
+});
+
+// POST /api/config/api-key - Dynamically update Gemini API key without restarting container
+app.post('/api/config/api-key', (req, res) => {
+  const { apiKey } = req.body || {};
+  const cleaned = cleanApiKey(apiKey);
+  if (!cleaned) {
+    return res.status(400).json({
+      success: false,
+      error: 'A valid API key string is required (e.g. GEMINI_API_KEY="AQ.Ab8R..." or "AIzaSy...").',
+    });
+  }
+
+  process.env.GEMINI_API_KEY = cleaned;
+  console.log(`[API Key Config] Successfully loaded Gemini API key: ${getMaskedApiKey(cleaned)}`);
+
+  return res.json({
+    success: true,
+    message: `Gemini API key updated successfully (${getMaskedApiKey(cleaned)}).`,
+    keyPreview: getMaskedApiKey(cleaned),
+    configured: true,
+  });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
@@ -2997,9 +3108,42 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    const activeKey = getCleanGeminiApiKey();
+    console.log(`=======================================================`);
+    console.log(`EndScam Harvester Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Dokploy & Cloudflare Reverse Proxy: Active (trust proxy: true)`);
+    console.log(`Gemini API Key Status: ${getMaskedApiKey(activeKey)}`);
+    console.log(`Health Probes: /health, /healthz, /api/health, /ping`);
+    console.log(`=======================================================`);
   });
+
+  // Cloudflare Proxy Keep-Alive optimizations (prevents 524 timeouts and keep-alive race conditions)
+  server.keepAliveTimeout = 120000;
+  server.headersTimeout = 125000;
+
+  // Graceful shutdown handling for Dokploy / Docker container lifecycle
+  const handleShutdown = (signal: string) => {
+    console.log(`[Lifecycle] Received ${signal}. Flushing database records to disk...`);
+    try {
+      saveRecordsToDisk(scamRecordsStore);
+      console.log(`[Lifecycle] Database state saved (${scamRecordsStore.length} records retained).`);
+    } catch (e) {
+      console.error('[Lifecycle] Error saving database on shutdown:', e);
+    }
+    server.close(() => {
+      console.log('[Lifecycle] HTTP server closed gracefully.');
+      process.exit(0);
+    });
+    // Force process termination after 10s if connections linger
+    setTimeout(() => {
+      console.warn('[Lifecycle] Forced shutdown after timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
 
 startServer();
