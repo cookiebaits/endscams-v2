@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
-import { supabase } from '../lib/supabaseClient';
-import { RefreshCw, ExternalLink, Shield, AlertTriangle, Phone, Calendar, Download, Database, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import { RefreshCw, Database } from 'lucide-react';
 
 // Live Harvester Hosted URL (fallback to environment variable if present)
 const HARVESTER_URL = 
-  process.env.NEXT_PUBLIC_TRACKER_IFRAME_URL || 
+  import.meta.env.VITE_TRACKER_IFRAME_URL ||
   'https://ais-pre-6bcbw5dahy2mjkuwgvvzlq-451738151228.us-west2.run.app';
 
 export default function TrackerPage() {
@@ -15,6 +14,10 @@ export default function TrackerPage() {
   const [lastSyncStatus, setLastSyncStatus] = useState<string>('Connecting to threat harvester...');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.title = 'Threat Harvester & Scam Tracker | End Scams';
+  }, []);
 
   // 1. Dynamic Responsive Iframe Height Adjustment
   useEffect(() => {
@@ -61,6 +64,7 @@ export default function TrackerPage() {
   }, []);
 
   // 3. Retain records directly to Supabase Postgres (60-Day Expiry)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const retainRecordsToPostgres = async (records: any[]) => {
     if (!records || !Array.isArray(records) || records.length === 0) return;
 
@@ -68,6 +72,7 @@ export default function TrackerPage() {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 60);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const entriesToUpsert = records.map((r: any) => {
         const rawPhone = r.phone_digits || r.cleanPhone || r.phone || r.phoneNumber || '';
         const digits = String(rawPhone).replace(/\D/g, '');
@@ -89,7 +94,6 @@ export default function TrackerPage() {
 
       if (entriesToUpsert.length > 0) {
         // Upsert in batches of 50 to avoid request size limitations
-        let totalUpserted = 0;
         for (let i = 0; i < entriesToUpsert.length; i += 50) {
           const chunk = entriesToUpsert.slice(i, i + 50);
           const { error } = await supabase
@@ -97,8 +101,6 @@ export default function TrackerPage() {
             .upsert(chunk, { onConflict: 'phone_digits,source_name' });
           if (error) {
             console.warn('[TrackerSync] Upsert batch warning:', error);
-          } else {
-            totalUpserted += chunk.length;
           }
         }
 
@@ -181,11 +183,6 @@ export default function TrackerPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <Head>
-        <title>Threat Harvester & Scam Tracker | End Scams</title>
-        <meta name="description" content="Live automated scam phone threat harvester and 60-day retained intelligence database." />
-      </Head>
-
       {/* Embedded Harvester Container */}
       <main ref={containerRef} className="flex-1 w-full max-w-7xl mx-auto px-2 sm:px-4 py-3 flex flex-col">
         {/* Top Integration Status Header */}
