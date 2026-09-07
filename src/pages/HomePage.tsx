@@ -603,48 +603,52 @@ export default function HomePage() {
                   ) : (
                     <div className="flex flex-col gap-4 text-left">
                       {(() => {
-                        const carrier = phoneToolResult.phone_carrier?.name?.toLowerCase() || '';
-                        const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'text free'];
-                        const majors = ['t-mobile', 'at&t', 'verizon', 'boost mobile', 'dish wireless'];
+                        const carrierName = phoneToolResult.carrier || phoneToolResult.phone_carrier?.name || '';
+                        const carrier = carrierName.toLowerCase();
+                        const lineType = (phoneToolResult.type || phoneToolResult.phone_carrier?.line_type || '').toLowerCase();
+                        const isVoip = phoneToolResult.is_voip || lineType.includes('voip') || lineType.includes('virtual');
 
-                        const isWholesaler = wholesalers.some(w => carrier.includes(w));
-                        const isMajor = majors.some(m => carrier.includes(m));
+                        const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'text free'];
+                        const isWholesaler = wholesalers.some(w => carrier.includes(w)) || isVoip;
 
                         if (isWholesaler) {
-                          return <div className="text-red-500 font-bold px-4 py-3 bg-red-500/10 rounded-lg border border-red-500/20 inline-block">Risk: High (Wholesaler / VOIP carrier detected)</div>;
-                        } else if (isMajor) {
-                          return <div className="text-green-500 font-bold px-4 py-3 bg-green-500/10 rounded-lg border border-green-500/20 inline-block">Risk: Low (Major Carrier)</div>;
+                          return <div className="text-red-500 font-bold px-4 py-3 bg-red-500/10 rounded-lg border border-red-500/20 inline-block">Risk: High (VOIP or Wholesaler Carrier Detected)</div>;
                         }
-                        return null;
+                        return <div className="text-green-500 font-bold px-4 py-3 bg-green-500/10 rounded-lg border border-green-500/20 inline-block">Risk: Low (Standard Carrier)</div>;
                       })()}
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <p className="font-bold text-slate-800 dark:text-slate-200 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center gap-2">
                             <Shield className="w-4 h-4 text-brand-500" />
-                            Status
+                            Validation
                           </p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Valid: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.is_valid ? 'Yes' : 'No'}</span></p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Line Status: <span className="font-semibold text-slate-900 dark:text-white capitalize">{phoneToolResult.line_status || 'Unknown'}</span></p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">VOIP: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.is_voip ? 'Yes' : 'No'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">Valid Number: <span className="font-semibold text-slate-900 dark:text-white">{(phoneToolResult.valid ?? phoneToolResult.is_valid) ? 'Yes' : 'No'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">Line Type: <span className="font-semibold text-slate-900 dark:text-white capitalize">{phoneToolResult.type || phoneToolResult.phone_carrier?.line_type || 'Mobile'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">VOIP Line: <span className="font-semibold text-slate-900 dark:text-white">{(phoneToolResult.is_voip || (phoneToolResult.type || '').toLowerCase().includes('voip')) ? 'Yes' : 'No'}</span></p>
                         </div>
                         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <p className="font-bold text-slate-800 dark:text-slate-200 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center gap-2">
                             <Network className="w-4 h-4 text-blue-500" />
-                            Carrier
+                            Network
                           </p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Carrier: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.phone_carrier?.name || 'Unknown'}</span></p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Type: <span className="font-semibold text-slate-900 dark:text-white capitalize">{phoneToolResult.phone_carrier?.line_type || 'Unknown'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">Carrier: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.carrier || phoneToolResult.phone_carrier?.name || 'Unknown Carrier'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">Country Code: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.country?.code || 'US'}</span></p>
                         </div>
                         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <p className="font-bold text-slate-800 dark:text-slate-200 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center gap-2">
                             <Globe className="w-4 h-4 text-purple-500" />
                             Location
                           </p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Location: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.location || 'United States'}</span></p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">Format: <span className="font-mono text-slate-900 dark:text-white">{phoneToolResult.format?.international || phoneToolInput}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">Country: <span className="font-semibold text-slate-900 dark:text-white">{phoneToolResult.country?.name || phoneToolResult.location || 'United States'}</span></p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">International: <span className="font-mono text-slate-900 dark:text-white">{phoneToolResult.format?.international || phoneToolInput}</span></p>
                         </div>
                       </div>
+
+                      <details className="mt-2">
+                        <summary className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer font-medium">View Raw JSON Response</summary>
+                        <pre className="mt-2 text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(phoneToolResult, null, 2)}</pre>
+                      </details>
                     </div>
                   )}
                 </div>

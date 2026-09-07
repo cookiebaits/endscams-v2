@@ -504,11 +504,6 @@ runPipeline()
 /*  Abstract Tools Proxy Endpoints                                   */
 /* ================================================================ */
 
-const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
-const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
-const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
-const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
-
 let lastToolSearchTime = 0;
 
 async function handleToolDirectProxy(req: Request, tool: "phone" | "email" | "ip" | "scrape"): Promise<Response> {
@@ -541,11 +536,16 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
   const { tool, query } = body;
   if (!tool || !query) return cors(json({ error: "Missing tool or query" }, 400));
 
+  const phoneKey = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
+  const emailKey = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
+  const ipKey = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
+  const scrapeKey = Deno.env.get("ABSTRACT_SCRAPER_API_KEY") || Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
+
   const endpoints: Record<string, { base: string, key: string, param: string }> = {
-    phone: { base: "https://phoneintelligence.abstractapi.com/v1/", key: ABSTRACT_PHONE_API_KEY, param: "phone" },
-    email: { base: "https://emailvalidation.abstractapi.com/v1/", key: ABSTRACT_EMAIL_API_KEY, param: "email" },
-    ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ABSTRACT_IP_API_KEY, param: "ip_address" },
-    scrape: { base: "https://scrape.abstractapi.com/v1/", key: ABSTRACT_SCRAPE_API_KEY, param: "url" },
+    phone: { base: "https://phonevalidation.abstractapi.com/v1/", key: phoneKey, param: "phone" },
+    email: { base: "https://emailvalidation.abstractapi.com/v1/", key: emailKey, param: "email" },
+    ip: { base: "https://ipgeolocation.abstractapi.com/v1/", key: ipKey, param: "ip_address" },
+    scrape: { base: "https://scrape.abstractapi.com/v1/", key: scrapeKey, param: "url" },
   };
 
   const config = endpoints[tool as string];
@@ -555,19 +555,39 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
     if (tool === "phone") {
       return cors(json({
         phone: query,
+        valid: true,
+        format: {
+          international: `+1 ${query}`,
+          local: query
+        },
+        country: {
+          code: "US",
+          name: "United States",
+          prefix: "+1"
+        },
+        location: "United States",
+        type: query.includes("555") || query.includes("800") ? "VOIP" : "Mobile",
+        carrier: "Sample Carrier Intelligence",
         is_valid: true,
         is_voip: query.includes("555") || query.includes("800"),
         line_status: "active",
-        phone_carrier: { name: "Sample Carrier Intelligence", line_type: "mobile" },
-        location: "United States",
-        format: { international: `+1 ${query}`, national: query }
+        phone_carrier: { name: "Sample Carrier Intelligence", line_type: "mobile" }
       }));
     } else if (tool === "email") {
       return cors(json({
         email: query,
+        autocorrect: "",
+        deliverability: "DELIVERABLE",
+        quality_score: query.includes("temp") || query.includes("test") ? "0.20" : "0.95",
+        is_valid_format: { value: true, text: "TRUE" },
+        is_free_email: { value: query.includes("gmail") || query.includes("yahoo"), text: query.includes("gmail") ? "TRUE" : "FALSE" },
+        is_disposable_email: { value: query.includes("temp") || query.includes("disposable"), text: query.includes("temp") ? "TRUE" : "FALSE" },
+        is_role_email: { value: query.includes("admin") || query.includes("support"), text: query.includes("admin") ? "TRUE" : "FALSE" },
+        is_catchall_email: { value: false, text: "FALSE" },
+        is_mx_found: { value: true, text: "TRUE" },
+        is_smtp_valid: { value: true, text: "TRUE" },
         email_risk: { address_risk_status: query.includes("test") ? "high" : "low" },
-        email_quality: { is_disposable: query.includes("temp") || query.includes("disposable") },
-        deliverability: "DELIVERABLE"
+        email_quality: { is_disposable: query.includes("temp") || query.includes("disposable") }
       }));
     } else if (tool === "ip") {
       return cors(json({
@@ -575,6 +595,21 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
         city: "San Francisco",
         region: "California",
         country: "United States",
+        country_code: "US",
+        longitude: -122.4194,
+        latitude: 37.7749,
+        security: {
+          is_vpn: false,
+          is_proxy: false,
+          is_tor: false,
+          is_relay: false
+        },
+        connection: {
+          autonomous_system_number: 15169,
+          autonomous_system_organization: "Google LLC",
+          connection_type: "Corporate",
+          isp_name: "Google LLC"
+        },
         is_vpn: false
       }));
     } else if (tool === "scrape") {
@@ -589,11 +624,32 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
   const targetUrl = `${config.base}?api_key=${config.key}&${config.param}=${encodeURIComponent(query)}`;
 
   try {
-    const apiRes = await fetch(targetUrl);
-    if (!apiRes.ok) {
-       return cors(json({ error: `API returned status ${apiRes.status}` }, apiRes.status));
+    let apiRes = await fetch(targetUrl);
+    // If phonevalidation returns 404/400 try phoneintelligence endpoint as fallback
+    if (!apiRes.ok && tool === "phone") {
+      const fallbackUrl = `https://phoneintelligence.abstractapi.com/v1/?api_key=${config.key}&phone=${encodeURIComponent(query)}`;
+      const altRes = await fetch(fallbackUrl);
+      if (altRes.ok) apiRes = altRes;
     }
-    const data = tool === "scrape" ? await apiRes.text() : await apiRes.json();
+
+    if (!apiRes.ok) {
+       const errText = await apiRes.text();
+       return cors(json({ error: `Abstract API Error (${apiRes.status}): ${errText || apiRes.statusText}` }, apiRes.status));
+    }
+
+    const contentType = apiRes.headers.get("content-type") || "";
+    let data;
+    if (contentType.includes("application/json")) {
+      data = await apiRes.json();
+    } else {
+      const rawText = await apiRes.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = { url: query, content: rawText };
+      }
+    }
+
     return cors(new Response(JSON.stringify(data), {
       status: 200,
       headers: { "Content-Type": "application/json" }
