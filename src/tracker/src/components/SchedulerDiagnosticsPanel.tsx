@@ -13,12 +13,9 @@ import {
   ShieldCheck,
   Zap,
   X,
-  ChevronDown,
-  ChevronUp,
   Flame,
-  Info,
 } from 'lucide-react';
-import { SchedulerDiagnosticsData, SchedulerLogEntry } from '../types';
+import { SchedulerDiagnosticsData } from '../types';
 
 interface SchedulerDiagnosticsPanelProps {
   isOpen: boolean;
@@ -443,18 +440,10 @@ export const SchedulerDiagnosticsPanel: React.FC<SchedulerDiagnosticsPanelProps>
               </div>
 
               <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Gemini Engine:</span>
-                  <span className="font-semibold text-emerald-400 font-mono text-[11px]">
-                    {data?.health.geminiApiKey === 'configured'
-                      ? `Active (${data?.health.geminiKeyPreview || 'Configured'})`
-                      : 'Missing Key'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">Proxy Architecture:</span>
-                  <span className="font-semibold text-cyan-400 text-[11px]">
-                    {data?.health.proxyMode || 'Cloudflare / Dokploy Proxy'}
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Gemini Grounding:</span>
+                  <span className="font-semibold text-emerald-400">
+                    {data?.health.geminiApiKey === 'configured' ? 'Connected' : 'Missing Key'}
                   </span>
                 </div>
                 <div className="flex justify-between">
