@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, XOctagon, ExternalLink, Link2, MessageSquare, Lock } from 'lucide-react';
+import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, XOctagon, ExternalLink, Link2, MessageSquare, Lock, Smartphone, Monitor } from 'lucide-react';
+import { useDeviceType } from '../hooks/useDeviceType';
 import Banner from '../components/Banner';
 
 const SCAM_CATALOG = [
@@ -76,6 +77,7 @@ const SCAM_CATALOG = [
 ];
 
 export default function LivestreamSafetyPage() {
+  const device = useDeviceType();
   const [expandedScam, setExpandedScam] = useState<string | null>(null);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
 
@@ -119,19 +121,35 @@ export default function LivestreamSafetyPage() {
         dismissible
         message={<span><strong>Streamer Safety:</strong> High-profile creators are prime targets. Keep your personal data strictly separated from your public presence.</span>}
       />
+
+      {/* Device Auto-Detection Indicator */}
+      <div className="bg-slate-200/60 dark:bg-slate-900/60 border-b border-slate-300 dark:border-slate-800 py-1 px-4 text-center text-xs text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+        {device.isMobilePhone ? (
+          <>
+            <Smartphone className="w-3.5 h-3.5 text-brand-500" />
+            <span>Mobile Phone View Auto-Detected — Mobile streamer guide layout active</span>
+          </>
+        ) : (
+          <>
+            <Monitor className="w-3.5 h-3.5 text-brand-500" />
+            <span>Desktop Computer View Auto-Detected</span>
+          </>
+        )}
+      </div>
+
       <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
-        <div className="text-center mb-14">
+        <div className="text-center mb-10 sm:mb-14">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
             <MonitorPlay className="w-8 h-8 text-brand-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white leading-tight">
             Livestreaming Safety & Security Field Guide
           </h1>
         </div>
 
       {/* Module 1: Comprehensive Scam Catalog */}
       <div id="scam-catalog" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Comprehensive Scam Catalog
         </h2>
@@ -142,43 +160,43 @@ export default function LivestreamSafetyPage() {
               <div key={scam.id} className={`card overflow-hidden transition-all duration-300 border ${isExpanded ? 'border-brand-500/50' : 'border-slate-200 dark:border-slate-800'}`}>
                 <button
                   onClick={() => toggleScam(scam.id)}
-                  className="w-full flex items-center justify-between p-5 bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-800/80 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-4 sm:p-5 bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-800/80 transition-colors text-left"
                   aria-expanded={isExpanded}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     <span className={`px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-md border ${scam.threatColor}`}>
                       {scam.threat}
                     </span>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-lg">{scam.title}</h3>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-base sm:text-lg">{scam.title}</h3>
                   </div>
                   {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <ChevronUp className="w-5 h-5 text-slate-600 dark:text-slate-400 shrink-0" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    <ChevronDown className="w-5 h-5 text-slate-600 dark:text-slate-400 shrink-0" />
                   )}
                 </button>
 
                 {isExpanded && (
-                  <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30">
+                  <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/30">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <div className="mb-4">
                           <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Attack Vector</h4>
-                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.vector}</p>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{scam.vector}</p>
                         </div>
                         <div className="mb-4">
                           <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">The Scam Pitch</h4>
-                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.pitch}</p>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{scam.pitch}</p>
                         </div>
                       </div>
                       <div>
                         <div className="mb-4">
                           <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Scammer Tactic & Payload</h4>
-                          <p className="text-slate-700 dark:text-slate-300 text-sm">{scam.tactic}</p>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{scam.tactic}</p>
                         </div>
                         <div>
                           <h4 className="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-wider mb-1">Defensive Action</h4>
-                          <p className="text-slate-700 dark:text-slate-300 text-sm font-medium">{scam.defense}</p>
+                          <p className="text-slate-700 dark:text-slate-300 text-sm font-medium leading-relaxed">{scam.defense}</p>
                         </div>
                       </div>
                     </div>
@@ -192,31 +210,31 @@ export default function LivestreamSafetyPage() {
 
       {/* Module: OAuth Connections & Tool Permissions Management */}
       <div id="oauth-security" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Link2 className="w-6 h-6 text-brand-500" />
           OAuth Connections & Third-Party Tool Auditing
         </h2>
-        <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-6">
-          <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="card p-5 sm:p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 sm:gap-6 items-start">
             <div className="p-3 rounded-lg bg-brand-500/10 text-brand-500 flex-shrink-0">
               <Lock className="w-8 h-8" />
             </div>
             <div className="space-y-3">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
                 Why Auditing Third-Party Logins is Critical
               </h3>
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                 Streamers frequently use <strong>"Sign in with Twitch"</strong> or <strong>"Sign in with Google/YouTube"</strong> to grant permissions to overlay widgets, stream bots, analytics suites, and giveaway managers. However, every authorized OAuth application maintains active tokens that allow external servers to access or modify your account.
               </p>
-              <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                 If a legacy tool is shut down, acquired, or suffers a data breach, attackers can exploit valid OAuth tokens to alter your channel metadata, run unauthorized streams, or steal personal information—<strong>even if you change your password or have 2FA enabled</strong>.
               </p>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
             {/* Twitch OAuth Card */}
-            <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+            <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
@@ -240,7 +258,7 @@ export default function LivestreamSafetyPage() {
             </div>
 
             {/* YouTube / Google OAuth Card */}
-            <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+            <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
@@ -268,12 +286,12 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 2: Streamer OPSEC & Software Hardening Matrix */}
       <div id="opsec-matrix" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Key className="w-6 h-6 text-brand-500" />
           Streamer OPSEC & Software Hardening Matrix
         </h2>
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="card p-5 sm:p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-blue-400" />
               Broadcast Safety
@@ -281,20 +299,20 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Use Window Capture:</strong> Avoid Display Capture whenever possible. If required, always disable desktop icons and hide the taskbar.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Use Window Capture:</strong> Avoid Display Capture whenever possible. If required, always disable desktop icons and hide the taskbar.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Dedicated Profiles:</strong> Use a separate browser profile specifically for streaming, completely isolated from your personal emails and banking.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Dedicated Profiles:</strong> Use a separate browser profile specifically for streaming, completely isolated from your personal emails and banking.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Notification Silence:</strong> Use "Do Not Disturb" on Windows/Mac to block push notifications that might reveal personal info or 2FA codes on stream.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Notification Silence:</strong> Use "Do Not Disturb" on Windows/Mac to block push notifications that might reveal personal info or 2FA codes on stream.</p>
               </li>
             </ul>
           </div>
 
-          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
+          <div className="card p-5 sm:p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-purple-400" />
               Discord & Community OPSEC
@@ -302,20 +320,20 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Disable Unknown DMs:</strong> Turn off "Allow direct messages from server members" in Discord Privacy & Safety settings to block unsolicited scam messages.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Disable Unknown DMs:</strong> Turn off "Allow direct messages from server members" in Discord Privacy & Safety settings to block unsolicited scam messages.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Audit Discord Sessions:</strong> Regularly navigate to <em>User Settings -&gt; Devices / Sessions</em> to log out of old mobile devices or web browsers.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Audit Discord Sessions:</strong> Regularly navigate to <em>User Settings -&gt; Devices / Sessions</em> to log out of old mobile devices or web browsers.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Never Scan QR Logins:</strong> Discord QR codes instantly log the scanning device into your account. Never scan a QR code shown in a stream or sent in chat.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Never Scan QR Logins:</strong> Discord QR codes instantly log the scanning device into your account. Never scan a QR code shown in a stream or sent in chat.</p>
               </li>
             </ul>
           </div>
 
-          <div className="card p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
+          <div className="card p-5 sm:p-6 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-colors">
             <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-4 flex items-center gap-2">
               <Key className="w-5 h-5 text-yellow-400" />
               Account Security
@@ -323,15 +341,15 @@ export default function LivestreamSafetyPage() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Hardware 2FA (FIDO):</strong> Migrate to hardware keys (YubiKey, Titan) for Google, Twitter, Twitch. Deprecate SMS 2FA to prevent SIM-swapping.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Hardware 2FA (FIDO):</strong> Migrate to hardware keys (YubiKey, Titan) for Google, Twitter, Twitch. Deprecate SMS 2FA to prevent SIM-swapping.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Email Segmentation:</strong> Maintain strictly separated email addresses: one for public business inquiries, one for private platform logins.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Email Segmentation:</strong> Maintain strictly separated email addresses: one for public business inquiries, one for private platform logins.</p>
               </li>
               <li className="flex items-start gap-3">
                 <Shield className="w-4 h-4 text-brand-500 mt-1 flex-shrink-0" />
-                <p className="text-sm text-slate-700 dark:text-slate-300"><strong>Password Managers:</strong> Use a robust password manager and never store streaming-related passwords in your browser's auto-fill.</p>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed"><strong>Password Managers:</strong> Use a robust password manager and never store streaming-related passwords in your browser's auto-fill.</p>
               </li>
             </ul>
           </div>
@@ -340,43 +358,41 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 3: Live Incident Response Playbook */}
       <div id="incident-playbook" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <AlertTriangle className="w-6 h-6 text-red-700 dark:text-red-500" />
           Live Incident Response Playbook
         </h2>
-        <div className="bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 dark:bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-
-          <p className="text-red-700 dark:text-red-200 mb-6 font-medium">If your screen flashes personal info, a malicious link is opened, or you suspect active hijacking mid-stream, execute these steps immediately:</p>
+        <div className="bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl p-5 sm:p-6 relative overflow-hidden">
+          <p className="text-red-700 dark:text-red-200 mb-6 font-medium text-xs sm:text-sm leading-relaxed">If your screen flashes personal info, a malicious link is opened, or you suspect active hijacking mid-stream, execute these steps immediately:</p>
 
           <div className="space-y-4 relative z-10">
-            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+            <div className="flex items-start gap-3 sm:gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
                 <VideoOff className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
-                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 1: The Panic Scene (Kill Visuals)</h4>
-                <p className="text-red-700 dark:text-red-200/80 text-sm">Hit your pre-configured OBS hotkey to switch to an emergency "BRB / Tech Issues" scene. This scene MUST have desktop audio, mic audio, and display capture fully muted/disabled.</p>
+                <h4 className="text-slate-900 dark:text-white font-bold text-base sm:text-lg mb-1">Step 1: The Panic Scene (Kill Visuals)</h4>
+                <p className="text-red-700 dark:text-red-200/80 text-xs sm:text-sm leading-relaxed">Hit your pre-configured OBS hotkey to switch to an emergency "BRB / Tech Issues" scene. This scene MUST have desktop audio, mic audio, and display capture fully muted/disabled.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+            <div className="flex items-start gap-3 sm:gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
                 <Key className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
-                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 2: Credential Revocation</h4>
-                <p className="text-red-700 dark:text-red-200/80 text-sm">If a session token was stolen (e.g., clicked a bad link), immediately log out of all active sessions on your platform (Twitch/YouTube). Reset your password and invalidate your Stream Key from a separate, secure device (like your phone) if possible.</p>
+                <h4 className="text-slate-900 dark:text-white font-bold text-base sm:text-lg mb-1">Step 2: Credential Revocation</h4>
+                <p className="text-red-700 dark:text-red-200/80 text-xs sm:text-sm leading-relaxed">If a session token was stolen (e.g., clicked a bad link), immediately log out of all active sessions on your platform (Twitch/YouTube). Reset your password and invalidate your Stream Key from a separate, secure device (like your phone) if possible.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
+            <div className="flex items-start gap-3 sm:gap-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-500/20">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-300 dark:border-red-500/30">
                 <XOctagon className="w-5 h-5 text-red-700 dark:text-red-500" />
               </div>
               <div>
-                <h4 className="text-slate-900 dark:text-white font-bold text-lg mb-1">Step 3: VOD & Clip Isolation</h4>
-                <p className="text-red-700 dark:text-red-200/80 text-sm">Before ending the broadcast, unpublish or delete the current active stream VOD. Have your trusted moderators immediately delete any clips created in the last 10 minutes to prevent the leak from spreading.</p>
+                <h4 className="text-slate-900 dark:text-white font-bold text-base sm:text-lg mb-1">Step 3: VOD & Clip Isolation</h4>
+                <p className="text-red-700 dark:text-red-200/80 text-xs sm:text-sm leading-relaxed">Before ending the broadcast, unpublish or delete the current active stream VOD. Have your trusted moderators immediately delete any clips created in the last 10 minutes to prevent the leak from spreading.</p>
               </div>
             </div>
           </div>
@@ -385,21 +401,21 @@ export default function LivestreamSafetyPage() {
 
       {/* Module 4: Interactive Pre-Stream Security Checklist */}
       <div id="pre-stream-checklist" className="mb-12">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
           <Shield className="w-6 h-6 text-brand-500" />
           Interactive Pre-Stream Security Checklist
         </h2>
-        <div className="card p-6 bg-white dark:bg-slate-900/80">
-          <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">Review this checklist before going live to ensure maximum OPSEC. Your progress is saved locally in this browser.</p>
+        <div className="card p-5 sm:p-6 bg-white dark:bg-slate-900/80">
+          <p className="text-slate-600 dark:text-slate-400 mb-6 text-xs sm:text-sm leading-relaxed">Review this checklist before going live to ensure maximum OPSEC. Your progress is saved locally in this browser.</p>
           <div className="space-y-3">
             {CHECKLIST_ITEMS.map(item => {
               const isChecked = !!checklist[item.id];
               return (
-                <label key={item.id} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer transition-colors border ${isChecked ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                  <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-brand-500 border-brand-500' : 'border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-900'}`}>
-                    {isChecked && <Shield className="w-4 h-4 text-slate-900 dark:text-white" />}
+                <label key={item.id} className={`flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-lg cursor-pointer transition-colors border ${isChecked ? 'bg-brand-500/10 border-brand-500/30' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md border flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-brand-500 border-brand-500' : 'border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-900'}`}>
+                    {isChecked && <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-900 dark:text-white" />}
                   </div>
-                  <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                  <span className={`text-xs sm:text-sm font-medium transition-colors ${isChecked ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                     {item.label}
                   </span>
                   <input
@@ -417,7 +433,7 @@ export default function LivestreamSafetyPage() {
               setChecklist({});
               localStorage.removeItem('stream_security_checklist');
             }}
-            className="mt-6 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
+            className="mt-6 px-4 py-2 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-800"
           >
             Reset Checklist
           </button>

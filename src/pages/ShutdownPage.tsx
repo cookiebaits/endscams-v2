@@ -9,8 +9,11 @@ import {
   FileText,
   Info,
   HeartHandshake,
-  ShieldCheck
+  ShieldCheck,
+  Smartphone,
+  Monitor
 } from 'lucide-react';
+import { useDeviceType } from '../hooks/useDeviceType';
 
 const CHECKLIST_ITEMS = [
   {
@@ -66,6 +69,7 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function ShutdownPage() {
+  const device = useDeviceType();
   const [answers, setAnswers] = useState<Record<string, 'yes' | 'no' | null>>({});
 
   const handleAnswer = (id: string, answer: 'yes' | 'no') => {
@@ -76,6 +80,21 @@ export default function ShutdownPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      {/* Device Auto-Detection Indicator */}
+      <div className="bg-slate-200/60 dark:bg-slate-900/60 border-b border-slate-300 dark:border-slate-800 py-1 px-4 text-center text-xs text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+        {device.isMobilePhone ? (
+          <>
+            <Smartphone className="w-3.5 h-3.5 text-brand-500" />
+            <span>Mobile Phone View Auto-Detected — Stacked touch controls active</span>
+          </>
+        ) : (
+          <>
+            <Monitor className="w-3.5 h-3.5 text-brand-500" />
+            <span>Desktop Computer View Auto-Detected</span>
+          </>
+        )}
+      </div>
+
       <div className="max-w-4xl mx-auto px-4 pt-8">
 
         {/* Header Section */}
@@ -83,26 +102,26 @@ export default function ShutdownPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-6">
             <ShieldAlert className="w-8 h-8 text-red-500" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-red-500 pl-4 inline-block text-left">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-red-500 pl-4 inline-block text-left">
             Scam Shutdown Checklist
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg mt-2">
+          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-base sm:text-lg mt-2 leading-relaxed">
             If you have been compromised, follow these next steps to shut down scammers and protect your identity.
           </p>
         </div>
 
-        {/* Top Reminder Section (P2) */}
-        <div className="mb-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+        {/* Top Reminder Section */}
+        <div className="mb-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
               <Info className="w-5 h-5" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
               Important Notice & Our Scope of Operation
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs sm:text-sm">
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
               <h3 className="font-semibold text-slate-900 dark:text-white mb-1.5 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-brand-500" />
@@ -138,7 +157,7 @@ export default function ShutdownPage() {
         {/* Disclaimer */}
         <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-start gap-3">
           <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800 dark:text-amber-400">
+          <p className="text-xs sm:text-sm text-amber-800 dark:text-amber-400 leading-relaxed">
             <strong>Disclaimer:</strong> These are recommendations based on previous interactions and it isn't a foolproof way to stop scammers. This is for educational purposes only.
           </p>
         </div>
@@ -159,16 +178,16 @@ export default function ShutdownPage() {
                       <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 text-brand-500 font-bold text-sm flex-shrink-0 mt-0.5">
                         {index + 1}
                       </span>
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white leading-snug">
+                      <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white leading-snug">
                         {item.question}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 ml-9 md:ml-0 md:flex-shrink-0">
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                     <button
                       onClick={() => handleAnswer(item.id, 'yes')}
-                      className={`px-6 py-2 rounded-lg font-medium transition-colors border ${
+                      className={`flex-1 sm:flex-initial px-6 py-2.5 rounded-lg font-bold transition-colors border text-sm ${
                         currentAnswer === 'yes'
                           ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -178,7 +197,7 @@ export default function ShutdownPage() {
                     </button>
                     <button
                       onClick={() => handleAnswer(item.id, 'no')}
-                      className={`px-6 py-2 rounded-lg font-medium transition-colors border ${
+                      className={`flex-1 sm:flex-initial px-6 py-2.5 rounded-lg font-bold transition-colors border text-sm ${
                         currentAnswer === 'no'
                           ? 'bg-red-500 text-white border-red-500 hover:bg-red-600'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -201,7 +220,7 @@ export default function ShutdownPage() {
                     ) : (
                       <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
                     )}
-                    <p className={`text-[17px] font-bold ${
+                    <p className={`text-sm sm:text-base font-bold ${
                       currentAnswer === 'yes'
                         ? 'text-green-800 dark:text-green-300'
                         : 'text-red-800 dark:text-red-300'
@@ -215,40 +234,40 @@ export default function ShutdownPage() {
           })}
         </div>
 
-        {/* "Now What?" Section (P1 & P3) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-md">
+        {/* "Now What?" Section */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-8 shadow-md">
           <div className="border-b border-slate-100 dark:border-slate-800 pb-5 mb-6">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
                 <HeartHandshake className="w-7 h-7" />
               </div>
               <div>
-                <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-wide">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-wide">
                   Now What?
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                   What to do after completing the 10 checklist questions above
                 </p>
               </div>
             </div>
           </div>
 
-          {/* 1. Suicide & Mental Health Crisis Callout (Put FIRST per P1) */}
-          <div className="mb-6 p-5 rounded-xl bg-red-500/10 dark:bg-red-950/40 border-2 border-red-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          {/* 1. Suicide & Mental Health Crisis Callout */}
+          <div className="mb-6 p-4 sm:p-5 rounded-xl bg-red-500/10 dark:bg-red-950/40 border-2 border-red-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <PhoneCall className="w-7 h-7 text-red-500 flex-shrink-0 mt-1 md:mt-0" />
+              <PhoneCall className="w-7 h-7 text-red-500 flex-shrink-0 mt-1 sm:mt-0" />
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                   Need Immediate Mental Health Support?
                 </h3>
-                <p className="text-sm text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 mt-1 leading-relaxed">
                   <strong>We are NOT law enforcement or mental health professionals.</strong> If you are feeling overwhelmed, hopeless, or having thoughts of suicide, please call or text <strong className="text-red-600 dark:text-red-400">988</strong> immediately for free, confidential, 24/7 help.
                 </p>
               </div>
             </div>
             <a
               href="tel:988"
-              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold transition-colors shadow-sm"
+              className="w-full sm:w-auto flex-shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-colors shadow-sm"
             >
               <PhoneCall className="w-5 h-5" />
               Call or Text 988
@@ -257,39 +276,39 @@ export default function ShutdownPage() {
 
           {/* 2. Official Channels & Financial/Legal Recovery */}
           <div className="mb-8">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
               <Building2 className="w-5 h-5 text-brand-500" />
               Working with Official Authorities
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
               Our organization does not handle refunds, legal proceedings, or criminal investigations. You must work through official, accredited organizations:
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+              <div className="p-4 sm:p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
                     <Landmark className="w-5 h-5" />
                   </div>
-                  <h4 className="font-bold text-slate-900 dark:text-white">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                     1. Bank & Financial Claims
                   </h4>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                   Contact your bank's dedicated fraud department immediately. Only your financial institution can process chargebacks, place freezes, or assist with potential financial reversals.
                 </p>
               </div>
 
-              <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
+              <div className="p-4 sm:p-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
                     <Building2 className="w-5 h-5" />
                   </div>
-                  <h4 className="font-bold text-slate-900 dark:text-white">
+                  <h4 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
                     2. Law Enforcement Updates
                   </h4>
                 </div>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                   For updates regarding criminal investigations or prosecution, maintain contact directly with the police department or law enforcement group where you filed your official report.
                 </p>
               </div>
@@ -297,13 +316,13 @@ export default function ShutdownPage() {
           </div>
 
           {/* 3. Action Plan after completing the 10 questions */}
-          <div className="p-5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+          <div className="p-4 sm:p-5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
               <FileText className="w-5 h-5 text-brand-500" />
               Summary Checklist Next Steps ({answeredCount}/10 completed)
             </h3>
 
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-xs sm:text-sm">
               <div className="flex items-start gap-3">
                 <div className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 text-brand-500 font-bold text-xs flex-shrink-0 mt-0.5">
                   A

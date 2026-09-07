@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
+import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip, Smartphone, Monitor } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
+import { useDeviceType } from '../hooks/useDeviceType';
 import Banner from '../components/Banner';
 
 type FormData = {
@@ -107,6 +108,7 @@ async function compressImage(file: File): Promise<Blob> {
 }
 
 export default function ReportScamPage() {
+  const device = useDeviceType();
   const [form, setForm] = useState<FormData>({
     phoneNumber: '',
     category: '',
@@ -269,7 +271,6 @@ export default function ReportScamPage() {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
 
-    // Insert into tracker_entries
     try {
       const { error: trackerError } = await supabase.from('tracker_entries').upsert({
         phone_number: formatPhoneDisplay(digits),
@@ -289,7 +290,6 @@ export default function ReportScamPage() {
       console.warn('tracker_entries connection note:', e);
     }
 
-    // Sync report entry into iframe via BroadcastChannel and localStorage
     const contextSnippet = form.description.trim();
 
     const summaryParts = [form.description.trim()];
@@ -329,7 +329,6 @@ export default function ReportScamPage() {
       timestamp: new Date().toISOString(),
     };
 
-    // 1. BroadcastChannel sync bridge
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
@@ -344,7 +343,6 @@ export default function ReportScamPage() {
       console.warn('BroadcastChannel sync warning:', e);
     }
 
-    // 2. localStorage shared storage for iframe sync
     try {
       const existingRaw = localStorage.getItem('end_scam_scan_shared_storage');
       let storageData: Record<string, unknown> = {};
@@ -366,7 +364,6 @@ export default function ReportScamPage() {
       console.warn('localStorage sync warning:', e);
     }
 
-    // 3. Save to user_reported_scams
     try {
       const userReportsRaw = localStorage.getItem('user_reported_scams') || '[]';
       const userReports = JSON.parse(userReportsRaw);
@@ -430,7 +427,7 @@ export default function ReportScamPage() {
               ))}
             </div>
           </div>
-          <button onClick={handleReset} className="btn-primary">Submit Another Report</button>
+          <button onClick={handleReset} className="btn-primary w-full sm:w-auto">Submit Another Report</button>
         </div>
       </div>
     );
@@ -444,18 +441,34 @@ export default function ReportScamPage() {
         dismissible
         message={<span><strong>Privacy Notice:</strong> Any information you submit will be publicly visible on the Scam Tracker for 45 days. Do not include your own personal banking details.</span>}
       />
+
+      {/* Device Auto-Detection Indicator */}
+      <div className="bg-slate-200/60 dark:bg-slate-900/60 border-b border-slate-300 dark:border-slate-800 py-1 px-4 text-center text-xs text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+        {device.isMobilePhone ? (
+          <>
+            <Smartphone className="w-3.5 h-3.5 text-brand-500" />
+            <span>Mobile Phone View Auto-Detected — Mobile keypad layout active</span>
+          </>
+        ) : (
+          <>
+            <Monitor className="w-3.5 h-3.5 text-brand-500" />
+            <span>Desktop Computer View Auto-Detected</span>
+          </>
+        )}
+      </div>
+
       <div className="max-w-2xl mx-auto px-4 pt-8">
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
             <AlertTriangle className="w-7 h-7 text-brand-500" />
           </div>
-          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
-          <p className="text-slate-500 dark:text-slate-400">
+          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
+          <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400">
             Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
           </p>
         </div>
 
-        <div className="mb-6 rounded-xl border border-amber-800/40 bg-[#1a1200] p-5">
+        <div className="mb-6 rounded-xl border border-amber-800/40 bg-[#1a1200] p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-3">
             <ExternalLink className="w-4 h-4 text-amber-400 flex-shrink-0" />
             <h3 className="text-sm font-bold text-amber-400">Report to Federal Agencies</h3>
@@ -517,11 +530,12 @@ export default function ReportScamPage() {
           </div>
         )}
 
-        <div className="card p-6 md:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg">
+        <div className="card p-5 sm:p-8 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-5">
             <Field label="Scam Phone Number" icon={Phone} required error={errors.phoneNumber}>
               <input
                 type="text"
+                inputMode="tel"
                 value={form.phoneNumber}
                 onChange={e => update('phoneNumber', e.target.value)}
                 placeholder="e.g. +44 7911 123456 or 555-123-4567"
@@ -579,6 +593,7 @@ export default function ReportScamPage() {
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                 <input
                   type="number"
+                  inputMode="decimal"
                   value={form.moneyLost}
                   onChange={e => update('moneyLost', e.target.value)}
                   placeholder="0.00"
@@ -627,7 +642,7 @@ export default function ReportScamPage() {
                     <span className="text-sm text-slate-500 dark:text-slate-400 text-center">
                       <span className="text-brand-500 font-semibold">Click to upload</span> or drag and drop
                     </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 text-center">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -643,7 +658,7 @@ export default function ReportScamPage() {
             <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Info (Optional)</h3>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Provide contact info only if you'd like to be notified about follow-ups. Never shared publicly.</p>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Your Name or Initials" icon={User} error={errors.reporterName}>
                   <input type="text" value={form.reporterName} onChange={e => update('reporterName', e.target.value)} placeholder="J.D. or Jane" className="input-field" />
                 </Field>
@@ -671,7 +686,7 @@ export default function ReportScamPage() {
 
         <div className="mt-6 card p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/50">
           <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">Privacy Notice</p>
-          <p className="text-xs text-blue-600 dark:text-blue-400">
+          <p className="text-xs text-blue-600 dark:text-blue-400 leading-relaxed">
             Your personal information (if provided) is never displayed publicly. Reports are anonymized and shared only for educational purposes. Reports expire and are deleted after 45 days.
           </p>
         </div>
