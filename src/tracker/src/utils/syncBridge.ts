@@ -288,8 +288,8 @@ class SyncBridgeManager {
   public getStatus(): SyncBridgeStatus {
     const hasSharedStorage = typeof window !== 'undefined' && 'sharedStorage' in window;
     return {
-      isEmbeddedInIframe: this.isEmbeddedInIframe,
-      hasParentWindow: this.hasParentWindow,
+      isEmbeddedInIframe: this.isEmbeddedInIframe || this.isEndScamsParentDetected,
+      hasParentWindow: this.hasParentWindow || this.isEndScamsParentDetected,
       hasBroadcastChannel: Boolean(this.broadcastChannel),
       hasSharedStorage,
       allowedOrigins: ['* (Universal postMessage Allowed)'],

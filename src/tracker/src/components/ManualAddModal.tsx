@@ -3,14 +3,11 @@ import {
   PhoneCall,
   X,
   Upload,
-  Image as ImageIcon,
   Trash2,
   Sparkles,
   Loader2,
   Check,
-  AlertCircle,
   Camera,
-  Clipboard,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
 

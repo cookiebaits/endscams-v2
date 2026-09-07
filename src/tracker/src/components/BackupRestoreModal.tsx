@@ -13,14 +13,11 @@ import {
   Layers,
   ArrowRight,
   HardDrive,
-  Sparkles,
   Code,
   FileJson,
-  Check,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
 import { exportRecordsToExcel, parseExcelBackupFile, ExcelParseResult } from '../utils/excelBackup';
-import { formatPST } from '../utils/dateUtils';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 
 interface BackupRestoreModalProps {
