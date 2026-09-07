@@ -120,9 +120,9 @@ export default function LivestreamSafetyPage() {
         message={<span><strong>Streamer Safety:</strong> High-profile creators are prime targets. Keep your personal data strictly separated from your public presence.</span>}
       />
       <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
-        <div className="text-center mb-14">
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-4 flex-wrap">
-            <MonitorPlay className="w-10 h-10 md:w-12 md:h-12 text-brand-500 flex-shrink-0" />
+        <div className="text-center mb-10">
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-3">
+            <MonitorPlay className="w-8 h-8 md:w-10 md:h-10 text-brand-500 flex-shrink-0" />
             <span>Livestreaming Safety & Security Field Guide</span>
           </h1>
         </div>

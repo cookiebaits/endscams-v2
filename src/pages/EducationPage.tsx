@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router';
-import { AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ExternalLink, Shield, Eye, Zap, UserX, X, ZoomIn, ZoomOut, RotateCcw, Maximize2, ChevronLeft, ChevronRight, TrendingUp, Search, MonitorPlay } from 'lucide-react';
+import { GraduationCap, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ExternalLink, Shield, Eye, Zap, UserX, X, ZoomIn, ZoomOut, RotateCcw, Maximize2, ChevronLeft, ChevronRight, TrendingUp, Search, MonitorPlay } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
 
@@ -422,8 +422,9 @@ export default function EducationPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950/40 opacity-90" />
         <div className="relative max-w-6xl mx-auto px-4 text-center">
 
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black mb-6 tracking-tight leading-tight text-white">
-            Scam Education Center
+          <h1 className="text-4xl md:text-5xl font-black mb-6 tracking-tight leading-tight text-white flex items-center justify-center gap-3">
+            <GraduationCap className="w-8 h-8 md:w-10 md:h-10 text-brand-500 flex-shrink-0" />
+            <span>Scam Education Center</span>
           </h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto mb-10 font-light leading-relaxed">
