@@ -396,7 +396,7 @@ export const MobileResultsList: React.FC<MobileResultsListProps> = ({
                           <a
                             href={record.imageUrl}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="block rounded-lg overflow-hidden border border-slate-800 hover:border-amber-500 transition-colors max-h-40"
                           >
                             <img

@@ -281,7 +281,7 @@ export const ScamSummaryHoverCard: React.FC<ScamSummaryHoverCardProps> = ({
             <a
               href={record.imageUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="block rounded-lg overflow-hidden border border-slate-800 hover:border-amber-500/50 transition-colors max-h-36"
             >
               <img
