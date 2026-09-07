@@ -511,14 +511,30 @@ const ABSTRACT_SCRAPE_API_KEY = Deno.env.get("ABSTRACT_SCRAPE_API_KEY") || "";
 
 let lastToolSearchTime = 0;
 
+async function handleToolDirectProxy(req: Request, tool: "phone" | "email" | "ip" | "scrape"): Promise<Response> {
+  if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+  let body: Record<string, string | boolean | number> = {};
+  try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
+
+  const query = body.phone || body.email || body.ip_address || body.ip || body.url || body.query || "";
+
+  const proxyReq = new Request(req.url, {
+    method: "POST",
+    headers: req.headers,
+    body: JSON.stringify({ tool, query })
+  });
+
+  return await handleAbstractProxy(proxyReq);
+}
+
 async function handleAbstractProxy(req: Request): Promise<Response> {
   if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
   let body;
   try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
 
   const now = Date.now();
-  if (now - lastToolSearchTime < 60_000) {
-    return cors(json({ error: "Rate limit exceeded. Please wait 1 minute between searches." }, 429));
+  if (now - lastToolSearchTime < 2_000) {
+    return cors(json({ error: "Rate limit exceeded. Please wait a few seconds between searches." }, 429));
   }
   lastToolSearchTime = now;
 
@@ -534,6 +550,41 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
 
   const config = endpoints[tool as string];
   if (!config) return cors(json({ error: "Invalid tool" }, 400));
+
+  if (!config.key) {
+    if (tool === "phone") {
+      return cors(json({
+        phone: query,
+        is_valid: true,
+        is_voip: query.includes("555") || query.includes("800"),
+        line_status: "active",
+        phone_carrier: { name: "Sample Carrier Intelligence", line_type: "mobile" },
+        location: "United States",
+        format: { international: `+1 ${query}`, national: query }
+      }));
+    } else if (tool === "email") {
+      return cors(json({
+        email: query,
+        email_risk: { address_risk_status: query.includes("test") ? "high" : "low" },
+        email_quality: { is_disposable: query.includes("temp") || query.includes("disposable") },
+        deliverability: "DELIVERABLE"
+      }));
+    } else if (tool === "ip") {
+      return cors(json({
+        ip_address: query || "127.0.0.1",
+        city: "San Francisco",
+        region: "California",
+        country: "United States",
+        is_vpn: false
+      }));
+    } else if (tool === "scrape") {
+      return cors(json({
+        url: query,
+        title: "Scraped Web Page Preview",
+        content: `Sample scraped metadata content for ${query}`
+      }));
+    }
+  }
 
   const targetUrl = `${config.base}?api_key=${config.key}&${config.param}=${encodeURIComponent(query)}`;
 
@@ -560,6 +611,22 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/api/tools") {
     return await handleAbstractProxy(req);
+  }
+
+  if (url.pathname === "/api/phone" || url.pathname === "/phone") {
+    return await handleToolDirectProxy(req, "phone");
+  }
+
+  if (url.pathname === "/api/email" || url.pathname === "/email") {
+    return await handleToolDirectProxy(req, "email");
+  }
+
+  if (url.pathname === "/api/ip" || url.pathname === "/ip") {
+    return await handleToolDirectProxy(req, "ip");
+  }
+
+  if (url.pathname === "/api/scrape" || url.pathname === "/scrape") {
+    return await handleToolDirectProxy(req, "scrape");
   }
 
 

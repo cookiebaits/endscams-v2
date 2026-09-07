@@ -1,666 +1,798 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay } from 'lucide-react';
+import { AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ExternalLink, Shield, Eye, Zap, UserX, X, ZoomIn, ZoomOut, RotateCcw, Maximize2, ChevronLeft, ChevronRight, TrendingUp, Search, MonitorPlay, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
+import { useDeviceType } from '../hooks/useDeviceType';
 import Banner from '../components/Banner';
-
-const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
-const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 
 const SCAM_TYPES = [
   {
+    num: '01',
     id: 'phone',
     icon: Phone,
     color: 'text-orange-500',
     bg: 'bg-orange-500/10',
     title: 'Phone & Robocall Scams',
-    summary: 'Unsolicited calls and texts from fake government agencies, banks, or companies pressuring immediate action.',
-    warningsSigns: [
-      'Caller or text claims to be IRS, SSA, Medicare, law enforcement, or a toll agency',
-      'Demands immediate payment via gift card, wire transfer, or crypto',
-      'Threatens arrest, license suspension, lawsuit, or account closure',
-      'Caller ID shows a government or bank number (easily spoofed)',
-      'Text includes a link to a website  that site exists only to steal your data',
-      'Asks you to "press 1" or call back a specific number',
+    subtitle: 'Government, Law Enforcement & Toll Imposters',
+    summary: 'Unsolicited calls and texts from fake government agencies, banks, or toll operators pressuring immediate payment or sensitive information.',
+    warningSigns: [
+      'Caller or text claims to be IRS, SSA, Medicare, law enforcement, or FasTrak / toll agency',
+      'Demands immediate payment via gift card, wire transfer, or cryptocurrency',
+      'Threatens arrest, driver license suspension, lawsuit, or bank account closure',
+      'Caller ID shows a government or bank number (easily spoofed using VoIP services)',
+      'Text includes a link to a lookalike website  that site exists solely to steal credentials',
+      'Asks you to "press 1" or call back a specific unverified toll-free number',
     ],
     whatToDo: [
-      'Hang up or delete the text  do not click any links',
-      'Never call back numbers left in suspicious voicemails or texts',
-      'Look up the agency\'s real number independently and call that instead',
-      'Report to the FTC at ReportFraud.ftc.gov',
-      'Register on the National Do Not Call Registry: donotcall.gov',
+      'Hang up immediately or delete the text message  do NOT click any embedded links',
+      'Never call back phone numbers left in suspicious voicemails or texts',
+      'Look up the agency\'s official phone number independently on their official .gov site',
+      'Report federal fraud attempts at ReportFraud.ftc.gov',
+      'Register on the National Do Not Call Registry at donotcall.gov',
     ],
-    resource: { label: 'FTC: Unwanted Calls', url: 'https://consumer.ftc.gov/articles/dealing-unwanted-calls' },
+    resource: { label: 'FTC: Dealing with Unwanted Calls', url: 'https://consumer.ftc.gov/articles/dealing-unwanted-calls' },
     images: [
-      { src: '/images/Toll_Road_Scam_Text.png', caption: 'Real toll road scam text  fake "CA FasTrak Final Notice" from a spoofed number. The link goes to a fake site designed to steal your payment information. Legitimate toll agencies do not threaten license suspension via text.', objectFit: 'contain' as const },
+      { src: '/images/Toll_Road_Scam_Text.png', label: 'CA FasTrak Toll Road Scam Text', caption: 'Real toll road scam text message claiming a fake "CA FasTrak Final Notice" from a spoofed number. The embedded link leads to a phishing site designed to capture payment credentials.', objectFit: 'contain' as const },
     ],
   },
   {
+    num: '02',
     id: 'invoice',
     icon: DollarSign,
     color: 'text-red-500',
     bg: 'bg-red-500/10',
     title: 'Invoice & Imposter Scams',
-    summary: 'Fake invoices from Amazon, Apple, PayPal, Geek Squad, or similar companies tricking you into calling scammers.',
-    warningsSigns: [
-      'Unexpected email or text about a large charge or subscription renewal',
-      'Urgent request to call a number to cancel or dispute a charge',
-      'Email address doesn\'t match the legitimate company domain',
-      'Grammar errors, generic greetings, or unusual formatting',
-      'Links that redirect to lookalike websites',
+    summary: 'Fake invoices from Amazon, Apple, PayPal, Geek Squad, or Norton tricking you into calling fraudulent support numbers.',
+    warningSigns: [
+      'Unexpected email or text notification regarding a large pending charge or subscription renewal',
+      'Urgent request to call a phone number immediately to cancel or dispute the charge',
+      'Sender email address domain does not match the official company domain',
+      'Grammatical errors, generic salutations ("Dear Customer"), or suspicious PDF attachments',
+      'Callers demand remote desktop access to "process your refund"',
     ],
     whatToDo: [
-      'Log in to the actual company website directly  never through email links',
-      'Call the company\'s official support number found on their real website',
-      'Report phishing emails to the company and to reportphishing@apwg.org',
-      'Do not click links or call numbers in suspicious emails',
+      'Log into your official account directly through your web browser  never via email links',
+      'Call the company\'s official support telephone number listed on their main website',
+      'Report suspicious billing emails to the official company abuse address and reportphishing@apwg.org',
+      'Never give remote control of your computer or phone to anyone who contacts you unsolicited',
     ],
-    resource: { label: 'FTC: Imposter Scams', url: 'https://consumer.ftc.gov/features/scam-alerts' },
+    resource: { label: 'FTC: Imposter Scams & Alerts', url: 'https://consumer.ftc.gov/features/scam-alerts' },
     images: [
-      { src: '/images/Invoice.png', caption: 'Fake PayPal billing invoice  note the fraudulent order ID, bitcoin purchase, and auto-debit threat. The toll-free number is a scammer line. Never call numbers listed in unsolicited invoices.' },
-      { src: '/images/fake_invoice.png', caption: 'Example of a fake PayPal invoice scam email. Note the fake phone number and auto-debit threat designed to create panic.' },
+      { src: '/images/Invoice.png', label: 'Fake PayPal Bitcoin Invoice', caption: 'Fake PayPal billing invoice with fraudulent order ID, Bitcoin purchase details, and auto-debit threat. The toll-free number connects directly to a scammer call center.' },
+      { src: '/images/fake_invoice.png', label: 'Fake Billing Email Notice', caption: 'Example of a fake PayPal invoice scam email designed to induce urgency and panic so victims dial the scammer phone number.' },
     ],
   },
   {
+    num: '03',
     id: 'tech',
     icon: Cpu,
     color: 'text-blue-500',
     bg: 'bg-blue-500/10',
-    title: 'Tech Support Scams',
-    summary: 'Pop-ups, texts, or voicemails claiming your computer has a virus or your account was charged, luring you into calling scammers.',
-    warningsSigns: [
-      'Browser pop-up with alarming message and a phone number to call',
-      'Text or voicemail claiming a large purchase was made from your account',
-      'Caller claims to be from Microsoft, Apple, Amazon, or your internet provider',
-      'Request to install remote access software (AnyDesk, TeamViewer)',
-      'Request to pay with gift cards or wire transfer for "repairs"',
-      'Any website mentioned in these texts or pop-ups is a data-harvesting trap  never visit or enter information',
+    title: 'Tech Support & Malware Scams',
+    summary: 'Browser pop-ups, alarming text alerts, or voicemails claiming your computer is infected with viruses or compromised.',
+    warningSigns: [
+      'Full-screen browser pop-ups with loud warning sounds and a fake Microsoft or Apple hotline',
+      'SMS alerts or voicemails claiming unauthorized high-dollar purchases on your account',
+      'Callers claiming to be security specialists from Microsoft, Apple, Amazon, or your ISP',
+      'Demands to download remote desktop software such as AnyDesk, TeamViewer, or UltraViewer',
+      'Requests for payment using gift cards or wire transfers to pay for "system security repairs"',
     ],
     whatToDo: [
-      'Close the browser tab or delete the text  do not call any number',
-      'Never give anyone remote access to your computer unsolicited',
-      'If in doubt, look up the company\'s official number and call them directly',
-      'Report at ReportFraud.ftc.gov',
+      'Force close your web browser (Alt+F4 or Cmd+Option+Esc)  do NOT call the displayed number',
+      'Never grant remote access to your computer or mobile phone to unsolicited callers',
+      'If concerned about your account, contact the company directly using their official website contact page',
+      'Report tech support scams at ReportFraud.ftc.gov',
     ],
-    resource: { label: 'FTC: Tech Support Scams', url: 'https://consumer.ftc.gov/articles/tech-support-scams' },
+    resource: { label: 'FTC: How to Spot Tech Support Scams', url: 'https://consumer.ftc.gov/articles/tech-support-scams' },
     images: [
-      { src: '/images/Fake_Text.jpg', caption: 'Tech support scam texts  fake order confirmations from Norton, Apple Pay, and Amazon with callback numbers. Never call these numbers. Delete the messages immediately.', objectFit: 'contain' as const },
+      { src: '/images/Fake_Text.jpg', label: 'Tech Support Confirmations', caption: 'Tech support scam text messages showing fake order confirmations from Norton, Apple, and Amazon with direct callback lines. Delete immediately.', objectFit: 'contain' as const },
     ],
   },
   {
+    num: '04',
     id: 'lottery',
     icon: Zap,
     color: 'text-yellow-500',
     bg: 'bg-yellow-500/10',
     title: 'Lottery, Prize & Sweepstakes Scams',
-    summary: 'You\'ve "won" a prize but must pay fees or taxes upfront to collect. Publishers Clearing House imposters are extremely common.',
-    warningsSigns: [
-      'You\'re told you won a lottery or sweepstakes you never entered',
-      'Required to pay a fee, tax, or processing charge to claim your prize',
-      'Payment demanded via PayPal, Zelle, CashApp, Apple Pay, wire transfer, or a store barcode',
-      'Offer arrives by phone, text, or postal mail with vague instructions',
-      'Prize amount seems extraordinarily large',
-      'Pressure to keep winnings secret until the "check clears"',
+    summary: 'You are informed you have won a major lottery or prize, but must pay taxes, shipping, or clearance fees upfront.',
+    warningSigns: [
+      'Claims that you won a sweepstakes, lottery, or giveaway you never entered',
+      'Requirement to pay upfront fees, processing charges, or taxes before receiving winnings',
+      'Payment demanded via PayPal, Zelle, Cash App, Apple Pay, wire transfer, or in-store cash barcodes',
+      'Notifications received via phone call, text, social media DM, or standard mail',
+      'Instructions to keep your winnings secret from family members or bank tellers',
     ],
     whatToDo: [
-      'Real prizes never require upfront payment of any kind  full stop',
-      'Never send money via PayPal, Zelle, CashApp, Apple Pay, wire, or gift cards',
-      'Never generate or photograph a Walmart, CVS, or other store money barcode for anyone',
-      'Real Publishers Clearing House winners are notified only by certified mail',
-      'Report at ReportFraud.ftc.gov',
+      'Legitimate lotteries and sweepstakes NEVER require winners to pay money upfront  no exceptions',
+      'Never send funds via peer-to-peer payment apps, wire transfer, or gift cards to claim prizes',
+      'Never generate or present a Walmart MoneyCard or CVS deposit barcode to cashiers for strangers',
+      'Publishers Clearing House notifies major prize winners in person or by certified mail',
+      'Report prize fraud at ReportFraud.ftc.gov',
     ],
     resource: { label: 'FTC: Prize & Lottery Scams', url: 'https://consumer.ftc.gov/articles/prize-sweepstakes-lottery-scams' },
     images: [
-      { src: '/images/Paypal_Request.png', caption: 'Fake PayPal money request  scammers send real PayPal requests labeled "Apple Inc." or any name. The legitimate PayPal interface makes it look real. Ignore and report.' },
-      { src: '/images/Walmart_Barcode.jpeg', caption: 'Walmart Money Services barcode  scammers instruct victims to open this screen in-store and show the code to a cashier to deposit cash. Sharing this is the same as handing over cash. Never do it for a stranger.' },
+      { src: '/images/Paypal_Request.png', label: 'Fake PayPal Money Request', caption: 'Fraudulent PayPal money request where scammers impersonate "Apple Inc.". The real PayPal interface is abused to trick users into approving payments.' },
+      { src: '/images/Walmart_Barcode.jpeg', label: 'Walmart Deposit Barcode', caption: 'Walmart Money Services barcode. Scammers instruct victims to present this code to store cashiers to deposit cash directly into scammer accounts. Never show cash barcodes to cashiers for anyone else.' },
     ],
   },
   {
+    num: '05',
     id: 'romance',
     icon: Heart,
     color: 'text-pink-500',
     bg: 'bg-pink-500/10',
-    title: 'Romance Scams',
-    summary: 'Fake online partners build trust over weeks or months then request money for emergencies or "investments".',
-    warningsSigns: [
-      'Met online and progresses very fast emotionally',
-      'Claims to be overseas  military, oil rig, doctor working abroad',
-      'Always has a reason they can\'t video chat or meet in person',
-      'Asks for money for travel, medical bills, or investment opportunities',
-      'Profile photos look too perfect  may be stolen from another person',
+    title: 'Romance & Catfishing Scams',
+    summary: 'Fake online romantic partners spend weeks or months building emotional intimacy before concocting financial emergencies or investment traps.',
+    warningSigns: [
+      'Met online via dating apps or social media; relationship develops intensely and rapidly',
+      'Claims to work overseas  military deployment, offshore oil rig, international doctor',
+      'Always has excuses for why they cannot video chat or meet face-to-face',
+      'Requests emergency financial assistance for travel, medical emergencies, or crypto investments',
+      'Profile pictures appear professionally polished or match stolen images online',
     ],
     whatToDo: [
-      'Reverse image search profile photos using Google Images or TinEye',
-      'Never send money to someone you haven\'t met in person',
-      'Talk to a trusted friend or family member about the relationship',
-      'Report to the FTC and the platform where you met',
+      'Perform a reverse image search on profile photos using Google Lens, TinEye, or Yandex',
+      'Never send money, cryptocurrency, or banking details to anyone you have not met in person',
+      'Discuss the online relationship with a trusted friend, family member, or legal advocate',
+      'Report romance fraud to the FTC and the specific dating platform or social network',
     ],
-    resource: { label: 'FTC: Romance Scams', url: 'https://consumer.ftc.gov/articles/what-you-need-know-about-romance-scams' },
+    resource: { label: 'FTC: Romance Scam Education', url: 'https://consumer.ftc.gov/articles/what-you-need-know-about-romance-scams' },
     images: [],
   },
   {
+    num: '06',
     id: 'spiritual',
     icon: Eye,
     color: 'text-purple-400',
     bg: 'bg-purple-500/10',
     title: 'Spellcaster & Spiritual Scams',
-    summary: 'Fake psychics, spell casters, and spiritual healers on social media promising to solve problems for payment.',
-    warningsSigns: [
-      'Claims to cast spells to bring back a lost lover or improve fortune',
-      'Contact made via Facebook, Instagram, or WhatsApp messages',
-      'Requests increasing amounts of money for stronger spells or rituals',
-      'Uses fake testimonials and stolen or staged photos',
-      'Promises guaranteed results for a fee',
+    summary: 'Fraudulent psychics, spell casters, and spiritual healers on social media claiming to solve personal problems for exorbitant fees.',
+    warningSigns: [
+      'Claims to cast spells to restore lost relationships, grant financial prosperity, or remove curses',
+      'Initial contact made through unsolicited Instagram, Facebook, or WhatsApp private messages',
+      'Demands escalating payments for "stronger ingredients", special rituals, or candle ceremonies',
+      'Uses staged photographs with fake currency, candles, or mystical props',
+      'Guarantees 100% success or threatens bad fortune if payments cease',
     ],
     whatToDo: [
-      'No one can control others or guarantee outcomes through spells',
-      'Block and report accounts on the social media platform',
-      'Never send money, gift cards, or cryptocurrency to these individuals',
-      'Report to the FTC and the platform',
+      'Understand that no individual can control events or guarantee outcomes through spells',
+      'Immediately block and report scam profiles on social media platforms',
+      'Refuse to send gift cards, wire transfers, or cryptocurrency to online spiritual accounts',
+      'Report deceptive commercial practices at ReportFraud.ftc.gov',
     ],
     resource: { label: 'FTC: Psychic & Fortune Teller Scams', url: 'https://consumer.ftc.gov/articles/psychics-astrologers-and-crystal-ball-readers' },
     images: [
-      { src: '/images/Fake_Money_With_Candles.jpeg', caption: 'Staged ritual imagery with fake money and candles used in spellcaster ads  photos like these are specifically curated to appear authentic and build false trust with victims.' },
-      { src: '/images/Stupid Spell Stuff 2.jpeg', caption: 'Another example of staged spellcaster imagery used to deceive victims into paying for fake spiritual services.' },
+      { src: '/images/Fake_Money_With_Candles.jpeg', label: 'Staged Ritual Ad Photo', caption: 'Staged ritual imagery containing fake money and candles used in social media spellcaster advertisements to engineer false authenticity and trust.' },
+      { src: '/images/Stupid Spell Stuff 2.jpeg', label: 'Spiritual Scam Example', caption: 'Another example of staged mystical props used by social media scammers to deceive victims into sending money for fake spiritual services.' },
     ],
   },
   {
+    num: '07',
     id: 'shopping',
     icon: ShoppingBag,
     color: 'text-teal-500',
     bg: 'bg-teal-500/10',
-    title: 'Online Shopping Scams',
-    summary: 'Fake stores, counterfeit goods, and social media sellers that take payment but never deliver.',
-    warningsSigns: [
-      'Website has extremely low prices with no reviews or company history',
-      'No physical address, only a contact form or email',
-      'Limited payment options  only wire transfer, Zelle, or crypto',
-      'Seller pressures you to pay outside the platform',
-      'Stock photos are used instead of actual product images',
+    title: 'Online Shopping & Store Scams',
+    summary: 'Fake e-commerce storefronts, counterfeit goods, and social media ad sellers that process payments but deliver nothing.',
+    warningSigns: [
+      'E-commerce site features unrealistically low prices on high-demand merchandise',
+      'Domain name registered recently; missing physical address, customer support line, or terms page',
+      'Checkout payment options restricted to non-refundable methods (Zelle, Cash App, Wire, Crypto)',
+      'Sellers on social media platforms push to move communication and payment off-platform',
+      'Product images are generic stock photos copied from major retailers',
     ],
     whatToDo: [
-      'Research stores with BBB, Google reviews, and Trustpilot before buying',
-      'Pay with a credit card for the best fraud protection',
-      'Use platforms with buyer protection (eBay, Amazon, PayPal)',
-      'Report fake stores to the FTC and the web host',
+      'Research new online stores on Trustpilot, BBB, and Google Reviews prior to making purchases',
+      'Always use a credit card for online purchases to preserve purchase protection and chargeback rights',
+      'Avoid sellers who insist on non-protected peer-to-peer payment methods',
+      'Report fraudulent storefronts to the FTC and the domain host',
     ],
-    resource: { label: 'FTC: Online Shopping', url: 'https://consumer.ftc.gov/articles/shopping-safely-online' },
+    resource: { label: 'FTC: Online Shopping Safety', url: 'https://consumer.ftc.gov/articles/shopping-safely-online' },
     images: [],
   },
   {
+    num: '08',
     id: 'phishing',
     icon: Mail,
     color: 'text-cyan-500',
     bg: 'bg-cyan-500/10',
-    title: 'Phishing & Smishing',
-    summary: 'Fraudulent emails (phishing) and texts (smishing) that trick you into giving credentials or clicking malicious links.',
-    warningsSigns: [
-      'Urgent message about account verification, suspicious activity, or package delivery',
-      'Link URL doesn\'t match the legitimate company\'s domain',
-      'Grammar mistakes or unusual formatting',
-      'Request to confirm sensitive information like SSN or password',
-      'Asks you to click a link to claim a refund or avoid suspension',
+    title: 'Phishing & Smishing Attacks',
+    summary: 'Deceptive emails (phishing) and SMS text messages (smishing) attempting to harvest passwords, SSNs, or credit card numbers.',
+    warningSigns: [
+      'Urgent alerts regarding account suspension, security breaches, or failed parcel deliveries',
+      'Hyperlink URLs do not match the official legitimate company domain',
+      'Spelling errors, weird capitalization, or awkward phrasing',
+      'Direct requests to confirm sensitive credentials, Social Security Numbers, or 2FA codes',
+      'Unsolicited attachments or links promising account refunds',
     ],
     whatToDo: [
-      'Never click links in unexpected emails or texts',
-      'Go directly to the company\'s website by typing the URL',
-      'Report phishing to the Anti-Phishing Working Group at reportphishing@apwg.org',
-      'Forward spam texts to 7726 (SPAM)',
+      'Never click links or open attachments in unexpected emails or text messages',
+      'Navigate to services directly by manually typing official web addresses into your browser address bar',
+      'Forward phishing emails to the Anti-Phishing Working Group at reportphishing@apwg.org',
+      'Forward spam and scam text messages to 7726 (SPAM)',
     ],
-    resource: { label: 'FTC: Phishing Scams', url: 'https://consumer.ftc.gov/articles/how-recognize-and-avoid-phishing-scams' },
+    resource: { label: 'FTC: Recognizing Phishing Scams', url: 'https://consumer.ftc.gov/articles/how-recognize-and-avoid-phishing-scams' },
     images: [
-      { src: '/images/phishing_email.png', caption: 'Real phishing email example: fake urgent notice about cloud storage claiming your files will be deleted to pressure you into clicking.' },
+      { src: '/images/phishing_email.png', label: 'Cloud Storage Phishing Email', caption: 'Real phishing email example showing a fake urgent cloud storage notice claiming files will be deleted to pressure victims into clicking malicious links.' },
     ],
   },
 ];
 
 const EMERGENCY_RESOURCES = [
-  { label: 'FTC  Report Fraud', url: 'https://reportfraud.ftc.gov/', desc: 'File a consumer fraud complaint' },
-  { label: 'FBI Internet Crime Complaint Center (IC3)', url: 'https://www.ic3.gov', desc: 'Report internet and cybercrime' },
-  { label: 'Identity Theft.gov', url: 'https://www.identitytheft.gov', desc: 'Personalized recovery plan for identity theft' },
-  { label: 'BBB Scam Tracker', url: 'https://www.bbb.org/scamtracker', desc: 'Report and look up scams' },
-  { label: 'AARP Fraud Watch Network', url: 'https://www.aarp.org/money/scams-fraud/', desc: 'Resources and fraud helpline' },
-  { label: 'National Elder Fraud Hotline', url: 'https://ovc.ojp.gov/program/stop-elder-fraud/introduction', desc: '1-833-FRAUD-11 for elder fraud reporting' },
+  { label: 'FTC  Report Fraud', url: 'https://reportfraud.ftc.gov/', desc: 'File a federal consumer fraud complaint' },
+  { label: 'FBI IC3 (Internet Crime Complaint Center)', url: 'https://www.ic3.gov', desc: 'Report cybercrime, phishing, and financial scams' },
+  { label: 'IdentityTheft.gov', url: 'https://www.identitytheft.gov', desc: 'Personalized identity theft recovery plans' },
+  { label: 'BBB Scam Tracker', url: 'https://www.bbb.org/scamtracker', desc: 'Look up and report local scam occurrences' },
+  { label: 'AARP Fraud Watch Network', url: 'https://www.aarp.org/money/scams-fraud/', desc: 'Free fraud helpline and prevention guides' },
+  { label: 'National Elder Fraud Hotline', url: 'https://ovc.ojp.gov/program/stop-elder-fraud/introduction', desc: 'Call 1-833-FRAUD-11 for elder support' },
 ];
 
 const GIFT_CARD_GALLERY = [
-  { src: '/images/Gift_Card_Rack.jpg', label: 'Gift Card Display Rack', caption: 'A full gift card display rack in a store  scammers send victims here to buy untraceable payment. If anyone tells you to go buy gift cards, stop and call a trusted person first.' },
-  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', caption: 'Amazon Gift Cards ($10$500)  scammers love these for their wide availability and instant redemption.' },
-  { src: '/images/steam-gc.png', label: 'Steam', caption: 'Steam Gift Cards  often requested in online scams targeting gamers and younger adults. Easy for scammers to resell game codes.' },
-  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot / MoneyPak', caption: 'Green Dot reloadable cards and MoneyPak  the code on the back is all a scammer needs to drain it instantly. Frequently used in IRS, utility, and government impersonation scams.' },
-  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple', caption: 'Apple Gift Cards  frequently demanded by tech support scammers impersonating Apple, the IRS, or Social Security.' },
-  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Visa / Amex / Mastercard', caption: 'Credit card-branded gift cards (Visa, American Express, Mastercard)  accepted everywhere and completely untraceable once used. Often sold at pharmacy and grocery checkout lanes.' },
-  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play', caption: 'Google Play Gift Cards  commonly used in prize scams, utility shutoff threats, and tech support fraud.' },
+  { src: '/images/Gift_Card_Rack.jpg', label: 'In-Store Gift Card Display Rack', caption: 'A full gift card rack in a retail store. Scammers send victims here to buy untraceable payment cards. If anyone orders you to buy gift cards over the phone, stop immediately.' },
+  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon Gift Cards', caption: 'Amazon Gift Cards ($10-$500). Scammers target these due to wide retail availability and rapid electronic code redemption.' },
+  { src: '/images/steam-gc.png', label: 'Steam Digital Cards', caption: 'Steam Gift Cards. Frequently requested in online scams targeting gamers and younger adults. Codes are resold instantly.' },
+  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot MoneyPak', caption: 'Green Dot reloadable cards and MoneyPak. The code on the reverse side is all a scammer needs to drain funds permanently.' },
+  { src: '/images/Apple_Gift_Cards.jpg', label: 'Apple Gift Cards', caption: 'Apple Gift Cards. Demanded heavily by tech support imposters pretending to represent Apple, the IRS, or Social Security.' },
+  { src: '/images/Credit_Card_Gift_Cards.jpg', label: 'Prepaid Visa / Mastercard / Amex', caption: 'Prepaid credit card gift cards (Visa, Mastercard, Amex). Untraceable like cash once activated and spent.' },
+  { src: '/images/Google_Play_Cards.jpg', label: 'Google Play Cards', caption: 'Google Play Gift Cards. Commonly demanded in prize scams, utility cutoff threats, and romance fraud.' },
 ];
 
 export default function EducationPage() {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(ALL_IDS));
-  const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
-  const [gallery, setGallery] = useState<number | null>(null);
+  const device = useDeviceType();
   const { stats } = useFtcStats();
+  const [lightbox, setLightbox] = useState<{ src: string; caption: string; label?: string } | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const toggle = (id: string) => setExpanded(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
+  const openLightbox = (src: string, caption: string, label?: string) => {
+    setLightbox({ src, caption, label });
+    setZoomLevel(1);
+  };
+  const closeLightbox = () => {
+    setLightbox(null);
+    setZoomLevel(1);
+  };
 
-  const openLightbox = (src: string, caption: string) => setLightbox({ src, caption });
-  const closeLightbox = () => setLightbox(null);
-  const openGallery = (index = 0) => setGallery(index);
-  const closeGallery = () => setGallery(null);
-  const galleryPrev = () => setGallery(i => i === null ? 0 : (i - 1 + GIFT_CARD_GALLERY.length) % GIFT_CARD_GALLERY.length);
-  const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
+  const openGallery = (index = 0) => {
+    setGalleryIndex(index);
+    setZoomLevel(1);
+  };
+  const closeGallery = () => {
+    setGalleryIndex(null);
+    setZoomLevel(1);
+  };
+
+  const galleryPrev = () => {
+    setGalleryIndex(i => i === null ? 0 : (i - 1 + GIFT_CARD_GALLERY.length) % GIFT_CARD_GALLERY.length);
+    setZoomLevel(1);
+  };
+
+  const galleryNext = () => {
+    setGalleryIndex(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
+    setZoomLevel(1);
+  };
+
+  const scrollToSection = (id: string) => {
+    const el = sectionRefs.current[id];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-20 text-slate-800 dark:text-slate-200">
       <Banner
         variant="info"
         id="education_tip"
         dismissible
-        message={<span><strong>Educational Tip:</strong> Stay vigilant! Knowledge is your best defense against scammers. Read the articles below to stay updated.</span>}
+        message={<span><strong>Educational Tip:</strong> Knowledge is your best defense against scammers. Review the evidence, images, and warning signs below.</span>}
       />
-      {gallery !== null && (
+
+      {/* Full Size Interactive Lightbox Modal */}
+      {lightbox && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 animate-fade-in"
-          onClick={closeGallery}
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in backdrop-blur-md"
+          onClick={closeLightbox}
         >
-          <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-white/60 text-sm">{gallery + 1} / {GIFT_CARD_GALLERY.length}</span>
-              <button onClick={closeGallery} className="text-white/80 hover:text-white flex items-center gap-1 text-sm">
-                <X className="w-5 h-5" /> Close
+          {/* Top Bar */}
+          <div className="w-full max-w-6xl flex items-center justify-between text-white py-2 z-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-brand-400 bg-brand-500/20 px-3 py-1 rounded-full border border-brand-500/30">
+                {lightbox.label || 'Full Size High Resolution Inspection'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setZoomLevel(z => Math.max(0.75, z - 0.25))}
+                className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-white transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-5 h-5" />
+              </button>
+              <span className="text-xs font-mono text-slate-300 w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+              <button
+                onClick={() => setZoomLevel(z => Math.min(3, z + 0.25))}
+                className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-white transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setZoomLevel(1)}
+                className="p-2 bg-slate-800/80 hover:bg-slate-700 rounded-lg text-white transition-colors"
+                title="Reset Zoom"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={closeLightbox}
+                className="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition-colors ml-2 flex items-center gap-1 text-sm font-bold px-3"
+              >
+                <X className="w-5 h-5" />
+                <span className="hidden sm:inline">Close</span>
               </button>
             </div>
-            <div className="relative">
+          </div>
+
+          {/* Main Image Viewport */}
+          <div
+            className="flex-1 w-full max-w-6xl flex items-center justify-center overflow-auto p-2 relative my-2"
+            onClick={e => e.stopPropagation()}
+          >
+            <div
+              className="transition-transform duration-200 ease-out flex items-center justify-center max-h-full"
+              style={{ transform: `scale(${zoomLevel})` }}
+            >
               <img
-                src={GIFT_CARD_GALLERY[gallery].src}
-                alt={GIFT_CARD_GALLERY[gallery].label}
-                className="w-full max-h-[60vh] object-contain rounded-xl shadow-2xl"
+                src={lightbox.src}
+                alt={lightbox.caption}
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-xl shadow-2xl border border-slate-700/50"
               />
-              <button
-                onClick={galleryPrev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-slate-900 dark:text-white transition-all"
-              >&#8249;</button>
-              <button
-                onClick={galleryNext}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-slate-900 dark:text-white transition-all"
-              >&#8250;</button>
             </div>
-            <p className="mt-3 text-center text-white/70 text-sm px-4">{GIFT_CARD_GALLERY[gallery].caption}</p>
-            <div className="flex justify-center gap-2 mt-4 flex-wrap">
+          </div>
+
+          {/* Bottom Caption */}
+          <div className="w-full max-w-4xl text-center bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-white/90 text-sm sm:text-base z-10" onClick={e => e.stopPropagation()}>
+            <p className="font-medium">{lightbox.caption}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Gift Card Gallery Lightbox */}
+      {galleryIndex !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-between p-4 sm:p-6 animate-fade-in backdrop-blur-md"
+          onClick={closeGallery}
+        >
+          <div className="w-full max-w-6xl flex items-center justify-between text-white py-2 z-10" onClick={e => e.stopPropagation()}>
+            <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-3 py-1 rounded-full border border-amber-500/30">
+              Gift Card Gallery ({galleryIndex + 1} / {GIFT_CARD_GALLERY.length})
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={closeGallery}
+                className="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-white transition-colors flex items-center gap-1 text-sm font-bold px-3"
+              >
+                <X className="w-5 h-5" />
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative w-full max-w-5xl flex items-center justify-center flex-1 my-2" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={galleryPrev}
+              className="absolute left-2 sm:left-4 z-20 w-12 h-12 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center text-white transition-all shadow-lg"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <img
+              src={GIFT_CARD_GALLERY[galleryIndex].src}
+              alt={GIFT_CARD_GALLERY[galleryIndex].label}
+              className="max-h-[65vh] w-auto max-w-full object-contain rounded-xl shadow-2xl border border-slate-800"
+            />
+            <button
+              onClick={galleryNext}
+              className="absolute right-2 sm:right-4 z-20 w-12 h-12 bg-slate-900/80 hover:bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center text-white transition-all shadow-lg"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="w-full max-w-4xl text-center bg-slate-900/90 border border-slate-800 rounded-xl p-4 text-white z-10" onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-amber-400 mb-1">{GIFT_CARD_GALLERY[galleryIndex].label}</p>
+            <p className="text-xs sm:text-sm text-slate-300">{GIFT_CARD_GALLERY[galleryIndex].caption}</p>
+            <div className="flex justify-center gap-2 mt-3 overflow-x-auto py-1">
               {GIFT_CARD_GALLERY.map((card, i) => (
                 <button
                   key={card.src}
-                  onClick={() => setGallery(i)}
-                  className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${i === gallery ? 'border-brand-500 scale-110' : 'border-white/20 hover:border-white/50'}`}
+                  onClick={() => setGalleryIndex(i)}
+                  className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${i === galleryIndex ? 'border-amber-400 scale-110 ring-2 ring-amber-400/50' : 'border-white/20 opacity-60 hover:opacity-100'}`}
                 >
                   <img src={card.src} alt={card.label} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
-            <p className="text-center text-white/50 text-xs mt-3">{GIFT_CARD_GALLERY[gallery].label}</p>
-          </div>
-        </div>
-      )}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-fade-in"
-          onClick={closeLightbox}
-        >
-          <div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-            <button
-              onClick={closeLightbox}
-              className="absolute -top-10 right-0 text-white/80 hover:text-white flex items-center gap-1 text-sm"
-            >
-              <X className="w-5 h-5" /> Close
-            </button>
-            <img src={lightbox.src} alt={lightbox.caption} className="w-full h-auto rounded-xl shadow-2xl max-h-[80vh] object-contain" />
-            <p className="mt-3 text-center text-white/70 text-sm">{lightbox.caption}</p>
           </div>
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-4 pt-8">
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
-            <BookOpen className="w-8 h-8 text-brand-500" />
+      {/* Hero Header - Inspired by Flite.bike */}
+      <section className="relative pt-12 md:pt-20 pb-16 overflow-hidden border-b border-slate-200 dark:border-slate-800 bg-slate-900 text-white">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950/40 opacity-90" />
+        <div className="relative max-w-6xl mx-auto px-4 text-center">
+
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-brand-500/20 text-brand-400 border border-brand-500/30 mb-6">
+            {device.isMobilePhone ? <Smartphone className="w-4 h-4" /> : device.isTablet ? <Tablet className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
+            <span>{device.isMobilePhone ? 'Mobile Optimized Experience' : device.isTablet ? 'Tablet Optimized Experience' : 'Interactive Full Size Experience'}</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4">Scam Education Center</h1>
-          <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
-            Knowledge is your best defense. Learn to recognize the most common scam tactics and protect yourself and your loved ones.
+
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black mb-6 tracking-tight leading-tight text-white">
+            Scam Education <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-blue-400 to-indigo-400">Center</span>
+          </h1>
+
+          <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto mb-10 font-light leading-relaxed">
+            Spot, inspect, and stop fraud before it happens. Click or tap any image to inspect evidence in full size.
           </p>
-        </div>
 
-        <div className="mb-10 rounded-2xl border-2 border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
-          <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700">
-            <Phone className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          {/* Quick Jump Category Menu (Horizontal Scroll on Mobile) */}
+          <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-4 pt-2 px-2 no-scrollbar">
+            {SCAM_TYPES.map(scam => (
+              <button
+                key={scam.id}
+                onClick={() => scrollToSection(scam.id)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800/80 hover:bg-brand-600/80 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white rounded-full border border-slate-700/80 transition-all whitespace-nowrap flex-shrink-0 shadow-sm"
+              >
+                <span>{scam.num}</span>
+                <span>{scam.title.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-6xl mx-auto px-4 pt-10">
+
+        {/* Local Sheriff Emergency Callout Banner */}
+        <div className="mb-12 rounded-2xl border-2 border-amber-500/50 bg-amber-50 dark:bg-amber-950/40 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-5 shadow-lg">
+          <div className="flex-shrink-0 flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+            <Phone className="w-7 h-7" />
           </div>
           <div className="flex-1">
-            <p className="text-slate-900 dark:text-amber-100 font-semibold text-base leading-snug mb-1">
-              If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
+            <p className="text-slate-900 dark:text-amber-100 font-extrabold text-lg leading-snug mb-1">
+              Suspect a Scam? Contact Your Local Sheriff's Non-Emergency Line
             </p>
-            <p className="text-slate-600 dark:text-amber-300/80 text-sm">
-              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.</p>
+            <p className="text-slate-700 dark:text-amber-300/90 text-sm leading-relaxed">
+              Deputies can verify suspicious calls, texts, or door-to-door interactions before you take action or send funds.
+            </p>
           </div>
           <a
             href="https://search.brave.com/search?q=local+sheriff+non-emergency+line+near+me"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-900 dark:text-white text-sm font-semibold transition-colors shadow-sm whitespace-nowrap"
+            className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold transition-all shadow-md min-h-[48px]"
           >
             <Search className="w-4 h-4" />
-            Find the number
+            Find Your Local Sheriff
           </a>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4 mb-12">
+        {/* Quick Impact Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-14">
           <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
           <QuickStatCard icon={AlertTriangle} label="Reports filed with FTC" value={stats.total_reports_short} color="text-yellow-500" />
           <QuickStatCard icon={UserX} label="Identity theft victims" value={stats.identity_theft_victims} color="text-blue-500" />
         </div>
 
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-2">
-            <TrendingUp className="w-5 h-5 text-red-500" />
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Trending Payment Methods Used by Scammers</h2>
+        {/* Trending Irreversible Payment Methods Section - Inspired by Flite.bike Showcase */}
+        <div className="mb-16">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-red-500" />
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+              Primary Scam Payment Vectors
+            </h2>
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">These methods are preferred because they are irreversible and nearly impossible to trace once sent.</p>
-          <div className="grid lg:grid-cols-2 gap-6">
-            <GiftCardSection onZoom={openLightbox} onGallery={openGallery} />
+          <p className="text-slate-600 dark:text-slate-400 text-base mb-8 max-w-3xl">
+            Scammers demand these specific payment methods because they bypass bank fraud protections and are untraceable once sent.
+          </p>
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            <GiftCardSection onGallery={openGallery} />
             <BitcoinATMSection onZoom={openLightbox} />
           </div>
         </div>
 
-        <div className="space-y-3 mb-14">
-          {SCAM_ORDER.map(id => {
-            const scam = SCAM_TYPES.find(s => s.id === id)!;
-            return (
-              <ScamTypeCard
-                key={scam.id}
-                scam={scam}
-                isExpanded={expanded.has(scam.id)}
-                onToggle={() => toggle(scam.id)}
-                onZoom={openLightbox}
-              />
-            );
-          })}
+        {/* Main Numbered Scam Sections - Flite.bike Inspired Design */}
+        <div className="space-y-12 mb-16">
+          {SCAM_TYPES.map(scam => (
+            <div
+              key={scam.id}
+              ref={el => { sectionRefs.current[scam.id] = el; }}
+              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden transition-all duration-300 hover:border-brand-500/40"
+            >
+              {/* Section Header */}
+              <div className="p-6 sm:p-8 bg-slate-100 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <span className="text-3xl sm:text-4xl font-black font-mono text-brand-500 opacity-80">{scam.num}</span>
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight">
+                      {scam.title}
+                    </h3>
+                    <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-1 font-medium">
+                      {scam.summary}
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={scam.resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-brand-500 hover:text-brand-600 hover:underline flex-shrink-0 bg-brand-500/10 px-4 py-2 rounded-xl border border-brand-500/20"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {scam.resource.label}
+                </a>
+              </div>
+
+              {/* Section Content Grid */}
+              <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {/* Warning Signs */}
+                <div>
+                  <h4 className="font-extrabold text-red-500 dark:text-red-400 text-base mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <AlertTriangle className="w-5 h-5" />
+                    Warning Signs
+                  </h4>
+                  <ul className="space-y-3">
+                    {scam.warningSigns.map((sign, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300 leading-snug">
+                        <span className="w-2 h-2 rounded-full bg-red-500 mt-1.5 flex-shrink-0" />
+                        <span>{sign}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* What To Do */}
+                <div>
+                  <h4 className="font-extrabold text-green-600 dark:text-green-400 text-base mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <Shield className="w-5 h-5" />
+                    Action Steps
+                  </h4>
+                  <ul className="space-y-3">
+                    {scam.whatToDo.map((action, i) => (
+                      <li key={i} className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300 leading-snug">
+                        <span className="w-2 h-2 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
+                        <span>{action}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Evidence Images */}
+                <div className="lg:col-span-1 md:col-span-2">
+                  <h4 className="font-extrabold text-slate-900 dark:text-white text-base mb-4 flex items-center gap-2 uppercase tracking-wide">
+                    <Maximize2 className="w-5 h-5 text-brand-500" />
+                    Real Evidence (Full Size View)
+                  </h4>
+                  {scam.images && scam.images.length > 0 ? (
+                    <div className="space-y-4">
+                      {scam.images.map((img, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => openLightbox(img.src, img.caption, img.label)}
+                          className="group relative cursor-pointer rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 hover:border-brand-500 transition-all duration-300 shadow-md"
+                        >
+                          <div className="h-48 sm:h-56 w-full relative overflow-hidden bg-slate-950 flex items-center justify-center p-2">
+                            <img
+                              src={img.src}
+                              alt={img.label}
+                              className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-slate-950/40 transition-colors flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-brand-600 text-white font-bold text-xs px-4 py-2 rounded-full flex items-center gap-2 shadow-lg transform translate-y-2 group-hover:translate-y-0">
+                                <ZoomIn className="w-4 h-4" /> Click to Inspect Full Size
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-slate-900 text-white border-t border-slate-800">
+                            <p className="text-xs font-bold text-brand-400 mb-0.5">{img.label}</p>
+                            <p className="text-xs text-slate-300 line-clamp-2">{img.caption}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-slate-500 text-sm">
+                      <p className="font-semibold mb-1">Digital Fraud Vector</p>
+                      <p className="text-xs">Manipulative tactics rely on emotional isolation and direct off-platform communication.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <div className="card p-8 mb-12">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
-            <Shield className="w-6 h-6 text-brand-500" />
-            Universal Scam Prevention Rules
+        {/* Universal Scam Prevention Rules */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 mb-14 border border-slate-200 dark:border-slate-800 shadow-xl">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 flex items-center gap-3">
+            <Shield className="w-7 h-7 text-brand-500" />
+            Universal Rules of Scam Prevention
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">These rules apply to virtually every scam you'll encounter:</p>
-          <div className="grid md:grid-cols-2 gap-4">
+          <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
+            Memorize these fundamental rules to protect yourself against current and future scam variants:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
-              'Never pay with gift cards, wire transfers, Zelle, or cryptocurrency for unexpected requests.',
-              'Government agencies NEVER contact you first by phone, text, or email demanding payment.',
-              'If someone creates urgency ("act now!"), it\'s almost always a manipulation tactic.',
-              'Legitimate businesses don\'t ask for remote access to your devices.',
-              'If a deal seems too good to be true, it almost certainly is.',
-              'Verify unexpected offers by contacting the company directly using their official number.',
-              'Protect your SSN, bank account, and passwords  never share them unsolicited.',
-              'Talk to a trusted person before making any large or unusual payment.',
+              'Never pay with gift cards, wire transfers, Zelle, Cash App, or crypto for unexpected demands.',
+              'Government agencies NEVER contact you first by phone or text demanding immediate cash or threats.',
+              'Urgency ("act within 1 hour!") is always a psychological manipulation tactic designed to block reason.',
+              'Legitimate businesses will NEVER request remote control access to your personal phone or computer.',
+              'If an offer or prize seems unrealistically profitable or easy, it is guaranteed to be fraudulent.',
+              'Verify unexpected bills or account locks by logging into the official service directly in your browser.',
+              'Protect your SSN, banking passwords, and 2FA authentication codes with absolute secrecy.',
+              'Always consult a trusted family member, neighbor, or sheriff before authorizing large transactions.',
             ].map((rule, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                <span className="w-6 h-6 rounded-full bg-brand-500/20 flex items-center justify-center flex-shrink-0 text-brand-500 font-bold text-xs mt-0.5">{i + 1}</span>
-                <p className="text-sm text-slate-700 dark:text-slate-300">{rule}</p>
+              <div key={i} className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                <span className="w-7 h-7 rounded-full bg-brand-500/20 text-brand-500 font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                  {i + 1}
+                </span>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 leading-snug">{rule}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="card p-8 mb-12 border-brand-500/30 bg-brand-50/30 dark:bg-brand-950/20">
-          <div className="flex items-start gap-4 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0">
-              <MonitorPlay className="w-6 h-6 text-brand-400" />
+        {/* Content Creator Field Guide Notice */}
+        <div className="bg-gradient-to-r from-brand-900/40 via-slate-900 to-indigo-900/40 rounded-3xl p-8 mb-14 border border-brand-500/30 text-white shadow-xl">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-brand-500/20 text-brand-400 flex items-center justify-center flex-shrink-0 border border-brand-500/30">
+              <MonitorPlay className="w-7 h-7" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Are you a Content Creator or Livestreamer?</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Streamers face unique threats including session hijacking, fake sponsorships, and live extortion. View our dedicated Livestreaming Safety & Security Field Guide to protect your channel and personal data.</p>
+              <h2 className="text-2xl font-black mb-1 text-white">Livestreamer & Content Creator Safety Guide</h2>
+              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                Streamers face unique attack vectors including stream hijacking, fake sponsor contracts, and live extortion. Access our dedicated Livestreaming Field Guide to secure your channel.
+              </p>
             </div>
           </div>
           <Link
             to="/stream-safety"
-            className="inline-flex items-center gap-2.5 px-5 py-3 bg-brand-600 hover:bg-brand-700 text-slate-900 dark:text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
+            className="inline-flex items-center gap-2 px-6 py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-xl transition-all shadow-lg min-h-[48px]"
           >
-            <MonitorPlay className="w-4 h-4" />
-            View Creator Field Guide
+            <MonitorPlay className="w-5 h-5" />
+            View Livestreamer Safety Guide
           </Link>
         </div>
 
-        <div className="card p-8 mb-12 border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/10">
-          <div className="flex items-start gap-4 mb-5">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-              <PhoneCall className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Think You're Being Scammed? Call Your Local Sheriff</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                If you suspect you're being targeted — even if you haven't sent money yet — contact your local sheriff's office non-emergency line. They can advise you, document the attempt, and help prevent further contact. You do not need to wait until money is lost.</p>
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4 mb-5">
-            {[
-              { step: '1', title: 'Don\'t hang up or delete anything', desc: 'Save texts, emails, and voicemails as evidence before reporting.' },
-              { step: '2', title: 'Call the non-emergency line', desc: 'Not 911  use the non-emergency number for your county sheriff or local police.' },
-              { step: '3', title: 'Report to the FTC too', desc: 'Filing at ReportFraud.ftc.gov creates a federal record and helps investigators track patterns.' },
-            ].map(item => (
-              <div key={item.step} className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 border border-blue-100 dark:border-blue-900/30">
-                <div className="w-7 h-7 rounded-full bg-blue-500/15 flex items-center justify-center mb-3">
-                  <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">{item.step}</span>
-                </div>
-                <p className="font-semibold text-slate-900 dark:text-white text-sm mb-1">{item.title}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-          <a
-            href="https://search.brave.com/search?q=local+sheriff+non-emergency+phone+number+near+me"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-slate-900 dark:text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
-          >
-            <Search className="w-4 h-4" />
-            Find Your Local Sheriff Non-Emergency Number
-          </a>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
-            Opens a Brave Search for your local sheriff non-emergency contact information.
-          </p>
-        </div>
-
+        {/* Emergency Resources */}
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-            <ExternalLink className="w-6 h-6 text-brand-500" />
-            Emergency Resources
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-6 flex items-center gap-3">
+            <ExternalLink className="w-7 h-7 text-brand-500" />
+            Federal & Emergency Fraud Resources
           </h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {EMERGENCY_RESOURCES.map(r => (
               <a
                 key={r.label}
                 href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="card p-4 hover:border-brand-500/50 transition-all group"
+                className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-brand-500 transition-all group shadow-md block"
               >
-                <p className="font-semibold text-slate-900 dark:text-white text-sm group-hover:text-brand-500 transition-colors mb-1">{r.label}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{r.desc}</p>
-                <ExternalLink className="w-3 h-3 text-slate-400 mt-2" />
+                <p className="font-extrabold text-slate-900 dark:text-white text-base group-hover:text-brand-500 transition-colors mb-1">{r.label}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{r.desc}</p>
+                <div className="flex items-center gap-1 text-xs text-brand-500 font-bold mt-3">
+                  <span>Visit Resource</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </div>
               </a>
             ))}
           </div>
         </div>
+
       </div>
     </div>
   );
 }
 
-const GIFT_CARD_THUMBNAILS = [
-  { src: '/images/Amazon_Gift_Cards.jpg', label: 'Amazon', idx: 1 },
-  { src: '/images/steam-gc.png', label: 'Steam', idx: 2 },
-  { src: '/images/Greendot_Moneypak.jpg', label: 'Green Dot', idx: 3 },
-];
-
-function GiftCardSection({ onGallery }: { onZoom: (src: string, caption: string) => void; onGallery: (index?: number) => void }) {
-  const COMMON_CARDS = [
-    { name: 'Apple / Amazon / Google Play', note: 'Tech support, IRS, and prize scams' },
-    { name: 'Visa / Mastercard / Amex prepaid', note: 'Untraceable like cash  accepted everywhere' },
-    { name: 'Green Dot MoneyPak', note: 'Government impersonation scams' },
-    { name: 'Steam / Walmart / Target', note: 'Broad availability, no ID required to buy' },
-  ];
-
+function GiftCardSection({ onGallery }: { onGallery: (index?: number) => void }) {
   return (
-    <div className="card p-5 h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
-          <AlertTriangle className="w-4 h-4 text-red-500" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Gift Cards</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Instant, irreversible, untraceable</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 flex-1">
-        <div className="flex flex-col gap-3">
-          <div
-            className="relative group cursor-pointer rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 bg-slate-100 dark:bg-slate-800 transition-all duration-200 flex-1"
-            style={{ minHeight: '160px' }}
-            onClick={() => onGallery(0)}
-          >
-            <img
-              src="/images/Gift_Card_Rack.jpg"
-              alt="Gift card rack in store"
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 absolute inset-0"
-            />
-            <div className="absolute inset-0 bg-black/25 group-hover:bg-black/45 transition-all duration-300" />
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3">
-              <div className="flex items-center gap-1.5 text-slate-900 dark:text-white">
-                <ZoomIn className="w-3.5 h-3.5 flex-shrink-0" />
-                <p className="text-xs font-bold leading-tight">View {GIFT_CARD_GALLERY.length} types</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {GIFT_CARD_THUMBNAILS.map(thumb => (
-              <button
-                key={thumb.src}
-                onClick={() => onGallery(thumb.idx)}
-                className="relative group aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 transition-all duration-200 bg-slate-100 dark:bg-slate-800"
-              >
-                <img src={thumb.src} alt={thumb.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/30 transition-all duration-200" />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1 py-1">
-                  <p className="text-slate-900 dark:text-white text-[9px] font-semibold leading-tight truncate">{thumb.label}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl font-black font-mono text-red-500">01</span>
           <div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              No legitimate agency or business will ever ask you to pay with a gift card. If someone does — it is a scam, no exceptions.</p>
-            <div className="space-y-1.5">
-              {COMMON_CARDS.map((card, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    <span className="font-semibold text-gray-800 dark:text-gray-200">{card.name}</span>
-                    {' '} {card.note}
-                  </p>
-                </div>
-              ))}
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Gift Cards</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Irreversible, untraceable, instant transfer</p>
+          </div>
+        </div>
+
+        <div
+          onClick={() => onGallery(0)}
+          className="group relative cursor-pointer rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 mb-4 h-56 sm:h-64 shadow-md"
+        >
+          <img
+            src="/images/Gift_Card_Rack.jpg"
+            alt="Gift Card Display Rack"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 opacity-90"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-4 flex flex-col justify-between">
+            <span className="self-end bg-red-600 text-white font-bold text-xs px-3 py-1 rounded-full shadow">
+              High Risk Payment Method
+            </span>
+            <div className="flex items-center justify-between text-white">
+              <span className="font-bold text-sm sm:text-base flex items-center gap-2">
+                <ZoomIn className="w-4 h-4 text-amber-400" />
+                Inspect Full Size Gift Card Gallery ({GIFT_CARD_GALLERY.length} Types)
+              </span>
             </div>
           </div>
         </div>
+
+        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
+          No legitimate company or law enforcement agency will EVER require payment via gift cards. If someone instructs you to read numbers off the back of a gift card, it is 100% a scam.
+        </p>
       </div>
 
-      <div className="mt-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg p-3">
-        <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-0.5">The Golden Rule</p>
-        <p className="text-xs text-red-600 dark:text-red-400">
-          Anyone asking you to buy gift cards and read the numbers over the phone is scamming you. Always.
+      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl p-4">
+        <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide mb-1">The Gift Card Rule</p>
+        <p className="text-xs text-red-700 dark:text-red-300">
+          Anyone demanding gift card payment over the phone is stealing from you. Stop and hang up.
         </p>
       </div>
     </div>
   );
 }
 
-function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string) => void }) {
-  const points = [
-    'Payments are irreversible  once sent, gone permanently',
-    'ATMs charge 520% fees on top of the loss itself',
-    'Found in liquor stores and gas stations, not banks',
-    'Sending from a wallet app is equally dangerous',
-    'Scammers provide a QR code or wallet address to scan',
-  ];
+function BitcoinATMSection({ onZoom }: { onZoom: (src: string, caption: string, label?: string) => void }) {
   return (
-    <div className="card p-5 h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-9 h-9 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
-          <Bitcoin className="w-4 h-4 text-yellow-500" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">Bitcoin ATMs &amp; Cryptocurrency</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Found in gas stations and liquor stores</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 flex-1">
-        <ClickableImage
-          src="/images/Bitcoin_ATM.jpeg"
-          caption="Bitcoin ATM"
-          onZoom={onZoom}
-          fill
-          label="Bitcoin ATM"
-        />
-        <div className="flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-xl flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl font-black font-mono text-yellow-500">02</span>
           <div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-              Scammers direct victims to ATMs or ask them to send crypto from any wallet. Both are equally dangerous — and irreversible.</p>
-            <ul className="space-y-1.5">
-              {points.map((p, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0" />
-                  <p className="text-xs text-slate-600 dark:text-slate-400">{p}</p>
-                </li>
-              ))}
-            </ul>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Bitcoin ATMs & Cryptocurrency</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Irreversible blockchain transactions</p>
           </div>
         </div>
-      </div>
 
-      <div className="mt-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-lg p-3">
-        <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400 mb-0.5">If directed to a Bitcoin ATM</p>
-        <p className="text-xs text-yellow-700 dark:text-yellow-400">
-          Stop. Walk away. Call a trusted family member or the FTC at 1-877-382-4357 before doing anything.
+        <div
+          onClick={() => onZoom('/images/Bitcoin_ATM.jpeg', 'Bitcoin ATM kiosk located in a gas station. Scammers instruct victims to deposit cash and scan QR codes.', 'Bitcoin ATM Full View')}
+          className="group relative cursor-pointer rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 mb-4 h-56 sm:h-64 shadow-md"
+        >
+          <img
+            src="/images/Bitcoin_ATM.jpeg"
+            alt="Bitcoin ATM"
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 opacity-90"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-4 flex flex-col justify-between">
+            <span className="self-end bg-yellow-600 text-white font-bold text-xs px-3 py-1 rounded-full shadow">
+              Irreversible Crypto Vector
+            </span>
+            <div className="flex items-center justify-between text-white">
+              <span className="font-bold text-sm sm:text-base flex items-center gap-2">
+                <ZoomIn className="w-4 h-4 text-yellow-400" />
+                Inspect Bitcoin ATM In Full Size
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed mb-4">
+          Scammers direct victims to local Bitcoin kiosks at gas stations or instruct them to send crypto from wallet apps using QR codes. Once sent on the blockchain, funds cannot be reversed by banks or police.
         </p>
       </div>
-    </div>
-  );
-}
 
-function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover', label }: { src: string; caption: string; onZoom: (src: string, caption: string) => void; fill?: boolean; objectFit?: 'cover' | 'contain'; label?: string }) {
-  const displayLabel = label ?? caption.split('  ')[0];
-  return (
-    <div
-      className={`relative group cursor-pointer rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-brand-500/60 bg-slate-100 dark:bg-slate-900 transition-all duration-200 ${fill ? 'h-full flex flex-col' : ''}`}
-      onClick={() => onZoom(src, caption)}
-    >
-      <div className={`relative overflow-hidden ${fill ? 'flex-1 min-h-0' : 'h-52'}`}>
-        <img src={src} alt={caption} className={`w-full h-full ${objectFit === 'contain' ? 'object-contain object-top' : 'object-cover'} transition-transform duration-300 group-hover:scale-105`} />
-        <div className="absolute inset-0 bg-black/10 group-hover:bg-black/35 transition-all duration-300" />
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/75 via-black/40 to-transparent p-3">
-        <div className="flex items-center gap-1.5 text-slate-900 dark:text-white">
-          <ZoomIn className="w-4 h-4 flex-shrink-0" />
-          <p className="text-xs font-semibold leading-tight line-clamp-1">{displayLabel}</p>
-        </div>
+      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4">
+        <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">If Directed To A Bitcoin Kiosk</p>
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          Walk away from the machine. Call your local sheriff or trusted relative immediately.
+        </p>
       </div>
     </div>
   );
@@ -668,80 +800,10 @@ function ClickableImage({ src, caption, onZoom, fill = false, objectFit = 'cover
 
 function QuickStatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string; color: string }) {
   return (
-    <div className="card p-5 text-center bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-brand-500/30 transition-all">
-      <Icon className={`w-7 h-7 ${color} mx-auto mb-2`} />
-      <div className="text-2xl font-black text-slate-900 dark:text-white">{value}</div>
-      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
-    </div>
-  );
-}
-
-type ScamType = typeof SCAM_TYPES[0] & { images?: Array<{ src: string; caption: string; objectFit?: 'cover' | 'contain' }> };
-
-function ScamTypeCard({ scam, isExpanded, onToggle, onZoom }: { scam: ScamType; isExpanded: boolean; onToggle: () => void; onZoom: (src: string, caption: string) => void }) {
-  const Icon = scam.icon;
-  const hasImages = scam.images && scam.images.length > 0;
-  return (
-    <div className={`card overflow-hidden transition-all duration-300 ${isExpanded ? 'border-brand-500/30' : ''}`}>
-      <button
-        onClick={onToggle}
-        className="w-full p-5 flex items-center gap-4 text-left hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
-      >
-        <div className={`w-10 h-10 rounded-xl ${scam.bg} flex items-center justify-center flex-shrink-0`}>
-          <Icon className={`w-5 h-5 ${scam.color}`} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-slate-900 dark:text-white">{scam.title}</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">{scam.summary}</p>
-        </div>
-        {isExpanded ? <ChevronUp className="w-5 h-5 text-slate-400 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />}
-      </button>
-
-      {isExpanded && (
-        <div className="px-5 pb-5 border-t border-slate-200 dark:border-slate-800">
-          <div className={`grid ${hasImages ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 pt-4 items-stretch`}>
-            <div>
-              <h4 className="font-bold text-red-500 dark:text-red-400 text-sm mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" />Warning Signs
-              </h4>
-              <ul className="space-y-2">
-                {scam.warningsSigns.map((sign, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />{sign}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="flex flex-col justify-between">
-              <div>
-                <h4 className="font-bold text-green-600 dark:text-green-400 text-sm mb-3 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />What To Do
-                </h4>
-                <ul className="space-y-2 mb-4">
-                  {scam.whatToDo.map((action, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />{action}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <a href={scam.resource.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-brand-500 hover:underline">
-                <ExternalLink className="w-4 h-4" />{scam.resource.label}
-              </a>
-            </div>
-            {hasImages && (
-              <div className="flex flex-col gap-3 h-full">
-                <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Real Examples</h4>
-                <div className="flex flex-col gap-3 flex-1 h-full">
-                  <div className="h-full">
-                    <ClickableImage src={scam.images![0].src} caption={scam.images![0].caption} onZoom={onZoom} fill objectFit={scam.images![0].objectFit} />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md text-center">
+      <Icon className={`w-8 h-8 ${color} mx-auto mb-2`} />
+      <div className="text-3xl font-black text-slate-900 dark:text-white">{value}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">{label}</div>
     </div>
   );
 }
