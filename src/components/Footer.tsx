@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { X, RefreshCw, Save, CheckCircle, AlertCircle } from 'lucide-react';
 import { useFtcStats, FtcStats } from '../hooks/useFtcStats';
 
@@ -51,7 +52,7 @@ export default function Footer() {
               <h4 className="font-semibold text-slate-900 dark:text-white mb-4">Support & Action</h4>
               <ul className="space-y-2 text-sm">
                 <li><a href="/report" className="text-red-600 dark:text-red-400 font-medium hover:underline transition-all">Report a Scam</a></li>
-                <li><a href="https://endscams.org/donate" target="_blank" rel="noopener noreferrer" className="text-green-600 dark:text-green-400 font-medium hover:underline transition-all">Donate to Cause</a></li>
+                <li><Link to="/donate" className="text-green-600 dark:text-green-400 font-medium hover:underline transition-all">Donate to Cause</Link></li>
                 <li><a href="/disclaimer" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Disclaimer</a></li>
               </ul>
             </div>

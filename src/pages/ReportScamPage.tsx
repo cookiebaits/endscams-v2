@@ -446,10 +446,10 @@ export default function ReportScamPage() {
       />
       <div className="max-w-2xl mx-auto px-4 pt-8">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
-            <AlertTriangle className="w-7 h-7 text-brand-500" />
-          </div>
-          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-wider flex items-center justify-center gap-3">Report a Scam</h1>
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-wider flex items-center justify-center gap-3">
+            <AlertTriangle className="w-8 h-8 text-brand-500 flex-shrink-0" />
+            <span>Report a Scam</span>
+          </h1>
           <p className="text-slate-500 dark:text-slate-400">
             Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
           </p>

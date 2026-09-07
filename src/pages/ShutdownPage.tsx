@@ -80,11 +80,9 @@ export default function ShutdownPage() {
 
         {/* Header Section */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-6">
-            <ShieldAlert className="w-8 h-8 text-red-500" />
-          </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider border-l-4 border-red-500 pl-4 inline-block text-left">
-            Scam Shutdown Checklist
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-wider flex items-center justify-center gap-3">
+            <ShieldAlert className="w-10 h-10 md:w-12 md:h-12 text-red-500 flex-shrink-0" />
+            <span>Scam Shutdown Checklist</span>
           </h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto text-lg mt-2">
             If you have been compromised, follow these next steps to shut down scammers and protect your identity.

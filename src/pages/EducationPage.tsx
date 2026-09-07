@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router';
-import { AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ExternalLink, Shield, Eye, Zap, UserX, X, ZoomIn, ZoomOut, RotateCcw, Maximize2, ChevronLeft, ChevronRight, TrendingUp, Search, MonitorPlay, Smartphone, Tablet, Monitor } from 'lucide-react';
+import { AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ExternalLink, Shield, Eye, Zap, UserX, X, ZoomIn, ZoomOut, RotateCcw, Maximize2, ChevronLeft, ChevronRight, TrendingUp, Search, MonitorPlay } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
-import { useDeviceType } from '../hooks/useDeviceType';
 import Banner from '../components/Banner';
 
 const SCAM_TYPES = [
@@ -239,7 +238,6 @@ const GIFT_CARD_GALLERY = [
 ];
 
 export default function EducationPage() {
-  const device = useDeviceType();
   const { stats } = useFtcStats();
   const [lightbox, setLightbox] = useState<{ src: string; caption: string; label?: string } | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
@@ -424,13 +422,8 @@ export default function EducationPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950/40 opacity-90" />
         <div className="relative max-w-6xl mx-auto px-4 text-center">
 
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-brand-500/20 text-brand-400 border border-brand-500/30 mb-6">
-            {device.isMobilePhone ? <Smartphone className="w-4 h-4" /> : device.isTablet ? <Tablet className="w-4 h-4" /> : <Monitor className="w-4 h-4" />}
-            <span>{device.isMobilePhone ? 'Mobile Optimized Experience' : device.isTablet ? 'Tablet Optimized Experience' : 'Interactive Full Size Experience'}</span>
-          </div>
-
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black mb-6 tracking-tight leading-tight text-white">
-            Scam Education <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-blue-400 to-indigo-400">Center</span>
+            Scam Education Center
           </h1>
 
           <p className="text-lg sm:text-xl md:text-2xl text-slate-300 max-w-3xl mx-auto mb-10 font-light leading-relaxed">

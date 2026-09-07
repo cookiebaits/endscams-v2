@@ -428,10 +428,10 @@ export default function TriagePage() {
       />
       <div className="max-w-2xl mx-auto px-4 pt-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
-            <Shield className="w-7 h-7 text-brand-500" />
-          </div>
-          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3">Scam Detection Questionnaire</h1>
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 flex items-center justify-center gap-3">
+            <Shield className="w-8 h-8 text-brand-500 flex-shrink-0" />
+            <span>Scam Detection Questionnaire</span>
+          </h1>
           <p className="text-slate-500 dark:text-slate-400">
             Answer a few quick questions to help determine if you\'re dealing with a scam.
           </p>

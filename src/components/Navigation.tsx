@@ -84,14 +84,12 @@ export default function Navigation() {
               <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
               Been Scammed? Click here
             </Link>
-            <a
-              href="https://endscams.org/donate"
+            <Link
+              to="/donate"
               className="hidden md:flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm"
-              target="_blank"
-              rel="noopener noreferrer"
             >
               Donate
-            </a>
+            </Link>
             <button
               onClick={toggleDarkMode}
               className="p-1.5 xl:p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -146,15 +144,13 @@ export default function Navigation() {
               <ShieldAlert className="w-4 h-4" />
               Been Scammed? Click here
             </Link>
-            <a
-              href="https://endscams.org/donate"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/donate"
               onClick={() => setMobileMenuOpen(false)}
               className="block px-4 py-3 rounded-lg font-bold text-sm text-center text-white bg-green-500 hover:bg-green-600 transition-colors shadow-sm mt-2"
             >
               Donate
-            </a>
+            </Link>
           </div>
         </div>
       )}

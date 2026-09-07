@@ -11,6 +11,7 @@ import ShutdownPage from './pages/ShutdownPage';
 import DisclaimerPage from './pages/DisclaimerPage';
 import TriagePage from './pages/TriagePage';
 import LivestreamSafetyPage from './pages/LivestreamSafetyPage';
+import DonatePage from './pages/DonatePage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [hasAccepted, setHasAccepted] = useState<boolean | null>(null);
@@ -54,6 +55,7 @@ function App() {
                       <Route path="/education" element={<EducationPage />} />
                       <Route path="/stream-safety" element={<LivestreamSafetyPage />} />
                       <Route path="/triage" element={<TriagePage />} />
+                      <Route path="/donate" element={<DonatePage />} />
                     </Routes>
                   </div>
                   <Footer />
