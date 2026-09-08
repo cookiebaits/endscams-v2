@@ -296,11 +296,22 @@ interface ScamEntry {
 
 async function runPipeline(): Promise<Record<string, unknown>> {
   const started = Date.now();
+  console.log(`[tracker-fetcher] [${new Date().toISOString()}] Starting runPipeline execution...`);
+
+  // Verify GEMINI_API_KEY / GOOGLE_API_KEY
+  const geminiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
+  if (!geminiKey) {
+    console.warn(`[tracker-fetcher] WARNING: Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured in environment.`);
+  } else {
+    console.log(`[tracker-fetcher] GEMINI_API_KEY / GOOGLE_API_KEY is configured.`);
+  }
 
   /* 1. Purge expired rows */
   const nowIso = new Date().toISOString();
+  console.log(`[tracker-fetcher] Purging expired entries prior to ${nowIso}...`);
   const { error: purgeErr } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
-  if (purgeErr) console.warn("purge:", purgeErr.message);
+  if (purgeErr) console.error("[tracker-fetcher] Purge error:", purgeErr.message);
+  else console.log(`[tracker-fetcher] Expired entries purged successfully.`);
 
   const collected: ScamEntry[] = [];
   let csvRows = 0;
@@ -416,6 +427,8 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   /* 6. Upsert */
   let inserted = 0;
   const errors: string[] = [];
+  console.log(`[tracker-fetcher] Upserting ${finalEntries.length} deduped scam entries to Supabase...`);
+
   for (const entry of finalEntries) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 31);
@@ -432,13 +445,20 @@ async function runPipeline(): Promise<Record<string, unknown>> {
       },
       { onConflict: "phone_digits,source_name" },
     );
-    if (error) errors.push(`${entry.phone_digits}: ${error.message}`);
-    else inserted++;
+    if (error) {
+      console.error(`[tracker-fetcher] Upsert error for ${entry.phone_digits}:`, error.message);
+      errors.push(`${entry.phone_digits}: ${error.message}`);
+    } else {
+      inserted++;
+    }
   }
+
+  const elapsed = Date.now() - started;
+  console.log(`[tracker-fetcher] Pipeline finished in ${elapsed}ms. Candidates: ${collected.length}, Deduped: ${finalEntries.length}, Inserted: ${inserted}, Errors: ${errors.length}`);
 
   return {
     success: true,
-    elapsed_ms: Date.now() - started,
+    elapsed_ms: elapsed,
     csv_rows_total: csvRows,
     csv_google_queries: csvGoogle,
     cse_queries: cseUsed,
