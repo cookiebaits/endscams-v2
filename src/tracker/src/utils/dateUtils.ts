@@ -116,33 +116,3 @@ export function getPacificParts(date: Date = new Date()) {
 
   return { year, month, day, hour, minute, second, dateStr: `${year}-${month}-${day}` };
 }
-
-/**
- * Get next scheduled scan info (7:00 AM PST or 1:00 PM PST) and countdown
- */
-export function getNextScheduledPSTInfo(): { label: string; countdown: string } {
-  const { hour, minute, second } = getPacificParts();
-  let targetHour = 7;
-  let isTomorrow = false;
-
-  if (hour < 7) {
-    targetHour = 7;
-  } else if (hour < 13) {
-    targetHour = 13;
-  } else {
-    targetHour = 7;
-    isTomorrow = true;
-  }
-
-  const currentSecondsOfDay = hour * 3600 + minute * 60 + second;
-  let targetSecondsOfDay = targetHour * 3600;
-  if (isTomorrow) targetSecondsOfDay += 24 * 3600;
-
-  const diffSec = targetSecondsOfDay - currentSecondsOfDay;
-  const diffHours = Math.floor(diffSec / 3600);
-  const diffMins = Math.floor((diffSec % 3600) / 60);
-
-  const label = isTomorrow ? 'Tomorrow at 7:00 AM PST' : targetHour === 7 ? 'Today at 7:00 AM PST' : 'Today at 1:00 PM PST';
-  const countdown = `in ${diffHours}h ${diffMins}m`;
-  return { label, countdown };
-}

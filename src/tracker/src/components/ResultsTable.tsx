@@ -113,12 +113,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   }, [records]);
 
   const platformsList = useMemo(() => {
-    const list = Array.from(new Set(records.map((r) => r.platform)));
-    const defaults = ['Tech Support United', 'Scammer.info', 'Facebook', 'Instagram', 'Guestbooks', 'Amazon Impersonators'];
-    defaults.forEach((p) => {
-      if (!list.includes(p)) list.push(p);
-    });
-    return list;
+    return Array.from(new Set(records.map((r) => r.platform)));
   }, [records]);
 
   const countriesList = useMemo(() => {
@@ -751,20 +746,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                           </ScamSummaryHoverCard>
                         </td>
 
-                        {/* Column 3: Phone Number with tel: Click-to-dial */}
+                        {/* Column 3: Phone Number */}
                         <td className="p-3.5 whitespace-nowrap">
                           <div className="flex items-center space-x-2">
-                            <a
-                              href={`tel:${record.cleanPhone || record.phone}`}
-                              className={`font-mono text-sm font-bold tracking-tight hover:underline transition-colors ${
-                                record.isNumberDown
-                                  ? 'text-slate-400 line-through decoration-red-500/60 decoration-2'
-                                  : 'text-slate-100 hover:text-amber-400'
-                              }`}
-                              title={`Click to dial ${record.phone}`}
-                            >
+                            <span className={`font-mono text-sm font-bold tracking-tight ${record.isNumberDown ? 'text-slate-400 line-through decoration-red-500/60 decoration-2' : 'text-slate-100'}`}>
                               {record.phone}
-                            </a>
+                            </span>
 
                             {record.countryCode && (
                               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded border border-slate-700">
@@ -777,7 +764,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                               href={`https://wa.me/${record.cleanPhone}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 transition-colors inline-flex items-center"
+                              className="p-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded border border-emerald-500/30 transition-colors"
                               title={`Open WhatsApp chat with ${record.phone}`}
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
@@ -786,14 +773,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                             {/* Copy Phone Button */}
                             <button
                               onClick={() => handleCopyText(record.phone, `phone-${record.id}`)}
-                              className="p-1 text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center space-x-1"
+                              className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
                               title="Copy phone number"
                             >
                               {copiedId === `phone-${record.id}` ? (
-                                <span className="flex items-center text-emerald-400">
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span className="text-[10px] font-semibold ml-0.5">Copied!</span>
-                                </span>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}

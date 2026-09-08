@@ -96,25 +96,11 @@ function json(body: unknown, status = 200): Response {
 /* ================================================================ */
 /*  Phone helpers                                                    */
 /* ================================================================ */
-function isTollFreeNumber(d: string): boolean {
-  const local = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
-  if (local.length !== 10) return false;
-  const prefixes = ["800", "888", "877", "866", "855", "844", "833"];
-  return prefixes.some((p) => local.startsWith(p));
-}
-
 function isValidPhoneNumber(d: string): boolean {
-  if (d.length < 7 || d.length > 15) return false;
+  if (d.length < 10 || d.length > 14) return false;
   if (/^([0-9])\1+$/.test(d)) return false;
-  if (/(\d)\1{4,}/.test(d)) return false;
-  if (d.includes("555")) return false;
-  if (isTollFreeNumber(d)) return false;
-  if (d === "1234567890" || d === "0123456789" || d.includes("123456") || d.includes("654321")) return false;
-  const local = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
-  if (local.length === 10) {
-    if (local.startsWith("0") || local.startsWith("1")) return false;
-    if (local.slice(3, 6).startsWith("0") || local.slice(3, 6).startsWith("1")) return false;
-  }
+  if (d.length === 10 && d.startsWith("555")) return false;
+  if (d === "1234567890" || d === "0123456789") return false;
   return true;
 }
 
@@ -759,7 +745,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
   }
 
 
-  if (url.pathname === "/refresh" || url.pathname === "/api/refresh" || url.pathname === "/api/scan-now") {
+  if (url.pathname === "/refresh") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     if (running) return json({ error: "already running" }, 429);
     running = true;

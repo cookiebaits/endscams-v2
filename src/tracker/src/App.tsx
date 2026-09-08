@@ -5,7 +5,7 @@ import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPane
 import { BackupRestoreModal } from './components/BackupRestoreModal';
 import { ScamPhoneRecord } from './types';
 import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
-import { formatPSTTimeOnly, getPacificParts, getNextScheduledPSTInfo } from './utils/dateUtils';
+import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { noSqlDatabase } from './db/noSqlDatabase';
@@ -99,8 +99,6 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentPST(formatPSTTimeOnly(new Date(), true));
-      const info = getNextScheduledPSTInfo();
-      setNextScheduledRefresh(`${info.label} (${info.countdown})`);
     }, 1000);
     return () => clearInterval(timer);
   }, []);
