@@ -38,12 +38,40 @@ const env = (k: string, required = false): string => {
   return v;
 };
 
-const SUPABASE_URL = env("SUPABASE_URL", true);
-const SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", true);
-// const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
-// const ALLOWED_ORIGIN2 = "http://localhost:5173";
-// const ALLOWED_ORIGIN3 = "http://localhost:5174";
+function resolveSupabaseUrl(): string {
+  const directUrl = Deno.env.get("SUPABASE_URL");
+  if (directUrl && directUrl.trim().length > 0) return directUrl.trim();
+
+  const dbConn = Deno.env.get("DB") || Deno.env.get("DATABASE_URL") || "";
+  if (dbConn.startsWith("http://") || dbConn.startsWith("https://")) {
+    return dbConn.trim();
+  }
+
+  // Parse postgresql:// or postgres:// connection string
+  // e.g. postgresql://postgres:pass@db.rnrqvdwtbehilaoyzfgf.supabase.co:5432/postgres
+  const match = dbConn.match(/db\.([a-z0-9]+)\.supabase\.(co|net)/i);
+  if (match && match[1]) {
+    return `https://${match[1]}.supabase.co`;
+  }
+
+  return "https://rnrqvdwtbehilaoyzfgf.supabase.co";
+}
+
+function resolveSupabaseKey(): string {
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_KEY") || "";
+  if (!key) {
+    console.warn("[tracker-fetcher] WARNING: No SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY configured in environment.");
+  }
+  return key;
+}
+
+const SUPABASE_URL = resolveSupabaseUrl();
+const SUPABASE_SERVICE_ROLE_KEY = resolveSupabaseKey();
 const PORT = parseInt(env("PORT") || "8000", 10);
+
+console.log(`[tracker-fetcher] Initialized Supabase URL: ${SUPABASE_URL}`);
+if (Deno.env.get("DB")) console.log(`[tracker-fetcher] DB environment setting detected.`);
+if (Deno.env.get("DATABASE_URL")) console.log(`[tracker-fetcher] DATABASE_URL environment setting detected.`);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -309,9 +337,14 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   /* 1. Purge expired rows */
   const nowIso = new Date().toISOString();
   console.log(`[tracker-fetcher] Purging expired entries prior to ${nowIso}...`);
-  const { error: purgeErr } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
-  if (purgeErr) console.error("[tracker-fetcher] Purge error:", purgeErr.message);
-  else console.log(`[tracker-fetcher] Expired entries purged successfully.`);
+  try {
+    const { error: purgeErr } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
+    if (purgeErr) console.error("[tracker-fetcher] Purge error:", purgeErr.message);
+    else console.log(`[tracker-fetcher] Expired entries purged successfully.`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[tracker-fetcher] Purge exception:", msg);
+  }
 
   const collected: ScamEntry[] = [];
   let csvRows = 0;
@@ -432,24 +465,30 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   for (const entry of finalEntries) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 31);
-    const { error } = await supabase.from("tracker_entries").upsert(
-      {
-        phone_number: entry.phone_number,
-        phone_digits: entry.phone_digits,
-        source_name:  entry.source_name,
-        source_url:   entry.source_url,
-        report_date:  entry.report_date,
-        category:     entry.category,
-        description:  entry.description,
-        expires_at:   expiresAt.toISOString(),
-      },
-      { onConflict: "phone_digits,source_name" },
-    );
-    if (error) {
-      console.error(`[tracker-fetcher] Upsert error for ${entry.phone_digits}:`, error.message);
-      errors.push(`${entry.phone_digits}: ${error.message}`);
-    } else {
-      inserted++;
+    try {
+      const { error } = await supabase.from("tracker_entries").upsert(
+        {
+          phone_number: entry.phone_number,
+          phone_digits: entry.phone_digits,
+          source_name:  entry.source_name,
+          source_url:   entry.source_url,
+          report_date:  entry.report_date,
+          category:     entry.category,
+          description:  entry.description,
+          expires_at:   expiresAt.toISOString(),
+        },
+        { onConflict: "phone_digits,source_name" },
+      );
+      if (error) {
+        console.error(`[tracker-fetcher] Upsert error for ${entry.phone_digits}:`, error.message);
+        errors.push(`${entry.phone_digits}: ${error.message}`);
+      } else {
+        inserted++;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[tracker-fetcher] Upsert exception for ${entry.phone_digits}:`, msg);
+      errors.push(`${entry.phone_digits}: ${msg}`);
     }
   }
 
