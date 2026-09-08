@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StatsCards } from './components/StatsCards';
 import { ResultsTable } from './components/ResultsTable';
 import { SchedulerDiagnosticsPanel } from './components/SchedulerDiagnosticsPanel';
 import { BackupRestoreModal } from './components/BackupRestoreModal';
-import { IFrameSyncModal } from './components/IFrameSyncModal';
-import { ScamPhoneRecord, SyncBridgeStatus } from './types';
-import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, Activity, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet, Layers } from 'lucide-react';
-import { formatPSTTimeOnly, formatPST, getPacificParts } from './utils/dateUtils';
+import { ScamPhoneRecord } from './types';
+import { ShieldAlert, AlertCircle, Clock, CheckCircle2, Radio, RefreshCw, Zap, Monitor, Smartphone, FileSpreadsheet } from 'lucide-react';
+import { formatPSTTimeOnly, getPacificParts } from './utils/dateUtils';
 import { syncBridge } from './utils/syncBridge';
 import { useDeviceMode } from './hooks/useDeviceMode';
 import { noSqlDatabase } from './db/noSqlDatabase';
@@ -17,18 +16,12 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState(0);
   const [scanStatusMessage, setScanStatusMessage] = useState("");
   const [lastScanTime, setLastScanTime] = useState<string | null>(null);
-  const [lastScanSummary, setLastScanSummary] = useState<string>('Database loaded.');
   const [nextScheduledRefresh, setNextScheduledRefresh] = useState<string>('Today at 1:00 PM PST');
-  const [nextExecutionPST, setNextExecutionPST] = useState<string | null>(null);
-  const [nextExecutionCountdown, setNextExecutionCountdown] = useState<string | null>(null);
-  const [schedulerActive, setSchedulerActive] = useState<boolean>(true);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isBackupRestoreOpen, setIsBackupRestoreOpen] = useState(false);
-  const [isIframeSyncOpen, setIsIframeSyncOpen] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncBridgeStatus | null>(null);
 
   // Auto-detect mobile devices and responsive screen widths with manual override
   const { isMobile, preference, setPreference } = useDeviceMode();
@@ -85,12 +78,10 @@ export default function App() {
       onToggleNumberDown: (id) => {
         handleToggleNumberDown(id);
       },
-      onStatusUpdate: (s) => {
-        setSyncStatus(s);
+      onStatusUpdate: () => {
+        // Status updated
       },
     });
-
-    setSyncStatus(syncBridge.getStatus());
 
     return () => {
       syncBridge.destroy();
@@ -117,12 +108,6 @@ export default function App() {
   useEffect(() => {
     const checkScheduleAndTrigger = () => {
       try {
-        // Honor ?auto=false query param when embedded in /tracker iframe
-        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-        if (urlParams?.get('auto') === 'false') {
-          return;
-        }
-
         const { hour, dateStr } = getPacificParts(new Date());
         
         // Target slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
@@ -160,17 +145,12 @@ export default function App() {
   const fetchRecords = async () => {
     try {
       const response = await fetch('/api/records');
-      const contentType = response.headers.get('content-type') || '';
-      if (response.ok && contentType.includes('application/json')) {
+      if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.records)) {
           setRecords(data.records);
           setLastScanTime(data.lastScanTime);
-          if (data.lastScanSummary) setLastScanSummary(data.lastScanSummary);
           if (data.nextScheduledRefresh) setNextScheduledRefresh(data.nextScheduledRefresh);
-          if (data.nextExecutionPST) setNextExecutionPST(data.nextExecutionPST);
-          if (data.nextExecutionCountdown) setNextExecutionCountdown(data.nextExecutionCountdown);
-          if (data.schedulerActive !== undefined) setSchedulerActive(data.schedulerActive);
           setIsScanning(Boolean(data.isScanningInProgress));
           if (data.scanProgress !== undefined) setScanProgress(data.scanProgress);
           if (data.scanStatusMessage !== undefined) setScanStatusMessage(data.scanStatusMessage);
@@ -181,11 +161,7 @@ export default function App() {
           noSqlDatabase.persist();
         }
       } else {
-        // If server is unreachable or returning HTML (static server SPA fallback), fall back gracefully
-        const localDocs = noSqlDatabase.getRecordsCollection().getAll();
-        if (localDocs.length > 0) {
-          setRecords((prev) => (prev.length === 0 ? localDocs : prev));
-        }
+        throw new Error(`Server returned HTTP ${response.status}`);
       }
     } catch (err) {
       console.warn('[Built-in NoSQL] Backend API unreachable, falling back to local built-in NoSQL database:', err);
@@ -204,60 +180,55 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Trigger manual harvester scan
+  // Trigger manual harvester scan with verbose logging
   const handleRunScanNow = async () => {
+    const startTime = new Date().toISOString();
+    console.log(`[TrackerScanLog] [${startTime}] Manual scan initiated by user.`);
     setIsScanning(true);
     setErrorMessage(null);
     setStatusMessage(`Initiating manual harvester scan...`);
 
-    try {
-      let response: Response;
+    // Try primary refresh endpoint first, with fallback to /api/scan-now
+    const endpoints = ['/refresh', '/api/scan-now'];
+    let lastError: string | null = null;
+    let scanSuccess = false;
+
+    for (const endpoint of endpoints) {
       try {
-        response = await fetch('/api/scan-now', {
+        console.log(`[TrackerScanLog] Executing scan request to endpoint: ${endpoint}`);
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-      } catch (postErr) {
-        // Fallback to GET if POST was blocked by reverse proxy or Cloudflare
-        response = await fetch('/api/scan-now');
-      }
 
-      // If reverse proxy / Nginx / Cloudflare returned 405 Method Not Allowed, fallback to GET
-      if (response.status === 405) {
-        response = await fetch('/api/scan-now');
-      }
+        console.log(`[TrackerScanLog] Response from ${endpoint}: HTTP ${response.status} ${response.statusText}`);
 
-      const contentType = response.headers.get('content-type') || '';
-      if (response.ok && contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data.error) {
-          throw new Error(data.error);
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          console.log(`[TrackerScanLog] Scan completed successfully via ${endpoint}:`, data);
+          setStatusMessage(data.message || `Harvester scan finished (${data.inserted ?? 'N/A'} inserted, ${data.deduped ?? 'N/A'} deduped).`);
+          scanSuccess = true;
+          break;
+        } else {
+          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          lastError = errorData.error || errorData.message || `Endpoint ${endpoint} returned HTTP ${response.status}`;
+          console.warn(`[TrackerScanLog] Scan attempt at ${endpoint} failed: ${lastError}`);
         }
-        setStatusMessage(data.message || 'Harvester scan started.');
-        // Poll quickly for updates
-        setTimeout(fetchRecords, 1000);
-        setTimeout(fetchRecords, 2000);
-        setTimeout(fetchRecords, 3000);
-        setTimeout(fetchRecords, 8000);
-        setTimeout(fetchRecords, 15000);
-      } else if (!response.ok) {
-        let serverErr = `Server returned HTTP ${response.status}`;
-        try {
-          if (contentType.includes('application/json')) {
-            const errData = await response.json();
-            if (errData.error || errData.message) serverErr = errData.error || errData.message;
-          }
-        } catch {}
-        throw new Error(serverErr);
-      } else {
-        // Response is 200 OK but content-type is text/html (static Caddy/Nginx container serving index.html)
-        throw new Error(
-          'Backend Node server is not responding to API requests (received HTML instead of API data). In Dokploy, go to your Application -> General -> set Build Type to "Dockerfile" and Port to 3000, then Rebuild.'
-        );
+      } catch (err: any) {
+        lastError = err?.message || String(err);
+        console.error(`[TrackerScanLog] Error requesting scan at ${endpoint}:`, err);
       }
-    } catch (err: any) {
-      console.error('Error triggering harvester scan:', err);
-      setErrorMessage(err.message || 'Failed to start harvester scan.');
+    }
+
+    if (scanSuccess) {
+      console.log(`[TrackerScanLog] Polling for updated records following successful scan...`);
+      setTimeout(fetchRecords, 1000);
+      setTimeout(fetchRecords, 3000);
+      setTimeout(fetchRecords, 8000);
+      setIsScanning(false);
+    } else {
+      console.error(`[TrackerScanLog] All scan endpoints failed. Final error: ${lastError}`);
+      setErrorMessage(lastError || 'Failed to trigger scan. Check server logs.');
       setIsScanning(false);
     }
   };
@@ -303,85 +274,31 @@ export default function App() {
     }
   };
 
-  // Add manual record (supports direct form input, CSV imports, and parent tracker user reports)
-  const handleAddManualRecord = async (recordData: any) => {
-    if (!recordData) return;
-
-    const rawPhone = String(
-      recordData.phone || recordData.phone_number || recordData.phoneNumber || recordData.phone_digits || ''
-    ).trim();
-    const digits = (recordData.cleanPhone || recordData.phone_digits || rawPhone).replace(/\D/g, '');
-    if (!digits && !rawPhone) {
-      console.warn('[Manual Record] Ignored record without phone number:', recordData);
-      return;
-    }
-
-    const scamType = recordData.scamType || recordData.category || 'User Reported Scam';
-    const platform = recordData.platform || recordData.source_name || recordData.source || 'Scam Tracker User Report';
-    const sourceUrl = recordData.sourceUrl || recordData.source_url || recordData.url || 'https://endscams.org/tracker';
-    const snippet = recordData.snippet || recordData.description || recordData.notes || 'User-reported scam entry.';
-    const notes = recordData.notes || recordData.description || '';
-    const postDate =
-      recordData.postDate ||
-      recordData.report_date ||
-      recordData.incident_date ||
-      recordData.date ||
-      new Date().toISOString().slice(0, 10);
-    const formattedPhone = recordData.phone || rawPhone;
-
-    // Check duplicate in current memory state
-    const alreadyExists = records.some((r) => (r.cleanPhone || r.phone.replace(/\D/g, '')) === digits);
-    if (alreadyExists) {
-      return;
-    }
-
-    const newRecord: ScamPhoneRecord = {
-      id: recordData.id || `rec-user-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      phone: formattedPhone,
-      cleanPhone: digits,
-      countryCode: recordData.countryCode || 'US',
-      countryName: recordData.countryName || 'United States',
-      scamType,
-      impersonatedCompany: recordData.impersonatedCompany,
-      sourceUrl,
-      sourceDomain: 'endscams.org',
-      platform,
-      snippet,
-      notes,
-      searchQuery: 'User Report / Tracker Sync',
-      detectedAt: recordData.detectedAt || new Date().toISOString(),
-      postDate,
-      confidence: 'High',
-      imageUrl: recordData.imageUrl,
-    };
-
-    // 1. Immediately persist locally to built-in NoSQL database and React state
-    const collection = noSqlDatabase.getRecordsCollection();
-    collection.upsert(newRecord);
-    noSqlDatabase.persist();
-
-    setRecords((prev) => [newRecord, ...prev]);
-    setStatusMessage(`Added record for ${newRecord.phone} (${platform}). Data retained.`);
-
-    // 2. Sync to server API if available
+  // Add manual record
+  const handleAddManualRecord = async (recordData: Omit<ScamPhoneRecord, 'id' | 'detectedAt'>) => {
     try {
-      await fetch('/api/records/manual', {
+      const response = await fetch('/api/records/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRecord),
+        body: JSON.stringify(recordData),
       });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.record) {
+          setRecords((prev) => [data.record, ...prev]);
+          setStatusMessage(`Added manual scam record for ${data.record.phone}. Data retained.`);
+        }
+      } else {
+        const errData = await response.json();
+        setErrorMessage(errData.error || 'Failed to add manual record.');
+      }
     } catch (err) {
-      console.warn('[Manual Record] Server sync skipped; safely stored in local database:', err);
+      console.error('Error adding manual record:', err);
     }
-
-    // 3. Inform parent tracker window
-    setTimeout(() => {
-      syncBridge.broadcastCurrentState();
-    }, 100);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
+    <div className="w-full bg-slate-950 text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950 flex flex-col">
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6">
         {/* Automated Harvester Live Control Banner */}
@@ -411,17 +328,6 @@ export default function App() {
                   <span className={`w-1.5 h-1.5 rounded-full ${isScanning ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
                   <span>{isScanning ? `Scan in Progress (${scanProgress}%)` : 'Automated Task Runner Active'}</span>
                 </div>
-
-                {/* Tracker Bridge Status Pill */}
-                <button
-                  id="btn-banner-tracker-sync"
-                  onClick={() => setIsIframeSyncOpen(true)}
-                  className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-300 border-blue-500/30 hover:bg-blue-500/20 cursor-pointer transition-colors"
-                  title="View Parent Tracker & Supabase Postgres Live Sync Status"
-                >
-                  <Layers className="w-3 h-3 text-blue-400" />
-                  <span>Tracker Sync: {syncStatus?.isEmbeddedInIframe ? 'Parent Embedded' : 'Broadcasting'}</span>
-                </button>
               </div>
               <p className="text-[11px] sm:text-xs text-slate-400 max-w-2xl">
                 Automated multi-source harvester scheduled daily at 7:00 AM PST and 1:00 PM PST. Newly detected numbers are incrementally added to the retained database.
@@ -588,31 +494,10 @@ export default function App() {
         }}
       />
 
-      {/* Iframe & Cross-Site Tracker Sync Modal */}
-      <IFrameSyncModal
-        isOpen={isIframeSyncOpen}
-        onClose={() => setIsIframeSyncOpen(false)}
-        records={records}
-        isScanning={isScanning}
-        lastScanTime={lastScanTime}
-        nextScheduledRefresh={nextScheduledRefresh}
-        onTriggerScan={handleRunScanNow}
-      />
-
       {/* Clean Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-3.5 text-center text-xs text-slate-500 mt-auto">
         <p className="flex items-center justify-center space-x-2 flex-wrap px-3">
           <span>End Scam Scan &bull; Auto Refreshes @ 7:00 AM & 1:00 PM PST &bull; 60-Day Auto-Retention</span>
-          <span>&bull;</span>
-          <button
-            id="btn-footer-iframe-sync"
-            onClick={() => setIsIframeSyncOpen(true)}
-            className="inline-flex items-center space-x-1 text-slate-400 hover:text-blue-400 font-medium transition-colors cursor-pointer py-1 px-1.5 rounded hover:bg-slate-900"
-            title="Inspect Cross-Site Parent Tracker & Supabase Postgres Live Bridge"
-          >
-            <Layers className="w-3.5 h-3.5 text-blue-400" />
-            <span>Iframe / Tracker Bridge</span>
-          </button>
           <span>&bull;</span>
           <button
             id="btn-footer-backup-restore"

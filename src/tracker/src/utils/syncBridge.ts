@@ -23,32 +23,6 @@ export interface SyncBridgeCallbacks {
   onStatusUpdate?: (status: SyncBridgeStatus) => void;
 }
 
-export function formatRecordForTrackerSync(r: ScamPhoneRecord): any {
-  const rawPhone = r.phone || r.cleanPhone || '';
-  const digits = r.cleanPhone || rawPhone.replace(/\D/g, '');
-  const reportDate = r.postDate || (r.detectedAt ? r.detectedAt.split('T')[0] : new Date().toISOString().split('T')[0]);
-  const sourceName = r.platform || r.sourceDomain || 'Tech Support United';
-  const sourceUrl = r.sourceUrl || '';
-  const description = r.detailedSummary || r.notes || r.snippet || '';
-
-  return {
-    ...r,
-    phone_number: r.phone || digits,
-    phone_digits: digits,
-    phoneNumber: r.phone || digits,
-    source_name: sourceName,
-    source: sourceName,
-    source_url: sourceUrl,
-    url: sourceUrl,
-    report_date: reportDate,
-    incident_date: reportDate,
-    date: reportDate,
-    category: r.scamType || 'Tech Support Scam',
-    description: description,
-    notes: r.notes || description,
-  };
-}
-
 class SyncBridgeManager {
   private callbacks: SyncBridgeCallbacks = {};
   private logs: SyncLogEntry[] = [];
@@ -237,9 +211,9 @@ class SyncBridgeManager {
 
       case 'ADD_RECORD':
       case 'INSERT_RECORD': {
-        const rawRec = data.payload?.record || data.record || (data.payload?.phone || data.payload?.phone_number || data.payload?.phone_digits ? data.payload : null) || data.payload;
-        if (rawRec && this.callbacks.onAddManualRecord) {
-          this.callbacks.onAddManualRecord(rawRec);
+        const record = data.payload?.record || data.record || data.payload;
+        if (record && this.callbacks.onAddManualRecord) {
+          this.callbacks.onAddManualRecord(record);
         }
         break;
       }
@@ -314,8 +288,8 @@ class SyncBridgeManager {
   public getStatus(): SyncBridgeStatus {
     const hasSharedStorage = typeof window !== 'undefined' && 'sharedStorage' in window;
     return {
-      isEmbeddedInIframe: this.isEmbeddedInIframe,
-      hasParentWindow: this.hasParentWindow,
+      isEmbeddedInIframe: this.isEmbeddedInIframe || this.isEndScamsParentDetected,
+      hasParentWindow: this.hasParentWindow || this.isEndScamsParentDetected,
       hasBroadcastChannel: Boolean(this.broadcastChannel),
       hasSharedStorage,
       allowedOrigins: ['* (Universal postMessage Allowed)'],
@@ -351,45 +325,17 @@ class SyncBridgeManager {
       try {
         window.parent.postMessage(message, '*');
 
-        // Also post flat payload formatted explicitly for TrackerPage & Supabase retainRecordsToPostgres compatibility
+        // Also post flat payload for tracker host compatibility
         if (payload && (payload as any).records) {
-          const rawRecords = (payload as any).records;
-          const formattedRecords = Array.isArray(rawRecords) ? rawRecords.map(formatRecordForTrackerSync) : [];
-
-          // Primary event expected by TrackerPage handleWindowMessage
           window.parent.postMessage({
             source: SOURCE_TAG,
             event: 'TRACKER_RECORDS_UPDATED',
-            type: 'TRACKER_RECORDS_UPDATED',
-            action: 'SYNC_RECORDS',
+            action: 'SYNC',
             targetOrigin: TARGET_PARENT_ORIGIN,
-            records: formattedRecords,
-            data: formattedRecords,
-            payload: { records: formattedRecords },
-            totalRecords: formattedRecords.length,
+            records: (payload as any).records,
+            totalRecords: (payload as any).totalRecords || (payload as any).records.length,
             isScanning: (payload as any).isScanning,
             lastScanTime: (payload as any).lastScanTime,
-            timestamp: message.timestamp,
-          }, '*');
-
-          // Secondary event formats supported by TrackerPage
-          window.parent.postMessage({
-            type: 'SYNC_DATA',
-            event: 'SYNC_DATA',
-            records: formattedRecords,
-            data: formattedRecords,
-            payload: { records: formattedRecords },
-            totalRecords: formattedRecords.length,
-            timestamp: message.timestamp,
-          }, '*');
-
-          window.parent.postMessage({
-            type: 'SYNC_RECORDS',
-            event: 'SYNC_RECORDS',
-            records: formattedRecords,
-            data: formattedRecords,
-            payload: { records: formattedRecords },
-            totalRecords: formattedRecords.length,
             timestamp: message.timestamp,
           }, '*');
         }
@@ -416,17 +362,6 @@ class SyncBridgeManager {
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage(message);
-        if (payload && (payload as any).records) {
-          const rawRecords = (payload as any).records;
-          const formattedRecords = Array.isArray(rawRecords) ? rawRecords.map(formatRecordForTrackerSync) : [];
-          this.broadcastChannel.postMessage({
-            type: 'TRACKER_RECORDS_UPDATED',
-            event: 'TRACKER_RECORDS_UPDATED',
-            records: formattedRecords,
-            payload: { records: formattedRecords },
-            data: formattedRecords,
-          });
-        }
       } catch (err) {
         console.warn('[SyncBridge] Failed to broadcast channel:', err);
       }

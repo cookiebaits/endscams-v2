@@ -13,14 +13,11 @@ import {
   Layers,
   ArrowRight,
   HardDrive,
-  Sparkles,
   Code,
   FileJson,
-  Check,
 } from 'lucide-react';
 import { ScamPhoneRecord } from '../types';
 import { exportRecordsToExcel, parseExcelBackupFile, ExcelParseResult } from '../utils/excelBackup';
-import { formatPST } from '../utils/dateUtils';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 
 interface BackupRestoreModalProps {
@@ -152,86 +149,34 @@ export function BackupRestoreModal({
     setIsRestoring(true);
     setRestoreError(null);
 
-    let backendSynced = false;
-    let serverMessage = '';
-    let restoredRecordsList: ScamPhoneRecord[] = parseResult.records;
-
     try {
-      // 1. Attempt server sync (POST with PUT fallback)
-      try {
-        let response = await fetch('/api/records/restore', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            records: parseResult.records,
-            mode: restoreMode,
-          }),
-        });
+      const response = await fetch('/api/records/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: parseResult.records,
+          mode: restoreMode,
+        }),
+      });
 
-        if (response.status === 405) {
-          response = await fetch('/api/records/restore', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              records: parseResult.records,
-              mode: restoreMode,
-            }),
-          });
-        }
+      const data = await response.json();
 
-        if (response.ok) {
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('application/json')) {
-            const data = await response.json();
-            if (data && data.success) {
-              backendSynced = true;
-              if (data.message) serverMessage = data.message;
-              if (Array.isArray(data.records)) restoredRecordsList = data.records;
-            }
-          }
-        }
-      } catch (fetchErr) {
-        console.warn('[Restore] Server API unreachable, persisting locally to database:', fetchErr);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Server rejected restored records.');
       }
 
-      // 2. Persist locally to built-in NoSQL database
-      const collection = noSqlDatabase.getRecordsCollection();
-      if (restoreMode === 'replace') {
-        collection.clear();
-        collection.insertMany(restoredRecordsList);
-      } else {
-        const existingMap = new Map<string, ScamPhoneRecord>();
-        collection.getAll().forEach((r) => {
-          if (r.cleanPhone) existingMap.set(r.cleanPhone, r);
-          else if (r.phone) existingMap.set(r.phone, r);
-        });
-        restoredRecordsList.forEach((r) => {
-          const key = r.cleanPhone || r.phone;
-          if (!key) return;
-          const existing = existingMap.get(key);
-          existingMap.set(key, existing ? { ...existing, ...r } : r);
-        });
-        restoredRecordsList = Array.from(existingMap.values());
-        collection.clear();
-        collection.insertMany(restoredRecordsList);
-      }
-      noSqlDatabase.persist();
-
-      const successMsg =
-        serverMessage ||
-        `Successfully restored ${parseResult.records.length} records (${restoreMode === 'replace' ? 'replaced database' : 'merged with existing'})${backendSynced ? ' [Synced to server]' : ' [Saved to local database]'}.`;
-
-      setRestoreSuccessMsg(successMsg);
-      onRestoreSuccess(restoredRecordsList, successMsg);
+      setRestoreSuccessMsg(data.message);
+      onRestoreSuccess(
+        data.records || parseResult.records,
+        data.message || `Successfully restored ${data.totalRecords} records.`
+      );
 
       // Auto-clear selected file after successful restore
       setSelectedFile(null);
       setParseResult(null);
     } catch (err: any) {
       console.error('[Restore Error]', err);
-      // Fallback: still notify parent with parsed records so the user doesn't lose their data
-      onRestoreSuccess(parseResult.records, `Restored ${parseResult.records.length} records into session.`);
-      setRestoreSuccessMsg(`Restored ${parseResult.records.length} records into current session.`);
+      setRestoreError(err.message || 'Failed to restore database from backup.');
     } finally {
       setIsRestoring(false);
     }
