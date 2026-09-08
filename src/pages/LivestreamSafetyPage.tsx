@@ -123,7 +123,7 @@ export default function LivestreamSafetyPage() {
         <div className="text-center mb-10">
           <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-3">
             <MonitorPlay className="w-8 h-8 md:w-10 md:h-10 text-brand-500 flex-shrink-0" />
-            <span>Livestreaming Safety & Security Field Guide</span>
+            <span>Livestreaming Safety Field Guide</span>
           </h1>
         </div>
 

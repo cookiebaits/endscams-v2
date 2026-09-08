@@ -49,6 +49,8 @@ services:
       ABSTRACT_SCRAPE_API_KEY: ${ABSTRACT_SCRAPE_API_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      DB: ${DB}
+      DATABASE_URL: ${DATABASE_URL}
     expose:
       - "8000"
     networks:

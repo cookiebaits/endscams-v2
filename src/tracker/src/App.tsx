@@ -180,33 +180,55 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isScanning]);
 
-  // Trigger manual harvester scan
+  // Trigger manual harvester scan with verbose logging
   const handleRunScanNow = async () => {
+    const startTime = new Date().toISOString();
+    console.log(`[TrackerScanLog] [${startTime}] Manual scan initiated by user.`);
     setIsScanning(true);
     setErrorMessage(null);
     setStatusMessage(`Initiating manual harvester scan...`);
 
-    try {
-      const response = await fetch('/api/scan-now', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+    // Try primary refresh endpoint first, with fallback to /api/scan-now
+    const endpoints = ['/refresh', '/api/scan-now'];
+    let lastError: string | null = null;
+    let scanSuccess = false;
 
-      if (response.ok) {
-        const data = await response.json();
-        setStatusMessage(data.message || 'Harvester scan started.');
-        // Poll quickly for updates
-        setTimeout(fetchRecords, 1000);
-        setTimeout(fetchRecords, 2000);
-        setTimeout(fetchRecords, 3000);
-        setTimeout(fetchRecords, 8000);
-        setTimeout(fetchRecords, 15000);
-      } else {
-        throw new Error(`Server returned HTTP ${response.status}`);
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`[TrackerScanLog] Executing scan request to endpoint: ${endpoint}`);
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        console.log(`[TrackerScanLog] Response from ${endpoint}: HTTP ${response.status} ${response.statusText}`);
+
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          console.log(`[TrackerScanLog] Scan completed successfully via ${endpoint}:`, data);
+          setStatusMessage(data.message || `Harvester scan finished (${data.inserted ?? 'N/A'} inserted, ${data.deduped ?? 'N/A'} deduped).`);
+          scanSuccess = true;
+          break;
+        } else {
+          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          lastError = errorData.error || errorData.message || `Endpoint ${endpoint} returned HTTP ${response.status}`;
+          console.warn(`[TrackerScanLog] Scan attempt at ${endpoint} failed: ${lastError}`);
+        }
+      } catch (err: any) {
+        lastError = err?.message || String(err);
+        console.error(`[TrackerScanLog] Error requesting scan at ${endpoint}:`, err);
       }
-    } catch (err: any) {
-      console.error('Error triggering harvester scan:', err);
-      setErrorMessage(err.message || 'Failed to start harvester scan.');
+    }
+
+    if (scanSuccess) {
+      console.log(`[TrackerScanLog] Polling for updated records following successful scan...`);
+      setTimeout(fetchRecords, 1000);
+      setTimeout(fetchRecords, 3000);
+      setTimeout(fetchRecords, 8000);
+      setIsScanning(false);
+    } else {
+      console.error(`[TrackerScanLog] All scan endpoints failed. Final error: ${lastError}`);
+      setErrorMessage(lastError || 'Failed to trigger scan. Check server logs.');
       setIsScanning(false);
     }
   };
