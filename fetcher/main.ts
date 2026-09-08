@@ -759,7 +759,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
   }
 
 
-  if (url.pathname === "/refresh") {
+  if (url.pathname === "/refresh" || url.pathname === "/api/refresh" || url.pathname === "/api/scan-now") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     if (running) return json({ error: "already running" }, 429);
     running = true;

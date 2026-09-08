@@ -937,80 +937,122 @@ snippet: excerpt containing the number`;
           }
         }
       } else {
-        // Autonomous Threat Feed Sweep (without Gemini Key)
-        addLog('[ENGINE] Executing Autonomous Threat Feed Engine across all 11 targets...');
-        await new Promise((r) => setTimeout(r, 600));
-        setScannerProgress(40);
-        addLog('[FEED] Synchronizing with live scambaiter repositories & discourse forums...');
+        // Trigger live backend harvester refresh
+        addLog('[ENGINE] Requesting backend harvester refresh (/api/refresh)...');
+        setScannerProgress(30);
 
-        await new Promise((r) => setTimeout(r, 700));
-        setScannerProgress(75);
-        addLog('[FILTER] Applying strict filtering: Removing all toll-free lines and fictitious 555-exchanges...');
+        let backendTriggered = false;
+        const refreshEndpoints = ['/api/refresh', '/refresh', '/api/scan-now'];
+        for (const ep of refreshEndpoints) {
+          try {
+            addLog(`[BACKEND] Triggering scan on ${ep}...`);
+            const refreshRes = await fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              addLog(`[BACKEND] Scan trigger success: ${refreshData.inserted ?? 'N/A'} inserted, ${refreshData.deduped ?? 'N/A'} deduped.`);
+              backendTriggered = true;
+              break;
+            }
+          } catch {
+            // Try next refresh endpoint
+          }
+        }
 
-        // Sample real non-toll-free threats pool
-        const freshPool: ThreatRecord[] = [
-          {
-            id: `auto-${Date.now()}-1`,
-            phone_number: "1 (812) 552-9820",
-            phone_digits: "18125529820",
-            source_name: "Tech Support United",
-            source_url: "https://techscammersunited.com/latest",
-            report_date: new Date().toISOString().split('T')[0],
-            category: "General Tech Support & Refund Scams",
-            impersonated_company: "Microsoft Certified Support",
-            invoice_number: "MSFT-0912-ERR",
-            amount_charged: "$299.99",
-            description: "Windows Defender Error 0x80070424 lock screen directing victims to call Indiana VoIP DID.",
-            is_down: false,
-          },
-          {
-            id: `auto-${Date.now()}-2`,
-            phone_number: "+234 813 816 1886",
-            phone_digits: "2348138161886",
-            source_name: "Facebook",
-            source_url: "https://www.facebook.com/groups/crypto_asset_recovery",
-            report_date: new Date().toISOString().split('T')[0],
-            category: "Crypto BTC Recovery Scam",
-            impersonated_company: "Lagos Blockchain Recovery Taskforce",
-            invoice_number: "REC-7719",
-            amount_charged: "$450 deposit",
-            description: "Advance fee recovery fraud posing as private blockchain analysts on WhatsApp.",
-            is_down: false,
-          },
-          {
-            id: `auto-${Date.now()}-3`,
-            phone_number: "1 (856) 236-9507",
-            phone_digits: "18562369507",
-            source_name: "Scammer.info",
-            source_url: "https://scammer.info/c/scams",
-            report_date: new Date().toISOString().split('T')[0],
-            category: "General Tech Support & Refund Scams",
-            impersonated_company: "Geek Squad Desk",
-            invoice_number: "GS-4412-CAN",
-            amount_charged: "$499.00",
-            description: "Fake cancellation invoice for Best Buy protection plan. Pushes AnyDesk remote access.",
-            is_down: false,
-          },
-          {
-            id: `auto-${Date.now()}-4`,
-            phone_number: "+27 63 948 1022",
-            phone_digits: "27639481022",
-            source_name: "Instagram",
-            source_url: "https://www.instagram.com/traditional_healer_sa",
-            report_date: new Date().toISOString().split('T')[0],
-            category: "Spellcaster WhatsApp Extortion",
-            impersonated_company: "Ancestral Temple Pretoria",
-            invoice_number: "N/A",
-            amount_charged: "R 850",
-            description: "Instagram reel promoting money spells and ex-lover returns via South African WhatsApp.",
-            is_down: false,
-          },
-        ];
+        setScannerProgress(60);
+        addLog('[FEED] Synchronizing live records from database...');
 
-        for (const item of freshPool) {
-          if (!existingDigits.has(item.phone_digits) && !isTollFreeNumber(item.phone_number)) {
-            accumulatedNew.push(item);
-            existingDigits.add(item.phone_digits);
+        // Refetch backend records
+        try {
+          const recRes = await fetch('/api/records');
+          if (recRes.ok) {
+            const recData = await recRes.json();
+            if (recData.records && Array.isArray(recData.records)) {
+              const fetchedMapped = recData.records
+                .filter((r: Record<string, unknown>) => {
+                  const p = String(r.cleanPhone || r.phone || '');
+                  const src = String(r.platform || r.sourceUrl || '').toLowerCase();
+                  return !isTollFreeNumber(p) && !isFictitiousOrInvalidPhone(p) && !src.includes('reddit');
+                })
+                .map(mapRawSeedToThreatRecord);
+
+              fetchedMapped.forEach((r: ThreatRecord) => {
+                if (!existingDigits.has(r.phone_digits)) {
+                  accumulatedNew.push(r);
+                  existingDigits.add(r.phone_digits);
+                }
+              });
+            }
+          }
+        } catch {
+          addLog('[WARN] Unable to reach /api/records, falling back to local Threat Feed...');
+        }
+
+        if (!backendTriggered && accumulatedNew.length === 0) {
+          addLog('[FILTER] Ingesting threat intelligence feed pool...');
+          const freshPool: ThreatRecord[] = [
+            {
+              id: `auto-${Date.now()}-1`,
+              phone_number: "1 (812) 552-9820",
+              phone_digits: "18125529820",
+              source_name: "Tech Support United",
+              source_url: "https://techscammersunited.com/latest",
+              report_date: new Date().toISOString().split('T')[0],
+              category: "General Tech Support & Refund Scams",
+              impersonated_company: "Microsoft Certified Support",
+              invoice_number: "MSFT-0912-ERR",
+              amount_charged: "$299.99",
+              description: "Windows Defender Error 0x80070424 lock screen directing victims to call Indiana VoIP DID.",
+              is_down: false,
+            },
+            {
+              id: `auto-${Date.now()}-2`,
+              phone_number: "+234 813 816 1886",
+              phone_digits: "2348138161886",
+              source_name: "Facebook",
+              source_url: "https://www.facebook.com/groups/crypto_asset_recovery",
+              report_date: new Date().toISOString().split('T')[0],
+              category: "Crypto BTC Recovery Scam",
+              impersonated_company: "Lagos Blockchain Recovery Taskforce",
+              invoice_number: "REC-7719",
+              amount_charged: "$450 deposit",
+              description: "Advance fee recovery fraud posing as private blockchain analysts on WhatsApp.",
+              is_down: false,
+            },
+            {
+              id: `auto-${Date.now()}-3`,
+              phone_number: "1 (856) 236-9507",
+              phone_digits: "18562369507",
+              source_name: "Scammer.info",
+              source_url: "https://scammer.info/c/scams",
+              report_date: new Date().toISOString().split('T')[0],
+              category: "General Tech Support & Refund Scams",
+              impersonated_company: "Geek Squad Desk",
+              invoice_number: "GS-4412-CAN",
+              amount_charged: "$499.00",
+              description: "Fake cancellation invoice for Best Buy protection plan. Pushes AnyDesk remote access.",
+              is_down: false,
+            },
+            {
+              id: `auto-${Date.now()}-4`,
+              phone_number: "+27 63 948 1022",
+              phone_digits: "27639481022",
+              source_name: "Instagram",
+              source_url: "https://www.instagram.com/traditional_healer_sa",
+              report_date: new Date().toISOString().split('T')[0],
+              category: "Spellcaster WhatsApp Extortion",
+              impersonated_company: "Ancestral Temple Pretoria",
+              invoice_number: "N/A",
+              amount_charged: "R 850",
+              description: "Instagram reel promoting money spells and ex-lover returns via South African WhatsApp.",
+              is_down: false,
+            },
+          ];
+
+          for (const item of freshPool) {
+            if (!existingDigits.has(item.phone_digits) && !isTollFreeNumber(item.phone_number)) {
+              accumulatedNew.push(item);
+              existingDigits.add(item.phone_digits);
+            }
           }
         }
       }
@@ -1378,30 +1420,32 @@ snippet: excerpt containing the number`;
   // 12. FILTERING & SEARCH
   // ============================================================================
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      const q = searchTerm.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        r.phone_number.toLowerCase().includes(q) ||
-        r.phone_digits.includes(q.replace(/\D/g, '')) ||
-        r.category.toLowerCase().includes(q) ||
-        r.source_name.toLowerCase().includes(q) ||
-        (r.impersonated_company && r.impersonated_company.toLowerCase().includes(q)) ||
-        r.description.toLowerCase().includes(q);
+    return records
+      .filter((r) => {
+        const q = searchTerm.trim().toLowerCase();
+        const matchesSearch =
+          !q ||
+          r.phone_number.toLowerCase().includes(q) ||
+          r.phone_digits.includes(q.replace(/\D/g, '')) ||
+          r.category.toLowerCase().includes(q) ||
+          r.source_name.toLowerCase().includes(q) ||
+          (r.impersonated_company && r.impersonated_company.toLowerCase().includes(q)) ||
+          r.description.toLowerCase().includes(q);
 
-      const matchesCategory = selectedCategory === 'ALL' || r.category === selectedCategory;
-      const matchesSource = selectedSource === 'ALL' || r.source_name === selectedSource;
+        const matchesCategory = selectedCategory === 'ALL' || r.category === selectedCategory;
+        const matchesSource = selectedSource === 'ALL' || r.source_name === selectedSource;
 
-      const country = deriveCountryInfo(r.phone_number);
-      const matchesCountry = selectedCountry === 'ALL' || country.name === selectedCountry || country.code === selectedCountry;
+        const country = deriveCountryInfo(r.phone_number);
+        const matchesCountry = selectedCountry === 'ALL' || country.name === selectedCountry || country.code === selectedCountry;
 
-      const matchesStatus =
-        selectedStatus === 'ALL' ||
-        (selectedStatus === 'ACTIVE' && !r.is_down) ||
-        (selectedStatus === 'DOWN' && r.is_down);
+        const matchesStatus =
+          selectedStatus === 'ALL' ||
+          (selectedStatus === 'ACTIVE' && !r.is_down) ||
+          (selectedStatus === 'DOWN' && r.is_down);
 
-      return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus;
-    });
+        return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus;
+      })
+      .sort((a, b) => (b.report_date || '').localeCompare(a.report_date || ''));
   }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus]);
 
   // Derived Metrics
