@@ -9,14 +9,12 @@ services:
     restart: always
     ports:
       - "3000:3000"
-    volumes:
-      - ./data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=3000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
       interval: 30s
       timeout: 5s
       retries: 3

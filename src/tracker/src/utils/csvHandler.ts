@@ -23,58 +23,6 @@ export const CSV_EXPORT_HEADERS = [
 ];
 
 /**
- * Robust RFC-compliant CSV line parser handling quotes, commas, and escaped quotes.
- */
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let cur = '';
-  let inQuotes = false;
-  let i = 0;
-
-  while (i < line.length) {
-    const char = line[i];
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          // Escaped quote ""
-          cur += '"';
-          i += 2;
-          continue;
-        } else {
-          // Closing quote
-          inQuotes = false;
-          i++;
-          continue;
-        }
-      } else {
-        cur += char;
-        i++;
-        continue;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-        i++;
-        continue;
-      } else if (char === ',') {
-        result.push(cur);
-        cur = '';
-        i++;
-        continue;
-      } else {
-        cur += char;
-        i++;
-        continue;
-      }
-    }
-  }
-
-  result.push(cur);
-  return result;
-}
-
-/**
  * Parses full multi-line CSV string handling multi-line quoted cells.
  */
 function parseFullCSV(text: string): string[][] {
@@ -88,18 +36,6 @@ function parseFullCSV(text: string): string[][] {
   let cleanText = text;
   if (cleanText.charCodeAt(0) === 0xfeff) {
     cleanText = cleanText.slice(1);
-  }
-
-  // Detect delimiter: check header row for commas vs semicolons vs tabs (European Excel uses ;)
-  let delimiter = ',';
-  const firstLine = cleanText.split(/\r?\n/)[0] || '';
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  const semiCount = (firstLine.match(/;/g) || []).length;
-  const tabCount = (firstLine.match(/\t/g) || []).length;
-  if (semiCount > commaCount && semiCount > tabCount) {
-    delimiter = ';';
-  } else if (tabCount > commaCount && tabCount > semiCount) {
-    delimiter = '\t';
   }
 
   while (i < cleanText.length) {
@@ -126,7 +62,7 @@ function parseFullCSV(text: string): string[][] {
         inQuotes = true;
         i++;
         continue;
-      } else if (char === delimiter) {
+      } else if (char === ',') {
         currentRow.push(curCell);
         curCell = '';
         i++;
@@ -173,7 +109,7 @@ function parseFullCSV(text: string): string[][] {
 /**
  * Exports records to a CSV file.
  * Uses a UTF-8 BOM and Blob download to prevent character truncation from '#' in tags/URLs,
- * ensuring all records are exported completely without limits and open cleanly in Excel/Google Sheets.
+ * ensuring all records are exported completely without limits.
  */
 export function exportRecordsToCSV(records: ScamPhoneRecord[], filename?: string): void {
   if (!records || records.length === 0) return;
@@ -181,27 +117,16 @@ export function exportRecordsToCSV(records: ScamPhoneRecord[], filename?: string
   const pstDateStamp = getPSTDateStamp();
   const headers = CSV_EXPORT_HEADERS;
 
-  const rows = records.map((r) => {
-    const rawPhone = (r.phone || '').trim();
-    const cleanDigits = r.cleanPhone || rawPhone.replace(/\D/g, '');
-    const detectedPst = formatPST(r.detectedAt);
-    const scamType = (r.scamType || 'Scam Threat Report').trim();
-    const sourceUrl = (r.sourceUrl || '').trim();
-    const platform = (r.platform || 'Threat Intel').trim();
-    const country = (r.countryCode || '').trim();
-    const snippet = (r.snippet || '').replace(/"/g, '""').replace(/[\r\n\t]+/g, ' ').trim();
-
-    return [
-      `"${scamType.replace(/"/g, '""')}"`,
-      `"${rawPhone.replace(/"/g, '""')}"`,
-      `"${cleanDigits}"`,
-      `"${detectedPst}"`,
-      `"${sourceUrl.replace(/"/g, '""')}"`,
-      `"${platform.replace(/"/g, '""')}"`,
-      `"${country}"`,
-      `"${snippet}"`,
-    ];
-  });
+  const rows = records.map((r) => [
+    `"${(r.scamType || '').replace(/"/g, '""')}"`,
+    `"${(r.phone || '').replace(/"/g, '""')}"`,
+    `"${r.cleanPhone || (r.phone || '').replace(/\D/g, '')}"`,
+    `"${formatPST(r.detectedAt)}"`,
+    `"${(r.sourceUrl || '').replace(/"/g, '""')}"`,
+    `"${(r.platform || '').replace(/"/g, '""')}"`,
+    `"${r.countryCode || ''}"`,
+    `"${(r.snippet || '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`,
+  ]);
 
   const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\r\n');
 
@@ -243,41 +168,14 @@ function deriveCountry(cleanPhone: string): { code: string; name: string } {
   if (cleanPhone.startsWith('229')) return { code: 'BJ', name: 'Benin' };
   if (cleanPhone.startsWith('61')) return { code: 'AU', name: 'Australia' };
   if (cleanPhone.length === 10) return { code: 'US', name: 'United States' };
-  return { code: 'US', name: 'United States' };
-}
-
-/**
- * Formats a clean US or international number nicely for display.
- */
-function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
-  // If rawPhone already has parentheses or country code, clean any Excel formulas
-  const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
-  if (cleaned && cleaned.includes('(') && cleaned.includes(')')) {
-    return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
-  }
-  if (cleanDigits.length === 10) {
-    return `+1 (${cleanDigits.slice(0, 3)}) ${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6)}`;
-  }
-  if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) {
-    return `+1 (${cleanDigits.slice(1, 4)}) ${cleanDigits.slice(4, 7)}-${cleanDigits.slice(7)}`;
-  }
-  if (cleanDigits.startsWith('234') && cleanDigits.length === 13) {
-    return `+234 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
-  }
-  if (cleanDigits.startsWith('27') && cleanDigits.length === 11) {
-    return `+27 ${cleanDigits.slice(2, 4)} ${cleanDigits.slice(4, 7)} ${cleanDigits.slice(7)}`;
-  }
-  if (cleanDigits.startsWith('254') && cleanDigits.length === 12) {
-    return `+254 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
-  }
-  return cleaned.startsWith('+') ? cleaned : `+${cleanDigits}`;
+  return { code: 'Unknown', name: 'International' };
 }
 
 /**
  * Parses and strictly validates an imported CSV string.
  * Must match the formatting of the Export CSV:
  * Headers: Type of Scam, Phone Number, Clean Digits, Date Detected (PST), Source URL, Platform, Country, Snippet
- * Handles Excel quirks, automatic clean digits calculation, and timezone parsing.
+ * Rejects random information, invalid files, or missing core data.
  */
 export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   const trimmed = fileContent.trim();
@@ -310,45 +208,38 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   const headerRow = rawRows[0];
   const normalizedHeaders = headerRow.map(normalizeHeader);
 
-  // Flexible header mapping supporting Export CSV columns and variations
+  // Expected headers:
+  // 'typeofscam', 'phonenumber', 'cleandigits', 'datedetectedpst', 'sourceurl', 'platform', 'country', 'snippet'
   const scamTypeIndex = normalizedHeaders.findIndex(
-    (h) => h === 'typeofscam' || h === 'scamtype' || h === 'category' || h === 'type'
+    (h) => h === 'typeofscam' || h === 'scamtype' || h === 'category'
   );
   const phoneIndex = normalizedHeaders.findIndex(
-    (h) => h === 'phonenumber' || h === 'phone' || h === 'phoneno' || h === 'number' || h === 'tel'
-  );
-  const cleanDigitsIndex = normalizedHeaders.findIndex(
-    (h) => h === 'cleandigits' || h === 'cleanphone' || h === 'digits' || h === 'cleannumber'
+    (h) => h === 'phonenumber' || h === 'phone' || h === 'phoneno' || h === 'number'
   );
   const dateIndex = normalizedHeaders.findIndex(
-    (h) => h.includes('datedetected') || h === 'date' || h === 'detectedat' || h === 'timestamp'
+    (h) => h.includes('datedetected') || h === 'date' || h === 'detectedat'
   );
   const sourceUrlIndex = normalizedHeaders.findIndex(
-    (h) => h === 'sourceurl' || h === 'url' || h === 'source' || h === 'link'
+    (h) => h === 'sourceurl' || h === 'url' || h === 'source'
   );
   const platformIndex = normalizedHeaders.findIndex(
-    (h) => h === 'platform' || h === 'website' || h === 'sourceplatform' || h === 'origin'
+    (h) => h === 'platform' || h === 'website' || h === 'sourceplatform'
   );
   const countryIndex = normalizedHeaders.findIndex(
-    (h) => h === 'country' || h === 'countrycode' || h === 'geo' || h === 'region'
+    (h) => h === 'country' || h === 'countrycode'
   );
   const snippetIndex = normalizedHeaders.findIndex(
-    (h) => h === 'snippet' || h === 'notes' || h === 'details' || h === 'context' || h === 'description' || h === 'summary'
-  );
-  const statusIndex = normalizedHeaders.findIndex(
-    (h) => h === 'status' || h === 'numberstatus' || h === 'isdown' || h === 'state'
-  );
-  const companyIndex = normalizedHeaders.findIndex(
-    (h) => h === 'impersonatedcompany' || h === 'company' || h === 'brand' || h === 'target'
+    (h) => h === 'snippet' || h === 'notes' || h === 'details' || h === 'context'
   );
 
-  // Must have at least a Phone Number or Clean Digits column
-  if (phoneIndex === -1 && cleanDigitsIndex === -1) {
+  // Strict schema check: At least Type of Scam and Phone Number must be present,
+  // and the file must structurally resemble the exported CSV (e.g. matching headers)
+  if (scamTypeIndex === -1 || phoneIndex === -1) {
     return {
       success: false,
       records: [],
-      error: `Invalid CSV format. The CSV headers must include "Phone Number" or "Clean Digits".\n` +
-        `Required Export CSV columns: "Type of Scam", "Phone Number", "Clean Digits", "Date Detected (PST)", "Source URL", "Platform", "Country", "Snippet".\n` +
+      error: `Invalid CSV format. The CSV headers must match the export CSV columns:\n` +
+        `"Type of Scam", "Phone Number", "Clean Digits", "Date Detected (PST)", "Source URL", "Platform", "Country", "Snippet".\n` +
         `Found headers: [${headerRow.join(', ')}]`,
       totalRows: rawRows.length - 1,
       validCount: 0,
@@ -369,23 +260,11 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       continue;
     }
 
-    let rawPhone = phoneIndex >= 0 && row[phoneIndex] ? row[phoneIndex].trim() : '';
-    let rawCleanDigits = cleanDigitsIndex >= 0 && row[cleanDigitsIndex] ? row[cleanDigitsIndex].trim() : '';
+    const rawPhone = phoneIndex >= 0 && row[phoneIndex] ? row[phoneIndex].trim() : '';
+    const cleanDigits = rawPhone.replace(/\D/g, '');
 
-    // Strip Excel formula or leading equal sign e.g. ="..." or =+1...
-    rawPhone = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
-    rawCleanDigits = rawCleanDigits.replace(/\D/g, '');
-
-    // Derive cleanDigits
-    let cleanDigits = rawCleanDigits || rawPhone.replace(/\D/g, '');
-
-    // If cleanDigits has 10 digits (US area code + local), prepend 1 for standardization
-    if (cleanDigits.length === 10) {
-      cleanDigits = '1' + cleanDigits;
-    }
-
-    // Strict validation: Reject if phone number is missing or has fewer than 7 digits
-    if (!cleanDigits || cleanDigits.length < 7 || cleanDigits.length > 16) {
+    // Strict validation: Reject if phone number is missing, random text, or fewer than 7 digits
+    if (!rawPhone || cleanDigits.length < 7 || cleanDigits.length > 16) {
       rejectedCount++;
       rejectedReasons.push(
         `Row ${rIdx + 1}: Invalid phone number "${rawPhone || 'empty'}". Must contain between 7 and 16 digits.`
@@ -393,59 +272,26 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       continue;
     }
 
-    // Ensure rawPhone is readable
-    if (!rawPhone || rawPhone === cleanDigits) {
-      rawPhone = formatDisplayPhone(rawPhone, cleanDigits);
-    } else {
-      rawPhone = formatDisplayPhone(rawPhone, cleanDigits);
-    }
-
-    let scamType =
-      scamTypeIndex >= 0 && row[scamTypeIndex] ? row[scamTypeIndex].trim() : '';
+    const scamType =
+      scamTypeIndex >= 0 && row[scamTypeIndex] ? row[scamTypeIndex].trim() : 'Scam Threat Report';
     
-    // Auto-detect or default scamType
-    if (!scamType || scamType.length < 2) {
-      const rowText = row.join(' ').toLowerCase();
-      if (rowText.includes('pch') || rowText.includes('publishers clearing') || rowText.includes('sweepstake')) {
-        scamType = 'Prize / Sweepstakes Scam (PCH)';
-      } else if (rowText.includes('geek squad') || rowText.includes('best buy') || rowText.includes('tech support')) {
-        scamType = 'Tech Support / Impersonation';
-      } else if (rowText.includes('spell') || rowText.includes('spiritual') || rowText.includes('love spell')) {
-        scamType = 'Love Spell / Spiritual Fraud';
-      } else if (rowText.includes('crypto') || rowText.includes('recovery') || rowText.includes('bitcoin')) {
-        scamType = 'Crypto Recovery Scam';
-      } else if (rowText.includes('stake') || rowText.includes('casino')) {
-        scamType = 'Stake.us / Casino Scam';
-      } else {
-        scamType = 'Scam Threat Report';
-      }
+    // Check if scamType is just random punctuation or nonsense
+    if (scamType.length < 2) {
+      rejectedCount++;
+      rejectedReasons.push(`Row ${rIdx + 1}: Missing or invalid "Type of Scam" value.`);
+      continue;
     }
 
     const sourceUrl =
-      sourceUrlIndex >= 0 && row[sourceUrlIndex] && row[sourceUrlIndex].trim()
+      sourceUrlIndex >= 0 && row[sourceUrlIndex]
         ? row[sourceUrlIndex].trim()
         : 'https://scammer.info';
-
     const platform =
-      platformIndex >= 0 && row[platformIndex] && row[platformIndex].trim()
-        ? row[platformIndex].trim()
-        : sourceUrl.includes('facebook')
-        ? 'Facebook'
-        : sourceUrl.includes('instagram')
-        ? 'Instagram'
-        : sourceUrl.includes('reddit')
-        ? 'Reddit'
-        : sourceUrl.includes('scammer.info')
-        ? 'Scammer.info'
-        : 'CSV Import';
-
+      platformIndex >= 0 && row[platformIndex] ? row[platformIndex].trim() : 'CSV Import';
     const countryVal =
-      countryIndex >= 0 && row[countryIndex] ? row[countryIndex].trim().toUpperCase() : '';
-
+      countryIndex >= 0 && row[countryIndex] ? row[countryIndex].trim() : '';
     const snippet =
-      snippetIndex >= 0 && row[snippetIndex] && row[snippetIndex].trim()
-        ? row[snippetIndex].trim()
-        : `Verified scam threat report for ${rawPhone}`;
+      snippetIndex >= 0 && row[snippetIndex] ? row[snippetIndex].trim() : 'Imported via CSV';
 
     const rawDate = dateIndex >= 0 && row[dateIndex] ? row[dateIndex].trim() : '';
     let parsedDetectedAt = new Date().toISOString();
@@ -456,11 +302,6 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       }
     }
 
-    const statusVal = statusIndex >= 0 && row[statusIndex] ? row[statusIndex].trim().toLowerCase() : '';
-    const isDown = statusVal.includes('down') || statusVal.includes('dead') || statusVal.includes('disconnected');
-
-    const companyVal = companyIndex >= 0 && row[companyIndex] ? row[companyIndex].trim() : undefined;
-
     const derived = deriveCountry(cleanDigits);
 
     const record: ScamPhoneRecord = {
@@ -470,9 +311,6 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       countryCode: countryVal || derived.code,
       countryName: derived.name,
       scamType,
-      impersonatedCompany: companyVal,
-      isNumberDown: isDown,
-      numberDownAt: isDown ? parsedDetectedAt : undefined,
       sourceUrl: sourceUrl || 'https://scammer.info',
       sourceDomain: sourceUrl.includes('//')
         ? sourceUrl.split('/')[2].replace('www.', '')
