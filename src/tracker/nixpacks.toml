@@ -1,0 +1,20 @@
+# Force Nixpacks to treat this as a Node.js fullstack server application, NOT a static Vite/Caddy site
+providers = ["node"]
+
+[variables]
+NIXPACKS_PROVIDERS = "node"
+NODE_ENV = "production"
+PORT = "3000"
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node dist/server.cjs"
+
