@@ -130,9 +130,11 @@ export interface SchedulerDiagnosticsData {
   };
   health: {
     geminiApiKey: 'configured' | 'missing';
+    geminiKeyPreview?: string;
     storage: 'healthy' | 'error';
     recordsRetained: number;
     retentionPolicy: string;
+    proxyMode?: string;
   };
   logs: SchedulerLogEntry[];
 }

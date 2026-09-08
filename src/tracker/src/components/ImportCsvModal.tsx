@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
+  FileText,
   AlertTriangle,
   Download,
   Info,
@@ -16,6 +17,7 @@ import {
   exportRecordsToCSV,
   CSV_EXPORT_HEADERS,
 } from '../utils/csvHandler';
+import { noSqlDatabase } from '../db/noSqlDatabase';
 
 interface ImportCsvModalProps {
   isOpen: boolean;
@@ -114,28 +116,80 @@ export const ImportCsvModal: React.FC<ImportCsvModalProps> = ({
     if (!parseResult || !parseResult.success || parseResult.records.length === 0) return;
 
     setIsProcessing(true);
-    try {
-      const response = await fetch('/api/records/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          records: parseResult.records,
-          mode: 'merge',
-        }),
-      });
+    let backendSynced = false;
+    let serverMessage = '';
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to save imported records.');
+    try {
+      // 1. Attempt to sync with backend API (POST with fallback)
+      try {
+        let response = await fetch('/api/records/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            records: parseResult.records,
+            mode: 'merge',
+          }),
+        });
+
+        // If reverse proxy/Nginx returned 405 Method Not Allowed, retry with PUT
+        if (response.status === 405) {
+          response = await fetch('/api/records/restore', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              records: parseResult.records,
+              mode: 'merge',
+            }),
+          });
+        }
+
+        if (response.ok) {
+          backendSynced = true;
+          try {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              const data = await response.json();
+              if (data.message) serverMessage = data.message;
+            }
+          } catch {}
+        } else {
+          console.warn(`[CSV Import] Server API returned HTTP ${response.status}. Retaining locally in database.`);
+        }
+      } catch (fetchErr) {
+        console.warn('[CSV Import] Backend API unreachable, persisting to client database:', fetchErr);
       }
 
-      const summary = `Successfully imported ${parseResult.validCount} scam record(s) from CSV!${
-        parseResult.rejectedCount > 0 ? ` (${parseResult.rejectedCount} invalid rows were skipped)` : ''
-      }`;
-      onImportSuccess(parseResult.records, summary);
+      // 2. Always persist to client-side built-in NoSQL database and state
+      const collection = noSqlDatabase.getRecordsCollection();
+      const existingMap = new Map<string, ScamPhoneRecord>();
+      collection.getAll().forEach((r) => {
+        if (r.cleanPhone) existingMap.set(r.cleanPhone, r);
+        else if (r.phone) existingMap.set(r.phone, r);
+      });
+      parseResult.records.forEach((r) => {
+        const key = r.cleanPhone || r.phone;
+        if (!key) return;
+        const existing = existingMap.get(key);
+        existingMap.set(key, existing ? { ...existing, ...r } : r);
+      });
+      const mergedRecords = Array.from(existingMap.values());
+      collection.clear();
+      collection.insertMany(mergedRecords);
+      noSqlDatabase.persist();
+
+      const summary =
+        serverMessage ||
+        `Successfully imported ${parseResult.validCount} scam record(s) from CSV!${
+          parseResult.rejectedCount > 0 ? ` (${parseResult.rejectedCount} invalid rows were skipped)` : ''
+        }${backendSynced ? ' (Synced with server)' : ' (Saved to local database)'}`;
+
+      onImportSuccess(mergedRecords, summary);
       handleClose();
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error saving imported records to database.');
+      console.error('[CSV Import] Failed to complete import:', err);
+      // Fallback to parent state so imported records are never lost
+      onImportSuccess(parseResult.records, `Imported ${parseResult.validCount} records into session.`);
+      handleClose();
     } finally {
       setIsProcessing(false);
     }

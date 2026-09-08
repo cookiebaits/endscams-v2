@@ -1,9 +1,9 @@
 import React from 'react';
-import { ShieldAlert, Sparkles, Clock, Smartphone, Monitor } from 'lucide-react';
+import { ShieldAlert, Sparkles, Clock, Smartphone, Monitor, Cpu } from 'lucide-react';
 import { DeviceModePreference } from '../hooks/useDeviceMode';
 
 interface NavbarProps {
-  totalRecordsCount?: number;
+  totalRecordsCount: number;
   lastScanTime: string | null;
   nextScheduledRefresh: string;
   devicePreference?: DeviceModePreference;
@@ -12,7 +12,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  totalRecordsCount: _totalRecordsCount,
+  totalRecordsCount,
   lastScanTime,
   nextScheduledRefresh,
   devicePreference = 'auto',
