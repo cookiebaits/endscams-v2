@@ -178,7 +178,29 @@ export const ManualAddModal: React.FC<ManualAddModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.phone.trim()) return;
+    const phoneVal = form.phone.trim();
+    if (!phoneVal) return;
+
+    // Toll-Free check
+    const digits = phoneVal.replace(/\D/g, '');
+    const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+    const isTollFree = local.length === 10 && ['800', '888', '877', '866', '855', '844', '833'].some((p) => local.startsWith(p));
+    if (isTollFree) {
+      alert('North American toll-free numbers (800, 888, 877, 866, 855, 844, and 833) are strictly prohibited and rejected.');
+      return;
+    }
+
+    // Fictitious / invalid pattern check
+    if (digits.length < 7 || digits.length > 15 || digits.includes('555') || /(\d)\1{4,}/.test(digits)) {
+      alert('Invalid or fictitious phone number pattern detected (555-exchanges, repeating/sequential digits, or under 7 digits are rejected).');
+      return;
+    }
+
+    // Reddit check
+    if (form.sourceUrl.toLowerCase().includes('reddit') || form.platform.toLowerCase().includes('reddit')) {
+      alert('Unverified Reddit sources are excluded. Please provide an authentic source URL or platform.');
+      return;
+    }
 
     let domain = 'web';
     try {

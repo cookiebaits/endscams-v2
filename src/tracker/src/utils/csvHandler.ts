@@ -15,28 +15,43 @@ export const CSV_EXPORT_HEADERS = [
   'Type of Scam',
   'Phone Number',
   'Clean Digits',
+  'Company Impersonated',
   'Date Detected (PST)',
   'Source URL',
   'Platform',
   'Country',
   'Snippet',
+  'Status',
 ];
 
 /**
  * Parses full multi-line CSV string handling multi-line quoted cells.
  */
 function parseFullCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let currentRow: string[] = [];
-  let curCell = '';
-  let inQuotes = false;
-  let i = 0;
-
   // Strip UTF-8 BOM if present
   let cleanText = text;
   if (cleanText.charCodeAt(0) === 0xfeff) {
     cleanText = cleanText.slice(1);
   }
+
+  // Detect delimiter from first non-empty line
+  const firstLine = cleanText.split(/\r?\n/).find((l) => l.trim().length > 0) || '';
+  let delimiter = ',';
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const semiCount = (firstLine.match(/;/g) || []).length;
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+
+  if (semiCount > commaCount && semiCount > tabCount) {
+    delimiter = ';';
+  } else if (tabCount > commaCount && tabCount > semiCount) {
+    delimiter = '\t';
+  }
+
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let curCell = '';
+  let inQuotes = false;
+  let i = 0;
 
   while (i < cleanText.length) {
     const char = cleanText[i];
@@ -62,7 +77,7 @@ function parseFullCSV(text: string): string[][] {
         inQuotes = true;
         i++;
         continue;
-      } else if (char === ',') {
+      } else if (char === delimiter) {
         currentRow.push(curCell);
         curCell = '';
         i++;
@@ -121,11 +136,13 @@ export function exportRecordsToCSV(records: ScamPhoneRecord[], filename?: string
     `"${(r.scamType || '').replace(/"/g, '""')}"`,
     `"${(r.phone || '').replace(/"/g, '""')}"`,
     `"${r.cleanPhone || (r.phone || '').replace(/\D/g, '')}"`,
+    `"${(r.impersonatedCompany || 'N/A').replace(/"/g, '""')}"`,
     `"${formatPST(r.detectedAt)}"`,
     `"${(r.sourceUrl || '').replace(/"/g, '""')}"`,
     `"${(r.platform || '').replace(/"/g, '""')}"`,
-    `"${r.countryCode || ''}"`,
+    `"${r.countryCode || r.countryName || 'GLOBAL'}"`,
     `"${(r.snippet || '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`,
+    `"${r.isNumberDown ? 'Out of Service' : 'Active Line'}"`,
   ]);
 
   const csvContent = [headers.join(','), ...rows.map((e) => e.join(','))].join('\r\n');
@@ -137,12 +154,70 @@ export function exportRecordsToCSV(records: ScamPhoneRecord[], filename?: string
   link.setAttribute('href', blobUrl);
   link.setAttribute(
     'download',
-    filename || `scam_phone_numbers_${pstDateStamp}_PST.csv`
+    filename || `scam_threat_records_${pstDateStamp}_PST.csv`
   );
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+}
+
+/**
+ * Checks if a phone number is a North American toll-free number.
+ * Toll-free area codes: 800, 888, 877, 866, 855, 844, 833
+ */
+export function isTollFreeNumber(phone: string): boolean {
+  if (!phone) return false;
+  const digits = phone.replace(/\D/g, '');
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (local.length !== 10) return false;
+  const tollFreePrefixes = ['800', '888', '877', '866', '855', '844', '833'];
+  return tollFreePrefixes.some((p) => local.startsWith(p));
+}
+
+/**
+ * Strict validation helper to reject fake, dummy, 555-exchange, sequential,
+ * repeating digits, or toll-free numbers matching esscan.ai.studio's server rules.
+ */
+export function isFictitiousOrInvalidPhone(phone: string): boolean {
+  if (!phone || typeof phone !== 'string') return true;
+  const clean = phone.replace(/[^0-9+]/g, '');
+  const digits = clean.replace(/\D/g, '');
+
+  if (digits.length < 7 || digits.length > 15) return true;
+  if (digits.includes('555')) return true;
+  if (isTollFreeNumber(phone)) return true;
+
+  const usLocal = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (usLocal.length === 10) {
+    const areaCode = usLocal.slice(0, 3);
+    const exchange = usLocal.slice(3, 6);
+    if (areaCode.startsWith('0') || areaCode.startsWith('1')) return true;
+    if (exchange.startsWith('0') || exchange.startsWith('1')) return true;
+  }
+
+  if (/(\d)\1{4,}/.test(digits)) return true;
+
+  if (
+    digits.includes('123456') ||
+    digits.includes('234567') ||
+    digits.includes('345678') ||
+    digits.includes('456789') ||
+    digits.includes('567890') ||
+    digits.includes('654321') ||
+    digits.includes('765432') ||
+    digits.includes('876543') ||
+    digits.includes('987654') ||
+    digits.includes('012345') ||
+    digits.includes('432198') ||
+    digits.includes('658321') ||
+    digits === '1234567890' ||
+    digits === '0987654321'
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -216,6 +291,9 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   const phoneIndex = normalizedHeaders.findIndex(
     (h) => h === 'phonenumber' || h === 'phone' || h === 'phoneno' || h === 'number'
   );
+  const companyIndex = normalizedHeaders.findIndex(
+    (h) => h === 'companyimpersonated' || h === 'impersonatedcompany' || h === 'company' || h === 'brand'
+  );
   const dateIndex = normalizedHeaders.findIndex(
     (h) => h.includes('datedetected') || h === 'date' || h === 'detectedat'
   );
@@ -230,6 +308,9 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
   );
   const snippetIndex = normalizedHeaders.findIndex(
     (h) => h === 'snippet' || h === 'notes' || h === 'details' || h === 'context'
+  );
+  const statusIndex = normalizedHeaders.findIndex(
+    (h) => h === 'status' || h === 'linestatus'
   );
 
   // Strict schema check: At least Type of Scam and Phone Number must be present,
@@ -263,11 +344,34 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
     const rawPhone = phoneIndex >= 0 && row[phoneIndex] ? row[phoneIndex].trim() : '';
     const cleanDigits = rawPhone.replace(/\D/g, '');
 
-    // Strict validation: Reject if phone number is missing, random text, or fewer than 7 digits
-    if (!rawPhone || cleanDigits.length < 7 || cleanDigits.length > 16) {
+    // Strict validation: Reject toll-free numbers
+    if (isTollFreeNumber(rawPhone) || isTollFreeNumber(cleanDigits)) {
       rejectedCount++;
       rejectedReasons.push(
-        `Row ${rIdx + 1}: Invalid phone number "${rawPhone || 'empty'}". Must contain between 7 and 16 digits.`
+        `Row ${rIdx + 1}: Toll-free number "${rawPhone}" rejected. North American toll-free lines are not allowed.`
+      );
+      continue;
+    }
+
+    // Strict validation: Reject fictitious / bad phone numbers
+    if (!rawPhone || isFictitiousOrInvalidPhone(rawPhone)) {
+      rejectedCount++;
+      rejectedReasons.push(
+        `Row ${rIdx + 1}: Invalid or fictitious phone number "${rawPhone || 'empty'}". Must be a valid dialable number (no 555-exchanges or sequential digits).`
+      );
+      continue;
+    }
+
+    // Strict validation: Reject unverified Reddit sources
+    const rowSource = (
+      (sourceUrlIndex >= 0 && row[sourceUrlIndex] ? row[sourceUrlIndex] : '') +
+      ' ' +
+      (platformIndex >= 0 && row[platformIndex] ? row[platformIndex] : '')
+    ).toLowerCase();
+    if (rowSource.includes('reddit')) {
+      rejectedCount++;
+      rejectedReasons.push(
+        `Row ${rIdx + 1}: Unverified Reddit source rejected ("${rawPhone}").`
       );
       continue;
     }
@@ -282,6 +386,8 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       continue;
     }
 
+    const companyVal =
+      companyIndex >= 0 && row[companyIndex] ? row[companyIndex].trim() : 'N/A';
     const sourceUrl =
       sourceUrlIndex >= 0 && row[sourceUrlIndex]
         ? row[sourceUrlIndex].trim()
@@ -292,6 +398,8 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       countryIndex >= 0 && row[countryIndex] ? row[countryIndex].trim() : '';
     const snippet =
       snippetIndex >= 0 && row[snippetIndex] ? row[snippetIndex].trim() : 'Imported via CSV';
+    const statusVal =
+      statusIndex >= 0 && row[statusIndex] ? row[statusIndex].trim() : '';
 
     const rawDate = dateIndex >= 0 && row[dateIndex] ? row[dateIndex].trim() : '';
     let parsedDetectedAt = new Date().toISOString();
@@ -311,6 +419,7 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       countryCode: countryVal || derived.code,
       countryName: derived.name,
       scamType,
+      impersonatedCompany: companyVal || 'N/A',
       sourceUrl: sourceUrl || 'https://scammer.info',
       sourceDomain: sourceUrl.includes('//')
         ? sourceUrl.split('/')[2].replace('www.', '')
@@ -321,6 +430,7 @@ export function parseAndValidateCSV(fileContent: string): CSVParseResult {
       detectedAt: parsedDetectedAt,
       postDate: parsedDetectedAt.slice(0, 10),
       confidence: 'High',
+      isNumberDown: statusVal.toLowerCase().includes('down') || statusVal.toLowerCase().includes('out of service'),
     };
 
     records.push(record);
