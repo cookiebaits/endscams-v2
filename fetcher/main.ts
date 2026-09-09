@@ -361,7 +361,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         const digits = (r[0] || "").replace(/\D/g, "");
         const date = parseSheetDate(r[1] || "");
         return { digits, date, subject: (r[2] || "").trim(), notes: (r[3] || "").trim() };
-      }).filter(r => r.date && withinLastNDays(r.date, 31) && isValidPhoneNumber(r.digits));
+      }).filter(r => r.date && withinLastNDays(r.date, 1) && isValidPhoneNumber(r.digits));
 
       parsed.sort((a, b) => b.date!.getTime() - a.date!.getTime());
 

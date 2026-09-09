@@ -1007,7 +1007,12 @@ snippet: excerpt containing the number`;
           },
         ];
 
+        const cutoff24hMs = Date.now() - 24 * 60 * 60 * 1000;
         for (const item of freshPool) {
+          const itemTime = new Date(item.report_date).getTime();
+          // Unless custom query, strictly constrain to items within last 24 hours
+          if (!customQuery && !isNaN(itemTime) && itemTime < cutoff24hMs) continue;
+
           if (!existingDigits.has(item.phone_digits) && !isTollFreeNumber(item.phone_number)) {
             accumulatedNew.push(item);
             existingDigits.add(item.phone_digits);
