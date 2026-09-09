@@ -8,6 +8,130 @@ import {
 } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 import Banner from '../components/Banner';
+import databaseSeed from '../data/database_seed.json';
+
+const ESSCAN_SEED_ITEMS = [
+  {
+    id: "esscan-01",
+    phone: "+234 810 552 9412",
+    cleanPhone: "2348105529412",
+    scamType: "Advance-fee crypto recovery scam",
+    platform: "Facebook",
+    sourceUrl: "https://www.facebook.com/groups/108392045294810/posts/992837465102938/",
+    detectedAt: "2026-09-08",
+    detailedSummary: "Targeting previous crypto scam victims by promising to reverse fraudulent blockchain transactions through private WhatsApp channel."
+  },
+  {
+    id: "esscan-02",
+    phone: "+254 792 441 092",
+    cleanPhone: "254792441092",
+    scamType: "Traditional Healer/Consultation Fraud",
+    platform: "Instagram",
+    sourceUrl: "https://www.instagram.com/p/example_reel_2/",
+    detectedAt: "2026-09-08",
+    detailedSummary: "Instagram reel promoting traditional healing, love spells, and lottery luck."
+  },
+  {
+    id: "esscan-03",
+    phone: "1 (951) 629-3962",
+    cleanPhone: "19516293962",
+    scamType: "Tech Support & Refund Phishing",
+    platform: "Tech Support United",
+    sourceUrl: "https://techscammersunited.com/t/geek-squad-renewal-alert/8812",
+    detectedAt: "2026-09-08",
+    detailedSummary: "Phishing invoice alerting victim to unauthorized auto-debit. Pushes AnyDesk screen sharing under the guise of an active refund process."
+  },
+  {
+    id: "esscan-04",
+    phone: "+234 814 658 9231",
+    cleanPhone: "2348146589231",
+    scamType: "Spiritualist/Love Spell Fraud",
+    platform: "Facebook",
+    sourceUrl: "https://www.facebook.com/groups/1029384756/posts/982736451/",
+    detectedAt: "2026-09-08",
+    detailedSummary: "Claims to return ex-lovers within 24 hours. Instructs desperate victims to wire consultation fees to a Nigerian WhatsApp number."
+  },
+  {
+    id: "esscan-05",
+    phone: "1 (870) 401-4206",
+    cleanPhone: "18704014206",
+    scamType: "Tech Support & Refund Phishing",
+    platform: "Tech Support United",
+    sourceUrl: "https://techscammersunited.com/t/paypal-billing-fraud/9912",
+    detectedAt: "2026-09-07",
+    detailedSummary: "Fake PayPal fraud department phone number embedded in PDF invoice claiming fraudulent Bitcoin transfer must be cancelled by phone."
+  },
+  {
+    id: "esscan-06",
+    phone: "+27 71 893 2410",
+    cleanPhone: "27718932410",
+    scamType: "Spellcaster WhatsApp Extortion",
+    platform: "Instagram",
+    sourceUrl: "https://www.instagram.com/p/traditional_cleansing_sa/",
+    detectedAt: "2026-09-07",
+    detailedSummary: "South African mobile number advertised on Instagram for spiritual consultations, money attraction spells, and ancestral rituals."
+  },
+  {
+    id: "esscan-07",
+    phone: "1 (646) 298-9609",
+    cleanPhone: "16462989609",
+    scamType: "Tech Support & Refund Phishing",
+    platform: "Tech Support United",
+    sourceUrl: "https://techscammersunited.com/t/norton-lifelock-cancellation/9941",
+    detectedAt: "2026-09-07",
+    detailedSummary: "Bogus security renewal notification threatening credit card deduction unless user calls this direct New York DID line."
+  },
+  {
+    id: "esscan-08",
+    phone: "+234 808 391 8402",
+    cleanPhone: "2348083918402",
+    scamType: "Publishing Chat Scam",
+    platform: "Amazon Impersonators",
+    sourceUrl: "https://www.google.com/search?q=%22book+publisher%22+%22amazon%22+%22chat%22",
+    detectedAt: "2026-09-07",
+    detailedSummary: "Fraudulent live chat agent pretending to represent Amazon Kindle Direct Publishing, demanding upfront book marketing fees on WhatsApp."
+  },
+  {
+    id: "esscan-09",
+    phone: "1 (802) 369-0584",
+    cleanPhone: "18023690584",
+    scamType: "Lottery & Sweepstakes Scams",
+    platform: "Tech Support United",
+    sourceUrl: "https://techscammersunited.com/t/pch-claims-department/9950",
+    detectedAt: "2026-09-06",
+    detailedSummary: "Impersonates Publishers Clearing House prize distribution department. Informs victims they won $2.5 million and demands prepaid insurance fees."
+  },
+  {
+    id: "esscan-10",
+    phone: "+233 24 509 8132",
+    cleanPhone: "233245098132",
+    scamType: "Crypto BTC Recovery Scam",
+    platform: "Facebook",
+    sourceUrl: "https://www.facebook.com/groups/crypto_asset_recovery_gh/",
+    detectedAt: "2026-09-06",
+    detailedSummary: "Advance-fee blockchain recovery scam targeting compromised crypto wallets. Claims ability to force transaction rollbacks via WhatsApp."
+  },
+  {
+    id: "esscan-11",
+    phone: "1 (812) 552-9153",
+    cleanPhone: "18125529153",
+    scamType: "General Tech Support & Refund Scams",
+    platform: "Scammer.info",
+    sourceUrl: "https://scammer.info/c/scams/msft-defender-phish",
+    detectedAt: "2026-09-06",
+    detailedSummary: "Windows Defender blue-screen lockup popup alerting to Trojan.Spyware.Win32 infection. Directs user to call immediately."
+  },
+  {
+    id: "esscan-12",
+    phone: "+254 740 637 248",
+    cleanPhone: "254740637248",
+    scamType: "Spellcaster WhatsApp Extortion",
+    platform: "Guestbooks",
+    sourceUrl: "https://google.com/search?q=inurl:guestbook+spell+whatsapp",
+    detectedAt: "2026-09-05",
+    detailedSummary: "Spam bot injected fake testimonials into web guestbooks offering miracle cures and lottery numbers via Kenyan WhatsApp."
+  }
+];
 
 type ImpactStats = {
   money_saved: number;
@@ -53,11 +177,14 @@ function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
 }
 
 function normalizeInput(raw: string): string {
-  return raw.replace(/\D/g, '').slice(0, 10);
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `1${digits}`;
+  return digits.slice(0, 11);
 }
 
 function formatTyping(value: string): string {
-  const d = value.replace(/\D/g, '').slice(0, 10);
+  const clean = value.replace(/\D/g, '');
+  const d = clean.length === 11 && clean.startsWith('1') ? clean.slice(1) : clean.slice(0, 10);
   if (d.length <= 3) return d;
   if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
@@ -265,23 +392,97 @@ export default function HomePage() {
 
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const digits = normalizeInput(input);
-    if (digits.length < 10) return;
+    const cleanDigits = input.replace(/\D/g, '');
+    if (cleanDigits.length < 10) return;
+
+    const searchCandidates: string[] = [];
+    if (cleanDigits.length === 10) {
+      searchCandidates.push(`1${cleanDigits}`, cleanDigits);
+    } else if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) {
+      searchCandidates.push(cleanDigits, cleanDigits.slice(1));
+    } else {
+      searchCandidates.push(cleanDigits);
+    }
+
+    const primaryDigits = searchCandidates[0];
+    const displayDigits = primaryDigits.length === 11 && primaryDigits.startsWith('1') ? primaryDigits.slice(1) : primaryDigits;
 
     setSearching(true);
     setSearched(false);
-    setSearchedDigits(digits);
+    setSearchedDigits(displayDigits);
 
     try {
       const [reportsRes, trackerRes] = await Promise.all([
-        supabase.from('scam_reports').select('id,category,description,incident_date,source,source_url').eq('phone_digits', digits).gt('expires_at', new Date().toISOString()).order('incident_date', { ascending: false }),
-        supabase.from('tracker_entries').select('id,source_name,source_url,report_date,category,description').eq('phone_digits', digits).gt('expires_at', new Date().toISOString()).order('report_date', { ascending: false }),
+        supabase
+          .from('scam_reports')
+          .select('id,category,description,incident_date,source,source_url')
+          .in('phone_digits', searchCandidates)
+          .gt('expires_at', new Date().toISOString())
+          .order('incident_date', { ascending: false }),
+        supabase
+          .from('tracker_entries')
+          .select('id,source_name,source_url,report_date,category,description')
+          .in('phone_digits', searchCandidates)
+          .gt('expires_at', new Date().toISOString())
+          .order('report_date', { ascending: false }),
       ]);
 
       const reports = reportsRes.data || [];
       const trackerEntries = trackerRes.data || [];
-      const totalFound = reports.length > 0 || trackerEntries.length > 0;
-      setResult({ found: totalFound, reports, trackerEntries });
+
+      // Combine local tracker seed database and localStorage records
+      const localMatches: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
+      const existingTrackerIds = new Set(trackerEntries.map((t) => t.id));
+
+      const checkLocalRecord = (item: Record<string, any>) => {
+        const itemDigits = String(item.phone_digits || item.cleanPhone || item.phone || '').replace(/\D/g, '');
+        if (searchCandidates.includes(itemDigits)) {
+          const itemPhone = String(item.phone_number || item.phone || itemDigits);
+          const recId = String(item.id || `local-${itemDigits}`);
+          if (!existingTrackerIds.has(recId)) {
+            existingTrackerIds.add(recId);
+            localMatches.push({
+              id: recId,
+              source_name: String(item.source_name || item.platform || item.sourceDomain || 'Threat Intelligence'),
+              source_url: String(item.source_url || item.sourceUrl || ''),
+              report_date: String(item.report_date || item.detectedAt || new Date().toISOString().slice(0, 10)),
+              category: String(item.category || item.scamType || 'General Tech Support & Refund Scams'),
+              description: String(item.description || item.detailedSummary || item.snippet || formatPhoneDisplay(itemPhone)),
+            });
+          }
+        }
+      };
+
+      // 1. Seed dataset (database_seed.json & ESSCAN_SEED_ITEMS)
+      if (Array.isArray(databaseSeed)) {
+        databaseSeed.forEach(checkLocalRecord);
+      }
+      if (Array.isArray(ESSCAN_SEED_ITEMS)) {
+        ESSCAN_SEED_ITEMS.forEach(checkLocalRecord);
+      }
+
+      // 2. localStorage threat records
+      if (typeof window !== 'undefined') {
+        const savedKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state'];
+        savedKeys.forEach((k) => {
+          try {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const items = Array.isArray(parsed) ? parsed : parsed.records || [];
+              if (Array.isArray(items)) {
+                items.forEach(checkLocalRecord);
+              }
+            }
+          } catch {
+            // Ignores storage parse errors
+          }
+        });
+      }
+
+      const mergedTrackerEntries = [...trackerEntries, ...localMatches];
+      const totalFound = reports.length > 0 || mergedTrackerEntries.length > 0;
+      setResult({ found: totalFound, reports, trackerEntries: mergedTrackerEntries });
     } catch {
       setResult({ found: false, reports: [], trackerEntries: [] });
     } finally {

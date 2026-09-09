@@ -772,7 +772,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
 
                             {/* Copy Phone Button */}
                             <button
-                              onClick={() => handleCopyText(record.phone, `phone-${record.id}`)}
+                              onClick={() => {
+                                const digits = (record.cleanPhone || record.phone || '').replace(/\D/g, '');
+                                const copyValue = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+                                handleCopyText(copyValue, `phone-${record.id}`);
+                              }}
                               className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
                               title="Copy phone number"
                             >

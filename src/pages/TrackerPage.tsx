@@ -1795,7 +1795,11 @@ snippet: excerpt containing the number`;
                             {record.phone_number}
                           </a>
                           <button
-                            onClick={() => handleCopyPhone(record.id, record.phone_number)}
+                            onClick={() => {
+                              const digits = (record.phone_digits || record.phone_number || '').replace(/\D/g, '');
+                              const copyValue = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+                              handleCopyPhone(record.id, copyValue);
+                            }}
                             className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
                             title="Copy Phone Number"
                           >
