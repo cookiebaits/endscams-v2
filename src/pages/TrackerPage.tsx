@@ -309,6 +309,17 @@ export function deriveCountryInfo(phone: string): { code: string; name: string; 
 /**
  * Formats phone numbers into standard readable dialable formats.
  */
+/**
+ * Limits Company / Target description to a maximum of 5 words.
+ * e.g., "Cyber Security Forensic Group East Africa" -> "Cyber Security Forensic Group East"
+ */
+export function formatCompanyTarget(text?: string | null): string {
+  if (!text || text.trim() === '' || text.trim() === 'N/A') return 'N/A';
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 5) return text.trim();
+  return words.slice(0, 5).join(' ');
+}
+
 export function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
   const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
   if (cleanDigits.length === 10) {
@@ -756,7 +767,7 @@ function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
     source_url: String(raw.sourceUrl || raw.source_url || ''),
     report_date: normalizeToNumericalDate((raw.detectedAt || raw.report_date || raw.postDate) as string | number | Date | null | undefined),
     category: String(raw.scamType || raw.category || 'General Tech Support & Refund Scams'),
-    impersonated_company: String(raw.impersonatedCompany || raw.impersonated_company || 'N/A'),
+    impersonated_company: formatCompanyTarget(String(raw.impersonatedCompany || raw.impersonated_company || 'N/A')),
     invoice_number: String(raw.invoiceNumber || raw.invoice_number || 'N/A'),
     amount_charged: String(raw.amountCharged || raw.amount_charged || 'N/A'),
     description: String(raw.detailedSummary || raw.description || raw.snippet || 'Verified scam threat intelligence report.'),
@@ -1195,7 +1206,7 @@ snippet: excerpt containing the number`;
                       source_url: item.sourceUrl || target.searchDomain,
                       report_date: normalizeToNumericalDate(currentDateStr),
                       category: item.scamType || target.category,
-                      impersonated_company: item.impersonatedCompany || 'N/A',
+                      impersonated_company: formatCompanyTarget(item.impersonatedCompany || 'N/A'),
                       invoice_number: item.invoiceNumber || 'N/A',
                       amount_charged: item.amountCharged || 'N/A',
                       description: item.snippet || 'Extracted via Search Grounded threat scan.',
@@ -1514,7 +1525,7 @@ snippet: excerpt containing the number`;
         phone_number: formatDisplayPhone(rawPhone, digits),
         phone_digits: digits,
         category: categoryIdx >= 0 && row[categoryIdx] ? row[categoryIdx] : 'General Tech Support & Refund Scams',
-        impersonated_company: companyIdx >= 0 && row[companyIdx] ? row[companyIdx] : 'N/A',
+        impersonated_company: formatCompanyTarget(companyIdx >= 0 && row[companyIdx] ? row[companyIdx] : 'N/A'),
         source_name: sourceIdx >= 0 && row[sourceIdx] ? row[sourceIdx] : 'CSV Import',
         source_url: urlIdx >= 0 && row[urlIdx] ? row[urlIdx] : '',
         report_date: normalizedDate,
@@ -1673,7 +1684,7 @@ snippet: excerpt containing the number`;
       source_url: newSourceUrl || 'https://endscams.org',
       report_date: today,
       category: newCategory,
-      impersonated_company: newCompany || 'N/A',
+      impersonated_company: formatCompanyTarget(newCompany || 'N/A'),
       description: newDescription || 'Manually cataloged threat report.',
       is_down: false,
     };
@@ -2206,7 +2217,7 @@ snippet: excerpt containing the number`;
                       {/* Company Impersonated */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
-                          <span>{record.impersonated_company}</span>
+                          <span>{formatCompanyTarget(record.impersonated_company)}</span>
                         ) : (
                           <span className="text-slate-500">Unspecified Target</span>
                         )}
