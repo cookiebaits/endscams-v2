@@ -1775,6 +1775,11 @@ snippet: excerpt containing the number`;
         (selectedRetention === 'STANDARD_60D' && !isPrizeOrExtendedRetention(r));
 
       return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus && matchesRetention;
+    })
+    .sort((a, b) => {
+      const dateA = normalizeToNumericalDate(a.report_date);
+      const dateB = normalizeToNumericalDate(b.report_date);
+      return dateB.localeCompare(dateA);
     });
   }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus, selectedRetention]);
 
