@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../data/database_seed.json';
+import databaseSeed from '../tracker/data/scam_records.json';
 import {
   Shield,
   Search,
@@ -17,22 +17,13 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
-  Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
-  Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
-  Key,
-  Trash2,
-  Share2,
-  Award
+  Key
 } from 'lucide-react';
 
 export interface ThreatRecord {
@@ -379,7 +370,7 @@ export function normalizeToNumericalDate(dateInput?: string | number | Date | nu
   }
 
   // e.g. "09/01/2026", "9/1/26"
-  const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  const slashMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
   if (slashMatch) {
     const m = slashMatch[1].padStart(2, '0');
     const d = slashMatch[2].padStart(2, '0');
@@ -391,7 +382,7 @@ export function normalizeToNumericalDate(dateInput?: string | number | Date | nu
   }
 
   // e.g. "2026/09/01"
-  const ymdSlash = str.match(/^(\d{4})[\/\.](\d{1,2})[\/\.](\d{1,2})/);
+  const ymdSlash = str.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})/);
   if (ymdSlash) {
     return `${ymdSlash[1]}-${ymdSlash[2].padStart(2, '0')}-${ymdSlash[3].padStart(2, '0')}`;
   }
@@ -753,31 +744,33 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
   }
 ];
 
-function mapRawSeedToThreatRecord(r: any): ThreatRecord {
-  const rawPhone = r.phone || r.phone_number || '';
-  const digits = (r.cleanPhone || r.phone_digits || rawPhone).replace(/\D/g, '');
+function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
+  const raw = r as Record<string, string | number | boolean | undefined>;
+  const rawPhone = String(raw.phone || raw.phone_number || '');
+  const digits = String(raw.cleanPhone || raw.phone_digits || rawPhone).replace(/\D/g, '');
   return {
-    id: r.id || `rec-${digits}`,
-    phone_number: r.phone || r.phone_number || formatDisplayPhone(rawPhone, digits),
+    id: String(raw.id || `rec-${digits}`),
+    phone_number: String(raw.phone || raw.phone_number || formatDisplayPhone(rawPhone, digits)),
     phone_digits: digits,
-    source_name: r.platform || r.source_name || r.sourceDomain || 'Threat Intelligence',
-    source_url: r.sourceUrl || r.source_url || '',
-    report_date: normalizeToNumericalDate(r.detectedAt || r.report_date || r.postDate),
-    category: r.scamType || r.category || 'General Tech Support & Refund Scams',
-    impersonated_company: r.impersonatedCompany || r.impersonated_company || 'N/A',
-    invoice_number: r.invoiceNumber || r.invoice_number || 'N/A',
-    amount_charged: r.amountCharged || r.amount_charged || 'N/A',
-    description: r.detailedSummary || r.description || r.snippet || 'Verified scam threat intelligence report.',
-    is_down: Boolean(r.isNumberDown || r.is_down),
+    source_name: String(raw.platform || raw.source_name || raw.sourceDomain || 'Threat Intelligence'),
+    source_url: String(raw.sourceUrl || raw.source_url || ''),
+    report_date: normalizeToNumericalDate((raw.detectedAt || raw.report_date || raw.postDate) as string | number | Date | null | undefined),
+    category: String(raw.scamType || raw.category || 'General Tech Support & Refund Scams'),
+    impersonated_company: String(raw.impersonatedCompany || raw.impersonated_company || 'N/A'),
+    invoice_number: String(raw.invoiceNumber || raw.invoice_number || 'N/A'),
+    amount_charged: String(raw.amountCharged || raw.amount_charged || 'N/A'),
+    description: String(raw.detailedSummary || raw.description || raw.snippet || 'Verified scam threat intelligence report.'),
+    is_down: Boolean(raw.isNumberDown || raw.is_down),
   };
 }
 
-const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
+const DATABASE_SEED_RECORDS: ThreatRecord[] = (Array.isArray(databaseSeed) ? databaseSeed as Record<string, unknown>[] : [])
   .filter((r) => {
-    const p = r.cleanPhone || r.phone || r.phone_number || '';
-    const src = (r.platform || r.sourceUrl || r.sourceDomain || '').toLowerCase();
+    const raw = r as Record<string, string | undefined>;
+    const p = String(raw.cleanPhone || raw.phone || raw.phone_number || '');
+    const src = String(raw.platform || raw.sourceUrl || raw.sourceDomain || '').toLowerCase();
     if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-    if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+    if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
     return true;
   })
   .map(mapRawSeedToThreatRecord)
@@ -831,7 +824,9 @@ export function EmbeddableTracker() {
             });
           }
         }
-      } catch {}
+      } catch {
+        /* empty */
+      }
     }
     return purgeExpiredThreatRecords(Array.from(map.values()));
   });
@@ -846,20 +841,21 @@ export function EmbeddableTracker() {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
             const mapped = data.records
-              .filter((r: any) => {
-                const p = r.cleanPhone || r.phone || '';
-                const src = (r.platform || r.sourceUrl || '').toLowerCase();
+              .filter((r: Record<string, unknown>) => {
+                const raw = r as Record<string, string | undefined>;
+                const p = String(raw.cleanPhone || raw.phone || '');
+                const src = String(raw.platform || raw.sourceUrl || '').toLowerCase();
                 if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-                if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-                return !isThreatRecordExpired(r);
+                if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
+                return !isThreatRecordExpired(r as unknown as ThreatRecord);
               })
               .map(mapRawSeedToThreatRecord);
 
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
-                prev.forEach((r) => {
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                prev.forEach((r: ThreatRecord) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
                     map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
@@ -940,7 +936,9 @@ export function EmbeddableTracker() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-      } catch {}
+      } catch {
+        /* empty */
+      }
     }
   }, [records]);
 
@@ -964,7 +962,7 @@ export function EmbeddableTracker() {
   // Sync Record to Supabase if client is present
   const syncRecordToSupabase = async (rec: ThreatRecord) => {
     try {
-      const sb = (window as any).supabase;
+      const sb = (window as unknown as { supabase?: { from: (table: string) => { upsert: (data: unknown, options: unknown) => Promise<unknown> } } }).supabase;
       if (sb && typeof sb.from === 'function') {
         const expiresAt = new Date();
         const retentionDays = getRetentionDays(rec);
@@ -983,7 +981,9 @@ export function EmbeddableTracker() {
           { onConflict: 'phone_digits,source_name' }
         );
       }
-    } catch {}
+    } catch {
+      /* empty */
+    }
   };
 
   // ============================================================================
@@ -1015,6 +1015,7 @@ export function EmbeddableTracker() {
     checkScheduleAndTrigger();
     const interval = setInterval(checkScheduleAndTrigger, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanning]);
 
   // ============================================================================
@@ -1068,16 +1069,17 @@ export function EmbeddableTracker() {
             const data = await recordsResp.json();
             if (data.records && Array.isArray(data.records)) {
               const mapped = data.records
-                .filter((r: any) => {
-                  const p = r.cleanPhone || r.phone || '';
-                  const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                .filter((r: Record<string, unknown>) => {
+                  const raw = r as Record<string, string | undefined>;
+                  const p = String(raw.cleanPhone || raw.phone || '');
+                  const src = String(raw.platform || raw.sourceUrl || '').toLowerCase();
                   if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-                  if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-                  return !isThreatRecordExpired(r);
+                  if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
+                  return !isThreatRecordExpired(r as unknown as ThreatRecord);
                 })
                 .map(mapRawSeedToThreatRecord);
 
-              mapped.forEach((r) => {
+              mapped.forEach((r: ThreatRecord) => {
                 if (!existingDigits.has(r.phone_digits)) {
                   accumulatedNew.push(r);
                   existingDigits.add(r.phone_digits);
@@ -1207,7 +1209,7 @@ snippet: excerpt containing the number`;
                   }
                 }
               }
-            } catch (tErr) {
+            } catch {
               // continue next target
             }
           }
@@ -1248,7 +1250,9 @@ snippet: excerpt containing the number`;
                 }
               }
             }
-          } catch {}
+          } catch {
+            /* empty */
+          }
 
           await new Promise((r) => setTimeout(r, 400));
           setScannerProgress(70);
@@ -1380,8 +1384,9 @@ snippet: excerpt containing the number`;
       setStatusNotification(
         `Harvester scan complete! Cataloged ${accumulatedNew.length} new verified threat lines (Toll-free numbers & Facebook false positives removed).`
       );
-    } catch (err: any) {
-      addLog(`[ERROR] Harvest cycle error: ${err.message || err}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      addLog(`[ERROR] Harvest cycle error: ${message}`);
       setScannerStatusMessage('Scan error');
     } finally {
       setIsScanning(false);
@@ -1397,13 +1402,14 @@ snippet: excerpt containing the number`;
     try {
       const text = await file.text();
       validateAndPreviewCSV(text);
-    } catch (err: any) {
-      setImportError(`Failed to read file: ${err.message || err}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setImportError(`Failed to read file: ${message}`);
     }
   };
 
   const validateAndPreviewCSV = (rawText: string) => {
-    let clean = rawText.replace(/^\uFEFF/, '').trim();
+    const clean = rawText.replace(/^\uFEFF/, '').trim();
     if (!clean) {
       setImportError('Uploaded file is empty.');
       setImportPreview(null);
@@ -1564,7 +1570,9 @@ snippet: excerpt containing the number`;
             detailedSummary: r.description,
             detectedAt: r.report_date,
           }),
-        }).catch(() => {});
+      }).catch(() => {
+        /* empty */
+      });
       });
       return Array.from(map.values());
     });
@@ -1687,7 +1695,9 @@ snippet: excerpt containing the number`;
         detailedSummary: newRecord.description,
         detectedAt: newRecord.report_date,
       }),
-    }).catch(() => {});
+    }).catch(() => {
+      /* empty */
+    });
 
     setStatusNotification(`Added ${newRecord.phone_number} to monitored database.`);
     setIsReportModalOpen(false);
@@ -1706,7 +1716,9 @@ snippet: excerpt containing the number`;
     );
     setStatusNotification(`Marked ${record.phone_number} as ${nextStatus ? 'Out of Service' : 'Active Threat'}.`);
     // Sync status with backend
-    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {
+      /* empty */
+    });
   };
 
   const handleBulkMarkDown = () => {
@@ -1898,7 +1910,7 @@ snippet: excerpt containing the number`;
           <div className="flex items-center space-x-2">
             <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
             <span>
-              <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
+              <strong>Status:</strong> {isScanning ? `${scannerStatusMessage} (${scannerProgress}%)` : 'Monitoring live threat streams'}
             </span>
           </div>
 
@@ -2052,7 +2064,7 @@ snippet: excerpt containing the number`;
             <Clock className="w-3.5 h-3.5 text-amber-400" />
             <select
               value={selectedRetention}
-              onChange={(e) => setSelectedRetention(e.target.value as any)}
+              onChange={(e) => setSelectedRetention(e.target.value as 'ALL' | 'PRIZE_6MO' | 'STANDARD_60D')}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
               <option value="ALL" className="bg-slate-900">All Retentions</option>
