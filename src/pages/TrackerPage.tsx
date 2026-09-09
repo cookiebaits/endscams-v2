@@ -968,76 +968,70 @@ snippet: excerpt containing the number`;
         setScannerProgress(85);
         addLog('[FILTER] Applying strict filtering: Removing all toll-free lines and fictitious 555-exchanges...');
 
-        // Sample real non-toll-free threats pool with dynamic rolling digits for offline/local simulation
-        const ts = Date.now();
-        const rand4 = Math.floor(1000 + Math.random() * 8999);
-        const rand3 = Math.floor(100 + Math.random() * 899);
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Live client-side fetch from TechScammersUnited discourse JSON feed
+        try {
+          addLog('[FEED] Fetching live topics directly from TechScammersUnited...');
+          const tsuRes = await fetch('https://techscammersunited.com/latest.json', {
+            headers: { 'Accept': 'application/json' },
+          });
 
-        const freshPool: ThreatRecord[] = [
-          {
-            id: `auto-${ts}-1`,
-            phone_number: `1 (812) 552-${rand4}`,
-            phone_digits: `1812552${rand4}`,
-            source_name: "Tech Support United",
-            source_url: "https://techscammersunited.com/latest",
-            report_date: todayStr,
-            category: "General Tech Support & Refund Scams",
-            impersonated_company: "Microsoft Certified Support",
-            invoice_number: `MSFT-${rand4}-ERR`,
-            amount_charged: "$299.99",
-            description: "Windows Defender Error 0x80070424 lock screen directing victims to call Indiana VoIP DID.",
-            is_down: false,
-          },
-          {
-            id: `auto-${ts}-2`,
-            phone_number: `+234 813 ${rand3} ${rand4}`,
-            phone_digits: `234813${rand3}${rand4}`,
-            source_name: "Facebook",
-            source_url: "https://www.facebook.com/groups/crypto_asset_recovery",
-            report_date: todayStr,
-            category: "Crypto BTC Recovery Scam",
-            impersonated_company: "Lagos Blockchain Recovery Taskforce",
-            invoice_number: `REC-${rand4}`,
-            amount_charged: "$450 deposit",
-            description: "Advance fee recovery fraud posing as private blockchain analysts on WhatsApp.",
-            is_down: false,
-          },
-          {
-            id: `auto-${ts}-3`,
-            phone_number: `1 (856) 236-${rand4}`,
-            phone_digits: `1856236${rand4}`,
-            source_name: "Scammer.info",
-            source_url: "https://scammer.info/c/scams",
-            report_date: todayStr,
-            category: "General Tech Support & Refund Scams",
-            impersonated_company: "Geek Squad Desk",
-            invoice_number: `GS-${rand4}-CAN`,
-            amount_charged: "$499.00",
-            description: "Fake cancellation invoice for Best Buy protection plan. Pushes AnyDesk remote access.",
-            is_down: false,
-          },
-          {
-            id: `auto-${ts}-4`,
-            phone_number: `+27 63 ${rand3} ${rand4}`,
-            phone_digits: `2763${rand3}${rand4}`,
-            source_name: "Instagram",
-            source_url: "https://www.instagram.com/traditional_healer_sa",
-            report_date: todayStr,
-            category: "Spellcaster WhatsApp Extortion",
-            impersonated_company: "Ancestral Temple Pretoria",
-            invoice_number: "N/A",
-            amount_charged: "R 850",
-            description: "Instagram reel promoting money spells and ex-lover returns via South African WhatsApp.",
-            is_down: false,
-          },
-        ];
+          if (tsuRes.ok) {
+            const tsuData = await tsuRes.json();
+            const topics = tsuData?.topic_list?.topics || [];
+            const phoneRx = /(?:\+?1[\s.-]?)?\(?[2-9]\d{2}\)?[.\s-]?\d{3}[.\s-]?\d{4}|\+\d{10,15}/g;
 
-        for (const item of freshPool) {
-          if (!existingDigits.has(item.phone_digits) && !isTollFreeNumber(item.phone_number) && !isFictitiousOrInvalidPhone(item.phone_number)) {
-            accumulatedNew.push(item);
-            existingDigits.add(item.phone_digits);
+            for (const t of topics) {
+              const title = t.title || '';
+              const matches = title.match(phoneRx) || [];
+              for (const m of matches) {
+                const digits = m.replace(/\D/g, '');
+                if (digits.length >= 10 && digits.length <= 15) {
+                  if (isTollFreeNumber(m) || isFictitiousOrInvalidPhone(m)) continue;
+                  if (existingDigits.has(digits)) continue;
+
+                  let company = 'Unspecified Target';
+                  if (/mcafee/i.test(title)) company = 'McAfee';
+                  else if (/paypal/i.test(title)) company = 'PayPal';
+                  else if (/geek\s*squad/i.test(title)) company = 'Geek Squad';
+                  else if (/norton/i.test(title)) company = 'Norton';
+                  else if (/hopper/i.test(title)) company = 'Hopper';
+                  else if (/expedia/i.test(title)) company = 'Expedia';
+                  else if (/delta/i.test(title)) company = 'Delta Air Lines';
+                  else if (/apple/i.test(title)) company = 'Apple';
+                  else if (/amazon/i.test(title)) company = 'Amazon';
+                  else if (/lotto|pch|mega\s*millions/i.test(title)) company = 'Publishers Clearing House / Lottery';
+
+                  let category = 'General Tech Support & Refund Scams';
+                  if (/refund|billing|cancel/i.test(title)) category = 'Tech Support & Refund Phishing';
+                  else if (/flight|booking|airline|hotel/i.test(title)) category = 'Travel & Flight Booking Scam';
+                  else if (/recovery|whatsapp|anti-scam/i.test(title)) category = 'Crypto BTC Recovery Scam';
+                  else if (/lotto|pch|millions/i.test(title)) category = 'Lottery & Sweepstakes Scams';
+
+                  const topicUrl = `https://techscammersunited.com/t/${t.slug}/${t.id}`;
+                  const reportDate = (t.created_at || new Date().toISOString()).slice(0, 10);
+
+                  const rec: ThreatRecord = {
+                    id: `tsu-${t.id}-${digits}`,
+                    phone_number: formatDisplayPhone(m, digits),
+                    phone_digits: digits,
+                    source_name: 'Tech Support United',
+                    source_url: topicUrl,
+                    report_date: reportDate,
+                    category,
+                    impersonated_company: company,
+                    description: `[${company}] ${title}`,
+                    is_down: false,
+                  };
+
+                  accumulatedNew.push(rec);
+                  existingDigits.add(digits);
+                }
+              }
+            }
+            addLog(`[FEED] Ingested ${accumulatedNew.length} live front-page topics from TechScammersUnited.`);
           }
+        } catch {
+          addLog('[FEED] Note: Direct CORS client fetch for TSU unavailable, relying on backend sync.');
         }
       }
 

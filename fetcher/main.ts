@@ -322,6 +322,70 @@ interface ScamEntry {
   description: string;
 }
 
+/* ================================================================ */
+/*  Discourse Live Feed Scraper (TechScammersUnited)                */
+/* ================================================================ */
+async function fetchTSULiveTopics(): Promise<ScamEntry[]> {
+  const entries: ScamEntry[] = [];
+  try {
+    const res = await fetch("https://techscammersunited.com/latest.json", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const topics = data?.topic_list?.topics || [];
+      const phoneRx = /(?:\+?1[\s.-]?)?\(?[2-9]\d{2}\)?[.\s-]?\d{3}[.\s-]?\d{4}|\+\d{10,15}/g;
+
+      for (const t of topics) {
+        const title = t.title || "";
+        const matches = title.match(phoneRx) || [];
+        for (const m of matches) {
+          const digits = m.replace(/\D/g, "");
+          if (digits.length >= 10 && digits.length <= 15) {
+            let company = "Unspecified Target";
+            if (/mcafee/i.test(title)) company = "McAfee";
+            else if (/paypal/i.test(title)) company = "PayPal";
+            else if (/geek\s*squad/i.test(title)) company = "Geek Squad";
+            else if (/norton/i.test(title)) company = "Norton";
+            else if (/hopper/i.test(title)) company = "Hopper";
+            else if (/expedia/i.test(title)) company = "Expedia";
+            else if (/delta/i.test(title)) company = "Delta Air Lines";
+            else if (/apple/i.test(title)) company = "Apple";
+            else if (/amazon/i.test(title)) company = "Amazon";
+            else if (/lotto|pch|mega\s*millions/i.test(title)) company = "Publishers Clearing House / Lottery";
+
+            let category = "General Tech Support & Refund Scams";
+            if (/refund|billing|cancel/i.test(title)) category = "Tech Support & Refund Phishing";
+            else if (/flight|booking|airline|hotel/i.test(title)) category = "Travel & Flight Booking Scam";
+            else if (/recovery|whatsapp|anti-scam/i.test(title)) category = "Crypto BTC Recovery Scam";
+            else if (/lotto|pch|millions/i.test(title)) category = "Lottery & Sweepstakes Scams";
+
+            const topicUrl = `https://techscammersunited.com/t/${t.slug}/${t.id}`;
+            const reportDate = (t.created_at || new Date().toISOString()).slice(0, 10);
+
+            entries.push({
+              phone_number: formatPhoneDisplay(digits),
+              phone_digits: digits,
+              source_name: "Tech Support United",
+              source_url: topicUrl,
+              report_date: reportDate,
+              category,
+              description: `[${company}] ${title}`,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[tracker-fetcher] Error fetching TSU live topics:", err);
+  }
+  return entries;
+}
+
 async function runPipeline(): Promise<Record<string, unknown>> {
   const started = Date.now();
   console.log(`[tracker-fetcher] [${new Date().toISOString()}] Starting runPipeline execution...`);
@@ -428,6 +492,19 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         });
       }
     }
+  }
+
+  /* 3.5. Tech Scammers United Live Forum Topics */
+  try {
+    const tsuTopics = await fetchTSULiveTopics();
+    console.log(`[tracker-fetcher] Fetched ${tsuTopics.length} live topics from TechScammersUnited.`);
+    for (const entry of tsuTopics) {
+      if (!collected.some(c => c.phone_digits === entry.phone_digits)) {
+        collected.push(entry);
+      }
+    }
+  } catch (e) {
+    console.warn("[tracker-fetcher] TSU fetch error:", e);
   }
 
   /* 4. BBB direct HTML */
