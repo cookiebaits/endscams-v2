@@ -2144,8 +2144,8 @@ snippet: excerpt containing the number`;
                   />
                 </th>
                 <th className="px-4 py-3.5">Phone Number</th>
-                <th className="px-4 py-3.5">Company / Target</th>
-                <th className="px-4 py-3.5">Scam Category</th>
+                <th className="pl-4 pr-1.5 py-3.5">Company / Target</th>
+                <th className="pl-1.5 pr-4 py-3.5">Scam Category</th>
                 <th className="px-4 py-3.5">Source Platform</th>
                 <th className="px-4 py-3.5">Date Detected</th>
                 <th className="px-4 py-3.5">Status</th>
@@ -2215,7 +2215,7 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Company Impersonated */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
+                      <td className="pl-4 pr-1.5 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
                           <span>{formatCompanyTarget(record.impersonated_company)}</span>
                         ) : (
@@ -2224,7 +2224,7 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Scam Category */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td className="pl-1.5 pr-4 py-3.5 whitespace-nowrap">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                           {record.category}
                         </span>
