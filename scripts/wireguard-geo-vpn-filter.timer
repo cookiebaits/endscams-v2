@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily update timer for WireGuard GeoIP & VPN Blocklists
+After=network-online.target
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

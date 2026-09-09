@@ -1,0 +1,15 @@
+[Unit]
+Description=WireGuard GeoIP (US & CA) and VPN/Proxy Anti-Spoofing Filter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/wireguard-filter/wireguard-filter.env
+ExecStart=/usr/local/bin/wireguard-geo-vpn-filter.sh apply
+ExecReload=/usr/local/bin/wireguard-geo-vpn-filter.sh update
+RemainAfterExit=yes
+ExecStop=/usr/local/bin/wireguard-geo-vpn-filter.sh flush
+
+[Install]
+WantedBy=multi-user.target
