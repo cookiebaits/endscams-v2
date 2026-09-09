@@ -968,12 +968,15 @@ snippet: excerpt containing the number`;
         setScannerProgress(85);
         addLog('[FILTER] Applying strict filtering: Removing all toll-free lines and fictitious 555-exchanges...');
 
-        // Live client-side fetch from TechScammersUnited discourse JSON feed
+        // Live client-side fetch from TechScammersUnited discourse JSON feed via backend proxy or direct
         try {
-          addLog('[FEED] Fetching live topics directly from TechScammersUnited...');
-          const tsuRes = await fetch('https://techscammersunited.com/latest.json', {
-            headers: { 'Accept': 'application/json' },
-          });
+          addLog('[FEED] Fetching live topics from TechScammersUnited feed...');
+          let tsuRes = await fetch('/api/tsu-feed');
+          if (!tsuRes.ok) {
+            tsuRes = await fetch('https://techscammersunited.com/latest.json', {
+              headers: { 'Accept': 'application/json' },
+            });
+          }
 
           if (tsuRes.ok) {
             const tsuData = await tsuRes.json();
@@ -994,6 +997,8 @@ snippet: excerpt containing the number`;
                   else if (/paypal/i.test(title)) company = 'PayPal';
                   else if (/geek\s*squad/i.test(title)) company = 'Geek Squad';
                   else if (/norton/i.test(title)) company = 'Norton';
+                  else if (/premiere|adobe/i.test(title)) company = 'Adobe Premiere';
+                  else if (/eth|charge|refund/i.test(title) && /eth/i.test(title)) company = 'Ethereum Refund';
                   else if (/hopper/i.test(title)) company = 'Hopper';
                   else if (/expedia/i.test(title)) company = 'Expedia';
                   else if (/delta/i.test(title)) company = 'Delta Air Lines';
@@ -1002,7 +1007,7 @@ snippet: excerpt containing the number`;
                   else if (/lotto|pch|mega\s*millions/i.test(title)) company = 'Publishers Clearing House / Lottery';
 
                   let category = 'General Tech Support & Refund Scams';
-                  if (/refund|billing|cancel/i.test(title)) category = 'Tech Support & Refund Phishing';
+                  if (/refund|billing|cancel|charge|membership/i.test(title)) category = 'Tech Support & Refund Phishing';
                   else if (/flight|booking|airline|hotel/i.test(title)) category = 'Travel & Flight Booking Scam';
                   else if (/recovery|whatsapp|anti-scam/i.test(title)) category = 'Crypto BTC Recovery Scam';
                   else if (/lotto|pch|millions/i.test(title)) category = 'Lottery & Sweepstakes Scams';
@@ -1019,7 +1024,7 @@ snippet: excerpt containing the number`;
                     report_date: reportDate,
                     category,
                     impersonated_company: company,
-                    description: `[${company}] ${title}`,
+                    description: title,
                     is_down: false,
                   };
 
@@ -1028,10 +1033,10 @@ snippet: excerpt containing the number`;
                 }
               }
             }
-            addLog(`[FEED] Ingested ${accumulatedNew.length} live front-page topics from TechScammersUnited.`);
+            addLog(`[FEED] Ingested ${accumulatedNew.length} live topics from TechScammersUnited.`);
           }
         } catch {
-          addLog('[FEED] Note: Direct CORS client fetch for TSU unavailable, relying on backend sync.');
+          addLog('[FEED] Note: Live fetch for TSU unavailable, relying on backend sync.');
         }
       }
 

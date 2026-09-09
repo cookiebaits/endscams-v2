@@ -801,6 +801,24 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/health") return json({ ok: true, ts: new Date().toISOString() });
 
+  if (url.pathname === "/api/tsu-feed" || url.pathname === "/tsu-feed") {
+    try {
+      const tsuRes = await fetch("https://techscammersunited.com/latest.json", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json",
+        },
+      });
+      if (tsuRes.ok) {
+        const data = await tsuRes.json();
+        return cors(json(data));
+      }
+      return cors(json({ error: `TSU returned HTTP ${tsuRes.status}` }, tsuRes.status));
+    } catch (e) {
+      return cors(json({ error: String(e) }, 500));
+    }
+  }
+
   if (url.pathname === "/api/tools") {
     return await handleAbstractProxy(req);
   }
