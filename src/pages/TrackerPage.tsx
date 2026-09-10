@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import databaseSeed from '../tracker/data/scam_records.json';
 import {
   Shield,
@@ -23,7 +24,14 @@ import {
   ShieldAlert,
   Sliders,
   Play,
-  Key
+  Key,
+  Building2,
+  DollarSign,
+  FileText,
+  Hash,
+  Calendar,
+  Image as ImageIcon,
+  Eye,
 } from 'lucide-react';
 
 export interface ThreatRecord {
@@ -39,6 +47,7 @@ export interface ThreatRecord {
   invoice_number?: string;
   amount_charged?: string;
   is_down?: boolean;
+  images?: string[];
 }
 
 // ============================================================================
@@ -756,9 +765,14 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
 ];
 
 function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
-  const raw = r as Record<string, string | number | boolean | undefined>;
+  const raw = r as Record<string, string | number | boolean | undefined | string[]>;
   const rawPhone = String(raw.phone || raw.phone_number || '');
   const digits = String(raw.cleanPhone || raw.phone_digits || rawPhone).replace(/\D/g, '');
+  const rawImages = r.images;
+  const images = Array.isArray(rawImages)
+    ? rawImages.filter((img): img is string => typeof img === 'string')
+    : undefined;
+
   return {
     id: String(raw.id || `rec-${digits}`),
     phone_number: String(raw.phone || raw.phone_number || formatDisplayPhone(rawPhone, digits)),
@@ -772,6 +786,7 @@ function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
     amount_charged: String(raw.amountCharged || raw.amount_charged || 'N/A'),
     description: String(raw.detailedSummary || raw.description || raw.snippet || 'Verified scam threat intelligence report.'),
     is_down: Boolean(raw.isNumberDown || raw.is_down),
+    images: images && images.length > 0 ? images : undefined,
   };
 }
 
@@ -798,6 +813,254 @@ const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
+
+// ============================================================================
+// 4B. THREAT INTEL HOVER CARD COMPONENT (PORTAL POPOVER ON HOVER)
+// ============================================================================
+interface ThreatIntelHoverCardProps {
+  record: ThreatRecord;
+  children: React.ReactNode;
+}
+
+export const ThreatIntelHoverCard: React.FC<ThreatIntelHoverCardProps> = ({
+  record,
+  children,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
+
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const calculatePosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const cardWidth = Math.min(360, window.innerWidth - 24);
+    const cardHeight = 320;
+
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    let top = 0;
+    if (spaceAbove < 320 || spaceBelow >= 320) {
+      top = rect.bottom + 8;
+    } else {
+      top = Math.max(12, rect.top - cardHeight - 8);
+    }
+
+    let left = rect.left;
+    if (left + cardWidth > window.innerWidth - 16) {
+      left = window.innerWidth - cardWidth - 16;
+    }
+    if (left < 16) {
+      left = 16;
+    }
+
+    setPosition({ top, left });
+  };
+
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    calculatePosition();
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  const handlePopoverMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const handlePopoverMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleScrollOrResize = () => calculatePosition();
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [isOpen]);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(record.phone_number);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const company = record.impersonated_company && record.impersonated_company !== 'N/A'
+    ? record.impersonated_company
+    : 'Financial / Tech Impersonator';
+  const invoice = record.invoice_number && record.invoice_number !== 'N/A'
+    ? record.invoice_number
+    : 'N/A (Direct Contact / Call)';
+  const amount = record.amount_charged && record.amount_charged !== 'N/A'
+    ? record.amount_charged
+    : 'Unspecified / Variable Fee';
+
+  const popoverContent = isOpen && typeof document !== 'undefined' ? (
+    createPortal(
+      <div
+        className="fixed z-[9999] w-80 md:w-96 p-4 bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl text-slate-100 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
+        style={{
+          top: `${position.top}px`,
+          left: `${position.left}px`,
+          filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.85))',
+        }}
+        onMouseEnter={handlePopoverMouseEnter}
+        onMouseLeave={handlePopoverMouseLeave}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center space-x-2">
+            <div className="p-1.5 bg-amber-500/15 text-amber-400 rounded-lg border border-amber-500/30">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">
+                Threat Intelligence Card
+              </span>
+              <h4 className="text-xs font-bold text-slate-100 leading-tight">
+                {record.category}
+              </h4>
+            </div>
+          </div>
+
+          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-medium whitespace-nowrap">
+            {record.source_name}
+          </span>
+        </div>
+
+        {/* Intelligence Grid */}
+        <div className="grid grid-cols-2 gap-2 my-3">
+          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5">
+            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
+              <Building2 className="w-3 h-3 text-blue-400" />
+              <span>Target Company:</span>
+            </div>
+            <p className="text-xs font-bold text-blue-300 truncate" title={company}>
+              {company}
+            </p>
+          </div>
+
+          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5">
+            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
+              <DollarSign className="w-3 h-3 text-emerald-400" />
+              <span>Fee / Charge:</span>
+            </div>
+            <p className="text-xs font-bold text-emerald-300 truncate" title={amount}>
+              {amount}
+            </p>
+          </div>
+
+          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5 col-span-2">
+            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
+              <Hash className="w-3 h-3 text-purple-400" />
+              <span>Invoice / Order #:</span>
+            </div>
+            <p className="text-xs font-mono font-semibold text-purple-300 truncate" title={invoice}>
+              {invoice}
+            </p>
+          </div>
+        </div>
+
+        {/* Summary Description */}
+        <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+          <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+            <FileText className="w-3 h-3 text-amber-400" />
+            <span>Context / Modus Operandi:</span>
+          </div>
+          <p className="text-[11px] text-slate-300 leading-relaxed max-h-24 overflow-y-auto pr-1">
+            {record.description}
+          </p>
+        </div>
+
+        {/* Phone & Actions */}
+        <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center space-x-1.5 font-mono font-bold text-amber-400">
+            <PhoneCall className="w-3.5 h-3.5 text-amber-500" />
+            <span>{record.phone_number}</span>
+          </div>
+
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center space-x-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 text-[11px] font-medium transition-colors cursor-pointer"
+              title="Copy phone number"
+            >
+              {copied ? (
+                <Check className="w-3 h-3 text-emerald-400" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+
+            {record.source_url && record.source_url.startsWith('http') && (
+              <a
+                href={record.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 border border-blue-500/30 rounded-md text-[11px] font-medium transition-colors cursor-pointer"
+                title="Open Source Thread"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Source</span>
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between">
+          <span className="flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            {normalizeToNumericalDate(record.report_date)}
+          </span>
+          <span className="text-amber-500/80 font-medium">Click row for full details & invoice images</span>
+        </div>
+      </div>,
+      document.body
+    )
+  ) : null;
+
+  return (
+    <div
+      ref={triggerRef}
+      className="inline-block"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {popoverContent}
+    </div>
+  );
+};
 
 // ============================================================================
 // 5. EMBEDDABLE TRACKER COMPONENT (MATCHING ESSCAN.AI.STUDIO)
@@ -926,6 +1189,8 @@ export function EmbeddableTracker() {
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
+  const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null);
 
   // Import States
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -940,7 +1205,9 @@ export function EmbeddableTracker() {
   const [newSourceName, setNewSourceName] = useState('Tech Support United');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newImages, setNewImages] = useState<string[]>([]);
   const [manualFormError, setManualFormError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Save to localStorage whenever records change
   useEffect(() => {
@@ -1687,6 +1954,7 @@ snippet: excerpt containing the number`;
       impersonated_company: formatCompanyTarget(newCompany || 'N/A'),
       description: newDescription || 'Manually cataloged threat report.',
       is_down: false,
+      images: newImages.length > 0 ? newImages : undefined,
     };
 
     setRecords((prev) => [newRecord, ...prev]);
@@ -1715,6 +1983,28 @@ snippet: excerpt containing the number`;
     setNewPhone('');
     setNewDescription('');
     setNewCompany('');
+    setNewImages([]);
+  };
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result;
+        if (typeof result === 'string') {
+          setNewImages((prev) => [...prev, result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ============================================================================
@@ -2149,13 +2439,12 @@ snippet: excerpt containing the number`;
                 <th className="px-2 py-3.5 whitespace-nowrap">Source Platform</th>
                 <th className="px-2 py-3.5 whitespace-nowrap">Date Detected</th>
                 <th className="px-2 py-3.5 whitespace-nowrap">Status</th>
-                <th className="pl-2 pr-4 py-3.5 whitespace-nowrap">Threat Intel & Snippet</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-slate-500">
+                  <td colSpan={7} className="px-4 py-16 text-center text-slate-500">
                     No matching threat records found. Click "Manual Refresh" or "Import CSV" to populate the database.
                   </td>
                 </tr>
@@ -2168,9 +2457,11 @@ snippet: excerpt containing the number`;
                   return (
                     <tr
                       key={record.id}
-                      className={`hover:bg-slate-850/60 transition-colors ${isChecked ? 'bg-amber-500/5' : ''}`}
+                      onClick={() => setSelectedDetailRecord(record)}
+                      className={`hover:bg-slate-800/60 transition-colors cursor-pointer ${isChecked ? 'bg-amber-500/5' : ''}`}
+                      title="Click to view full threat report details"
                     >
-                      <td className="pl-3 pr-2 py-3.5">
+                      <td className="pl-3 pr-2 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -2182,45 +2473,52 @@ snippet: excerpt containing the number`;
                         />
                       </td>
 
-                      {/* Phone Column */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center space-x-1.5">
-                          <a
-                            href={`tel:${record.phone_digits}`}
-                            className="font-mono font-bold text-xs sm:text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
-                            title="Click to dial"
-                          >
-                            {record.phone_number}
-                          </a>
-                          <button
-                            onClick={() => handleCopyPhone(record.id, record.phone_number)}
-                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-                            title="Copy Phone Number"
-                          >
-                            {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </button>
-                          {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
+                      {/* Phone Column with Hover Intel */}
+                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <ThreatIntelHoverCard record={record}>
+                          <div className="flex items-center space-x-1.5">
                             <a
-                              href={`https://wa.me/${record.phone_digits}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
-                              title="Open WhatsApp chat link"
+                              href={`tel:${record.phone_digits}`}
+                              className="font-mono font-bold text-xs sm:text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
+                              title="Click to dial (Hover for Threat Intel)"
                             >
-                              <span>WhatsApp</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
+                              {record.phone_number}
                             </a>
-                          )}
-                        </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyPhone(record.id, record.phone_number);
+                              }}
+                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+                              title="Copy Phone Number"
+                            >
+                              {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                            {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
+                              <a
+                                href={`https://wa.me/${record.phone_digits}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
+                                title="Open WhatsApp chat link"
+                              >
+                                <span>WhatsApp</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </ThreatIntelHoverCard>
                       </td>
 
-                      {/* Company Impersonated */}
+                      {/* Company Impersonated with Hover Intel */}
                       <td className="px-2 py-3.5 whitespace-nowrap text-slate-300 font-medium">
-                        {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
-                          <span>{formatCompanyTarget(record.impersonated_company)}</span>
-                        ) : (
-                          <span className="text-slate-500">Unspecified Target</span>
-                        )}
+                        <ThreatIntelHoverCard record={record}>
+                          {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
+                            <span className="hover:text-amber-300 transition">{formatCompanyTarget(record.impersonated_company)}</span>
+                          ) : (
+                            <span className="text-slate-500">Unspecified Target</span>
+                          )}
+                        </ThreatIntelHoverCard>
                       </td>
 
                       {/* Scam Category */}
@@ -2231,7 +2529,7 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Source Platform */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
+                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {record.source_url && record.source_url.startsWith('http') ? (
                           <a
                             href={record.source_url}
@@ -2265,7 +2563,7 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Status */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
+                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => handleToggleStatus(record)}
                           className={`inline-flex items-center justify-center whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
@@ -2277,14 +2575,6 @@ snippet: excerpt containing the number`;
                         >
                           {record.is_down ? 'Out of Service' : 'Active Line'}
                         </button>
-                      </td>
-
-                      {/* Description & Intel */}
-                      <td className="pl-2 pr-4 py-3.5 text-slate-400 max-w-[200px] sm:max-w-xs truncate" title={record.description}>
-                        {record.amount_charged && record.amount_charged !== 'N/A' && (
-                          <span className="text-amber-400 font-mono mr-1.5 font-semibold">[{record.amount_charged}]</span>
-                        )}
-                        <span>{record.description}</span>
                       </td>
                     </tr>
                   );
@@ -2584,6 +2874,227 @@ snippet: excerpt containing the number`;
       )}
 
       {/* ========================================== */}
+      {/* K. FULL RECORD DETAIL CENTERED MODAL       */}
+      {/* ========================================== */}
+      {selectedDetailRecord && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-amber-500/30 w-full max-w-2xl rounded-2xl shadow-2xl p-5 sm:p-6 relative text-slate-100 my-auto max-h-[90vh] overflow-y-auto space-y-4">
+            <button
+              onClick={() => setSelectedDetailRecord(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer p-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition"
+              title="Close detail window"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4 pr-8">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-amber-500/15 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-xs font-mono uppercase tracking-wider text-amber-400 font-bold">
+                    Verified Threat Report Details
+                  </span>
+                  <h3 className="text-lg sm:text-xl font-mono font-black text-slate-100 tracking-tight flex items-center space-x-2 mt-0.5">
+                    <span>{selectedDetailRecord.phone_number}</span>
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  handleToggleStatus(selectedDetailRecord);
+                  setSelectedDetailRecord((prev) => prev ? { ...prev, is_down: !prev.is_down } : null);
+                }}
+                className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold border transition cursor-pointer shrink-0 ${
+                  selectedDetailRecord.is_down
+                    ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                }`}
+              >
+                {selectedDetailRecord.is_down ? 'Out of Service' : 'Active Line'}
+              </button>
+            </div>
+
+            {/* Detail Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Company / Target Impersonated</span>
+                </span>
+                <p className="text-sm font-bold text-blue-300">
+                  {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
+                    ? selectedDetailRecord.impersonated_company
+                    : 'Unspecified Target'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <span>Scam Category</span>
+                </span>
+                <p className="text-sm font-bold text-red-300">
+                  {selectedDetailRecord.category}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <Hash className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Invoice / Reference #</span>
+                </span>
+                <p className="text-sm font-mono font-bold text-purple-300">
+                  {selectedDetailRecord.invoice_number || 'N/A'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Amount / Fee Charged</span>
+                </span>
+                <p className="text-sm font-bold text-emerald-300">
+                  {selectedDetailRecord.amount_charged || 'N/A'}
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <Globe className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Source Platform</span>
+                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-bold text-slate-200">{selectedDetailRecord.source_name}</span>
+                  {selectedDetailRecord.source_url && selectedDetailRecord.source_url.startsWith('http') && (
+                    <a
+                      href={selectedDetailRecord.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-400 hover:text-amber-300 inline-flex items-center space-x-0.5 text-xs underline"
+                    >
+                      <span>Link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                  <Clock className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Date Detected & Retention</span>
+                </span>
+                <p className="text-sm font-mono font-bold text-slate-200">
+                  {normalizeToNumericalDate(selectedDetailRecord.report_date)}
+                  <span className="ml-2 text-xs font-sans text-amber-400 font-normal">
+                    ({getRetentionLabel(selectedDetailRecord)})
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Context & Description */}
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span>Full Threat Summary & Context</span>
+              </span>
+              <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
+                {selectedDetailRecord.description}
+              </p>
+            </div>
+
+            {/* Attached Images Section */}
+            {selectedDetailRecord.images && selectedDetailRecord.images.length > 0 && (
+              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Attached Invoices & Screenshots ({selectedDetailRecord.images.length})</span>
+                </span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {selectedDetailRecord.images.map((imgSrc, index) => (
+                    <div
+                      key={index}
+                      onClick={() => setPreviewImageModalUrl(imgSrc)}
+                      className="relative group rounded-xl overflow-hidden border border-slate-800 bg-slate-900 cursor-pointer aspect-video flex items-center justify-center hover:border-amber-500/50 transition"
+                    >
+                      <img
+                        src={imgSrc}
+                        alt={`Attachment ${index + 1}`}
+                        className="object-cover w-full h-full group-hover:scale-105 transition duration-200"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                        <Eye className="w-5 h-5 text-slate-100" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Bar Footer */}
+            <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <a
+                  href={`tel:${selectedDetailRecord.phone_digits}`}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Dial {selectedDetailRecord.phone_number}</span>
+                </a>
+
+                <button
+                  onClick={() => handleCopyPhone(selectedDetailRecord.id, selectedDetailRecord.phone_number)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
+                >
+                  {copiedId === selectedDetailRecord.id ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                  <span>{copiedId === selectedDetailRecord.id ? 'Copied' : 'Copy Number'}</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setSelectedDetailRecord(null)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+              >
+                Close Window
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Fullscreen Lightbox Modal */}
+      {previewImageModalUrl && (
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setPreviewImageModalUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] p-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewImageModalUrl(null)}
+              className="absolute -top-3 -right-3 text-slate-200 bg-slate-800 hover:bg-slate-700 p-2 rounded-full border border-slate-700 cursor-pointer shadow-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={previewImageModalUrl}
+              alt="Enlarged Attachment"
+              className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl border border-slate-800"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
       {/* J. MANUAL ADD NUMBER MODAL                 */}
       {/* ========================================== */}
       {isReportModalOpen && (
@@ -2681,6 +3192,55 @@ snippet: excerpt containing the number`;
                   onChange={(e) => setNewDescription(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
                 />
+              </div>
+
+              {/* Attach Fake Invoice / Screenshot Images */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                  <span className="flex items-center space-x-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Attach Fake Invoice or Screenshot Images (Optional)</span>
+                  </span>
+                  {newImages.length > 0 && (
+                    <span className="text-[10px] text-emerald-400 font-normal">{newImages.length} attached</span>
+                  )}
+                </label>
+
+                <div className="space-y-2">
+                  <div
+                    onClick={() => imageInputRef.current?.click()}
+                    className="border border-dashed border-slate-700 hover:border-amber-500/60 bg-slate-950/60 hover:bg-slate-950 p-3 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition"
+                  >
+                    <Upload className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-slate-300 text-[11px]">Click to upload invoice or screenshot (PNG, JPG, WEBP)</span>
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleImageFileChange}
+                    />
+                  </div>
+
+                  {newImages.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 pt-1">
+                      {newImages.map((imgData, index) => (
+                        <div key={index} className="relative rounded-lg overflow-hidden border border-slate-800 bg-slate-950 aspect-square group">
+                          <img src={imgData} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-1 right-1 p-0.5 bg-red-600 hover:bg-red-500 text-white rounded-full transition opacity-90 hover:opacity-100 cursor-pointer"
+                            title="Remove image"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
