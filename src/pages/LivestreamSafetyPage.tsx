@@ -94,7 +94,7 @@ export default function LivestreamSafetyPage() {
               <MonitorPlay className="w-7 h-7 sm:w-8 sm:h-8 text-brand-500" />
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white text-left">
-              Livestreaming Safety & Security Field Guide
+              Livestreaming Safety Guide
             </h1>
           </div>
         </div>
