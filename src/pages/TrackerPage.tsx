@@ -38,6 +38,8 @@ export interface ThreatRecord {
   id: string;
   phone_number: string;
   phone_digits: string;
+  alt_phone_number?: string;
+  alt_phone_digits?: string;
   source_name: string;
   source_url: string;
   report_date: string;
@@ -768,6 +770,8 @@ function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
   const raw = r as Record<string, string | number | boolean | undefined | string[]>;
   const rawPhone = String(raw.phone || raw.phone_number || '');
   const digits = String(raw.cleanPhone || raw.phone_digits || rawPhone).replace(/\D/g, '');
+  const rawAltPhone = String(raw.alt_phone_number || raw.altPhone || raw.alt_phone || raw.secondary_phone || '');
+  const altDigits = rawAltPhone ? String(raw.alt_phone_digits || rawAltPhone).replace(/\D/g, '') : '';
   const rawImages = r.images;
   const images = Array.isArray(rawImages)
     ? rawImages.filter((img): img is string => typeof img === 'string')
@@ -777,6 +781,8 @@ function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
     id: String(raw.id || `rec-${digits}`),
     phone_number: String(raw.phone || raw.phone_number || formatDisplayPhone(rawPhone, digits)),
     phone_digits: digits,
+    alt_phone_number: rawAltPhone ? formatDisplayPhone(rawAltPhone, altDigits) : undefined,
+    alt_phone_digits: altDigits || undefined,
     source_name: String(raw.platform || raw.source_name || raw.sourceDomain || 'Threat Intelligence'),
     source_url: String(raw.sourceUrl || raw.source_url || ''),
     report_date: normalizeToNumericalDate((raw.detectedAt || raw.report_date || raw.postDate) as string | number | Date | null | undefined),
@@ -1001,9 +1007,24 @@ export const ThreatIntelHoverCard: React.FC<ThreatIntelHoverCardProps> = ({
 
         {/* Phone & Actions */}
         <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
-          <div className="flex items-center space-x-1.5 font-mono font-bold text-amber-400">
-            <PhoneCall className="w-3.5 h-3.5 text-amber-500" />
+          <div className="flex items-center space-x-1.5 font-mono font-bold text-amber-400 flex-wrap gap-1">
+            <PhoneCall className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>{record.phone_number}</span>
+            {record.alt_phone_number && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                    navigator.clipboard.writeText(record.alt_phone_number!);
+                  }
+                }}
+                className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
+                title={`Click to copy 2nd number: ${record.alt_phone_number}`}
+              >
+                <span>Alt: {record.alt_phone_number}</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center space-x-1.5">
@@ -1200,6 +1221,7 @@ export function EmbeddableTracker() {
 
   // Manual Add States
   const [newPhone, setNewPhone] = useState('');
+  const [newAltPhone, setNewAltPhone] = useState('');
   const [newCategory, setNewCategory] = useState('General Tech Support & Refund Scams');
   const [newCompany, setNewCompany] = useState('');
   const [newSourceName, setNewSourceName] = useState('Tech Support United');
@@ -1726,6 +1748,9 @@ snippet: excerpt containing the number`;
     const phoneIdx = headerRow.findIndex((h) =>
       ['phonenumber', 'phone', 'phoneno', 'number', 'tel', 'digits', 'cleanphone', 'cleandigits'].includes(h)
     );
+    const altPhoneIdx = headerRow.findIndex((h) =>
+      ['altphone', 'altphonenumber', 'secondaryphone', 'altnumber', 'phone2', 'secondphone'].includes(h)
+    );
     const categoryIdx = headerRow.findIndex((h) => ['typeofscam', 'scamtype', 'category', 'type'].includes(h));
     const companyIdx = headerRow.findIndex((h) => ['impersonatedcompany', 'company', 'brand', 'target'].includes(h));
     const sourceIdx = headerRow.findIndex((h) => ['platform', 'sourcename', 'source', 'website'].includes(h));
@@ -1787,10 +1812,15 @@ snippet: excerpt containing the number`;
 
       const normalizedDate = normalizeToNumericalDate(dateIdx >= 0 && row[dateIdx] ? row[dateIdx] : new Date());
 
+      const rawAlt = altPhoneIdx >= 0 && row[altPhoneIdx] ? row[altPhoneIdx] : '';
+      const altDigits = rawAlt ? rawAlt.replace(/\D/g, '') : '';
+
       const rec: ThreatRecord = {
         id: `import-${Date.now()}-${i}`,
         phone_number: formatDisplayPhone(rawPhone, digits),
         phone_digits: digits,
+        alt_phone_number: rawAlt && !isTollFreeNumber(rawAlt) && !isFictitiousOrInvalidPhone(rawAlt) && altDigits.length >= 7 ? formatDisplayPhone(rawAlt, altDigits) : undefined,
+        alt_phone_digits: rawAlt && !isTollFreeNumber(rawAlt) && !isFictitiousOrInvalidPhone(rawAlt) && altDigits.length >= 7 ? altDigits : undefined,
         category: categoryIdx >= 0 && row[categoryIdx] ? row[categoryIdx] : 'General Tech Support & Refund Scams',
         impersonated_company: formatCompanyTarget(companyIdx >= 0 && row[companyIdx] ? row[companyIdx] : 'N/A'),
         source_name: sourceIdx >= 0 && row[sourceIdx] ? row[sourceIdx] : 'CSV Import',
@@ -1887,6 +1917,8 @@ snippet: excerpt containing the number`;
       'Type of Scam',
       'Phone Number',
       'Clean Digits',
+      'Alt Phone Number',
+      'Alt Clean Digits',
       'Company Impersonated',
       'Date Detected (PST)',
       'Source URL',
@@ -1904,6 +1936,8 @@ snippet: excerpt containing the number`;
         `"${(r.category || '').replace(/"/g, '""')}"`,
         `"${(r.phone_number || '').replace(/"/g, '""')}"`,
         `"${r.phone_digits}"`,
+        `"${(r.alt_phone_number || '').replace(/"/g, '""')}"`,
+        `"${r.alt_phone_digits || ''}"`,
         `"${(r.impersonated_company || 'N/A').replace(/"/g, '""')}"`,
         `"${normalizeToNumericalDate(r.report_date)}"`,
         `"${(r.source_url || '').replace(/"/g, '""')}"`,
@@ -1933,13 +1967,28 @@ snippet: excerpt containing the number`;
 
     const digits = newPhone.replace(/\D/g, '');
     if (isTollFreeNumber(newPhone)) {
-      setManualFormError('Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.');
+      setManualFormError('Primary phone number cannot be a toll-free number (800, 888, 877, 866, 855, 844, 833).');
       return;
     }
 
     if (isFictitiousOrInvalidPhone(newPhone) || digits.length < 7) {
-      setManualFormError('Invalid or fictitious phone number (must be real dialable number, no 555-exchanges).');
+      setManualFormError('Invalid or fictitious primary phone number (must be real dialable number, no 555-exchanges).');
       return;
+    }
+
+    let altDigits = '';
+    let formattedAltPhone: string | undefined = undefined;
+    if (newAltPhone.trim()) {
+      altDigits = newAltPhone.replace(/\D/g, '');
+      if (isTollFreeNumber(newAltPhone)) {
+        setManualFormError('Alternative phone number cannot be a toll-free number.');
+        return;
+      }
+      if (isFictitiousOrInvalidPhone(newAltPhone) || altDigits.length < 7) {
+        setManualFormError('Invalid or fictitious alternative phone number.');
+        return;
+      }
+      formattedAltPhone = formatDisplayPhone(newAltPhone, altDigits);
     }
 
     const today = new Date().toISOString().split('T')[0];
@@ -1947,6 +1996,8 @@ snippet: excerpt containing the number`;
       id: `manual-${Date.now()}`,
       phone_number: formatDisplayPhone(newPhone, digits),
       phone_digits: digits,
+      alt_phone_number: formattedAltPhone,
+      alt_phone_digits: altDigits || undefined,
       source_name: newSourceName || 'Community Report',
       source_url: newSourceUrl || 'https://endscams.org',
       report_date: today,
@@ -1967,6 +2018,7 @@ snippet: excerpt containing the number`;
       body: JSON.stringify({
         phone: newRecord.phone_number,
         cleanPhone: newRecord.phone_digits,
+        altPhone: newRecord.alt_phone_number,
         scamType: newRecord.category,
         impersonatedCompany: newRecord.impersonated_company,
         sourceUrl: newRecord.source_url,
@@ -1978,9 +2030,10 @@ snippet: excerpt containing the number`;
       /* empty */
     });
 
-    setStatusNotification(`Added ${newRecord.phone_number} to monitored database.`);
+    setStatusNotification(`Added ${newRecord.phone_number}${newRecord.alt_phone_number ? ` (Alt: ${newRecord.alt_phone_number})` : ''} to monitored database.`);
     setIsReportModalOpen(false);
     setNewPhone('');
+    setNewAltPhone('');
     setNewDescription('');
     setNewCompany('');
     setNewImages([]);
@@ -2054,6 +2107,8 @@ snippet: excerpt containing the number`;
         !q ||
         r.phone_number.toLowerCase().includes(q) ||
         r.phone_digits.includes(q.replace(/\D/g, '')) ||
+        (r.alt_phone_number && r.alt_phone_number.toLowerCase().includes(q)) ||
+        (r.alt_phone_digits && r.alt_phone_digits.includes(q.replace(/\D/g, ''))) ||
         r.category.toLowerCase().includes(q) ||
         r.source_name.toLowerCase().includes(q) ||
         (r.impersonated_company && r.impersonated_company.toLowerCase().includes(q)) ||
@@ -2494,6 +2549,23 @@ snippet: excerpt containing the number`;
                             >
                               {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                             </button>
+                            {record.alt_phone_number && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyPhone(`${record.id}-alt`, record.alt_phone_number!);
+                                  setStatusNotification(`Alt # copied to clipboard: ${record.alt_phone_number}`);
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
+                                title={`Click to get / copy 2nd number: ${record.alt_phone_number}`}
+                              >
+                                <span>Alt #</span>
+                                {copiedId === `${record.id}-alt` ? (
+                                  <Check className="w-2.5 h-2.5 text-emerald-400 ml-0.5" />
+                                ) : null}
+                              </button>
+                            )}
                             {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
                               <a
                                 href={`https://wa.me/${record.phone_digits}`}
@@ -2995,6 +3067,18 @@ snippet: excerpt containing the number`;
                   </span>
                 </p>
               </div>
+
+              {selectedDetailRecord.alt_phone_number && (
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1 col-span-1 sm:col-span-2">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
+                    <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Alternative Phone Number (Alt #)</span>
+                  </span>
+                  <p className="text-sm font-mono font-bold text-amber-300">
+                    {selectedDetailRecord.alt_phone_number}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Context & Description */}
@@ -3039,7 +3123,7 @@ snippet: excerpt containing the number`;
 
             {/* Action Bar Footer */}
             <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                 <a
                   href={`tel:${selectedDetailRecord.phone_digits}`}
                   className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
@@ -3059,6 +3143,30 @@ snippet: excerpt containing the number`;
                   )}
                   <span>{copiedId === selectedDetailRecord.id ? 'Copied' : 'Copy Number'}</span>
                 </button>
+
+                {selectedDetailRecord.alt_phone_number && selectedDetailRecord.alt_phone_digits && (
+                  <>
+                    <a
+                      href={`tel:${selectedDetailRecord.alt_phone_digits}`}
+                      className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Dial Alt ({selectedDetailRecord.alt_phone_number})</span>
+                    </a>
+
+                    <button
+                      onClick={() => handleCopyPhone(`${selectedDetailRecord.id}-alt`, selectedDetailRecord.alt_phone_number!)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
+                    >
+                      {copiedId === `${selectedDetailRecord.id}-alt` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                      <span>{copiedId === `${selectedDetailRecord.id}-alt` ? 'Copied Alt' : 'Copy Alt #'}</span>
+                    </button>
+                  </>
+                )}
               </div>
 
               <button
@@ -3120,18 +3228,33 @@ snippet: excerpt containing the number`;
             )}
 
             <form onSubmit={handleManualAddSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Phone Number * (No Toll-Free: 800, 888, 877, 866, 855, 844, 833)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="1 (951) 629-3962 or +234 810 552 9412"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Phone Number 1 * (Primary)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="1 (951) 629-3962"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Phone Number 2 (Optional / Alt #)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="+234 810 552 9412"
+                    value={newAltPhone}
+                    onChange={(e) => setNewAltPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs"
+                  />
+                </div>
               </div>
 
               <div>
