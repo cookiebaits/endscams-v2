@@ -214,10 +214,12 @@ export default function TriagePage() {
           {resultType === 'very-likely' && (
             <div className="animate-slide-up">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 mb-5">
-                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-red-500/10">
+                    <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" />
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white text-left">VERY LIKELY A SCAM</h1>
                 </div>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3">VERY LIKELY A SCAM</h1>
                 <p className="text-slate-500 dark:text-slate-400">Immediate action recommended</p>
               </div>
 
@@ -302,10 +304,12 @@ export default function TriagePage() {
           {resultType === 'likely' && (
             <div className="animate-slide-up">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 mb-5">
-                  <AlertTriangle className="w-8 h-8 text-amber-500" />
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-amber-500/10">
+                    <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500" />
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white text-left">LIKELY A SCAM</h1>
                 </div>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3">LIKELY A SCAM</h1>
                 <p className="text-slate-500 dark:text-slate-400">Exercise extreme caution</p>
               </div>
 
@@ -367,10 +371,12 @@ export default function TriagePage() {
           {resultType === 'not-likely' && (
             <div className="animate-slide-up">
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 mb-5">
-                  <CheckCircle className="w-8 h-8 text-green-500" />
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-green-500/10">
+                    <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white text-left">NOT LIKELY A SCAM</h1>
                 </div>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3">NOT LIKELY A SCAM</h1>
                 <p className="text-slate-500 dark:text-slate-400">But still exercise caution</p>
               </div>
 
@@ -428,12 +434,14 @@ export default function TriagePage() {
       />
       <div className="max-w-2xl mx-auto px-4 pt-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-500/10 mb-5">
-            <Shield className="w-7 h-7 text-brand-500" />
+          <div className="flex items-center justify-center gap-4 mb-3">
+            <div className="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-brand-500/10">
+              <Shield className="w-6 h-6 sm:w-7 sm:h-7 text-brand-500" />
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white text-left">Scam Detection Questionnaire</h1>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3">Scam Detection Questionnaire</h1>
           <p className="text-slate-500 dark:text-slate-400">
-            Answer a few quick questions to help determine if you\'re dealing with a scam.
+            Answer a few quick questions to help determine if you're dealing with a scam.
           </p>
         </div>
 

@@ -89,12 +89,14 @@ export default function LivestreamSafetyPage() {
       />
       <div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
         <div className="text-center mb-14">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
-            <MonitorPlay className="w-8 h-8 text-brand-500" />
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <div className="flex-shrink-0 inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-brand-500/10">
+              <MonitorPlay className="w-7 h-7 sm:w-8 sm:h-8 text-brand-500" />
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white text-left">
+              Livestreaming Safety & Security Field Guide
+            </h1>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">
-            Livestreaming Safety & Security Field Guide
-          </h1>
         </div>
 
       {/* Module 1: Comprehensive Scam Catalog */}
