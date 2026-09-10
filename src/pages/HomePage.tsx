@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 import Banner from '../components/Banner';
+import { MASTER_SEED_RECORDS, isRecordMatch } from './TrackerPage';
 
 type ImpactStats = {
   money_saved: number;
@@ -268,21 +269,140 @@ export default function HomePage() {
 
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const digits = normalizeInput(input);
-    if (digits.length < 10) return;
+    const core10Digits = normalizeInput(input);
+    if (core10Digits.length < 10) return;
 
     setSearching(true);
     setSearched(false);
-    setSearchedDigits(digits);
+    setSearchedDigits(core10Digits);
 
     try {
-      const [reportsRes, trackerRes] = await Promise.all([
-        supabase.from('scam_reports').select('id,category,description,incident_date,source,source_url').eq('phone_digits', digits).gt('expires_at', new Date().toISOString()).order('incident_date', { ascending: false }),
-        supabase.from('tracker_entries').select('id,source_name,source_url,report_date,category,description').eq('phone_digits', digits).gt('expires_at', new Date().toISOString()).order('report_date', { ascending: false }),
-      ]);
+      const reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }> = [];
+      const trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
+      const seenIds = new Set<string>();
 
-      const reports = reportsRes.data || [];
-      const trackerEntries = trackerRes.data || [];
+      // 1. Check Supabase database tables
+      const target11Digits = `1${core10Digits}`;
+      const [reportsRes, trackerRes] = await Promise.all([
+        supabase
+          .from('scam_reports')
+          .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
+          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+          .gt('expires_at', new Date().toISOString())
+          .order('incident_date', { ascending: false }),
+        supabase
+          .from('tracker_entries')
+          .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
+          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+          .gt('expires_at', new Date().toISOString())
+          .order('report_date', { ascending: false }),
+      ]).catch(() => [{ data: [] }, { data: [] }]);
+
+      if (reportsRes && reportsRes.data) {
+        reportsRes.data.forEach((r: any) => {
+          if (isRecordMatch(r, core10Digits) && !seenIds.has(r.id)) {
+            seenIds.add(r.id);
+            reports.push({
+              id: r.id,
+              category: r.category || 'User Scam Report',
+              description: r.description || '',
+              incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
+              source: r.source || 'User Report',
+              source_url: r.source_url
+            });
+          }
+        });
+      }
+
+      if (trackerRes && trackerRes.data) {
+        trackerRes.data.forEach((t: any) => {
+          if (isRecordMatch(t, core10Digits) && !seenIds.has(t.id)) {
+            seenIds.add(t.id);
+            trackerEntries.push({
+              id: t.id,
+              source_name: t.source_name || 'Watchdog Harvester',
+              source_url: t.source_url || '',
+              report_date: t.report_date || new Date().toISOString().split('T')[0],
+              category: t.category || 'Scam',
+              description: t.description || ''
+            });
+          }
+        });
+      }
+
+      // 2. Check local Master Seed Records (used on /tracker page)
+      MASTER_SEED_RECORDS.forEach((s) => {
+        if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
+          seenIds.add(s.id);
+          trackerEntries.push({
+            id: s.id,
+            source_name: s.source_name || 'Community Watchdog Index',
+            source_url: s.source_url || '',
+            report_date: s.report_date || new Date().toISOString().split('T')[0],
+            category: s.category || 'Scam Intelligence',
+            description: s.description || s.impersonated_company || ''
+          });
+        }
+      });
+
+      // 3. Check LocalStorage sources (esscan_threat_records_v2, user_reported_scams, end_scam_scan_shared_state)
+      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
+      storageKeys.forEach((key) => {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
+            items.forEach((item: any) => {
+              if (item && isRecordMatch(item, core10Digits)) {
+                const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
+                if (!seenIds.has(itemId)) {
+                  seenIds.add(itemId);
+                  trackerEntries.push({
+                    id: itemId,
+                    source_name: item.source_name || item.source || item.platform || 'Local Report Index',
+                    source_url: item.source_url || item.sourceUrl || '',
+                    report_date: item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0],
+                    category: item.category || item.type_of_scam || item.scamType || 'Reported Scam',
+                    description: item.description || item.detailedSummary || item.snippet || ''
+                  });
+                }
+              }
+            });
+          }
+        } catch {
+          /* ignore storage errors */
+        }
+      });
+
+      // 4. Check /api/records backend proxy
+      try {
+        const apiRes = await fetch('/api/records').catch(() => null);
+        if (apiRes && apiRes.ok) {
+          const apiData = await apiRes.json().catch(() => null);
+          if (apiData && Array.isArray(apiData.records)) {
+            apiData.records.forEach((rec: any) => {
+              if (isRecordMatch(rec, core10Digits)) {
+                const recId = rec.id || `api-${rec.cleanPhone || rec.phone || Math.random()}`;
+                if (!seenIds.has(recId)) {
+                  seenIds.add(recId);
+                  trackerEntries.push({
+                    id: recId,
+                    source_name: rec.platform || rec.source_name || 'Live Harvester',
+                    source_url: rec.sourceUrl || rec.source_url || '',
+                    report_date: rec.date || rec.report_date || new Date().toISOString().split('T')[0],
+                    category: rec.category || rec.scamType || 'Scam',
+                    description: rec.description || rec.detailedSummary || ''
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch {
+        /* silent fallback */
+      }
+
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
       setResult({ found: totalFound, reports, trackerEntries });
     } catch {

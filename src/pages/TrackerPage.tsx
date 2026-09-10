@@ -808,7 +808,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (Array.isArray(databaseSeed) ? dat
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -816,6 +816,37 @@ const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values()));
 })();
+
+export function matchPhoneSequence(candidatePhone: string | undefined | null, search10Digits: string): boolean {
+  if (!candidatePhone || !search10Digits) return false;
+  const candidateDigits = candidatePhone.replace(/\D/g, '');
+  if (!candidateDigits) return false;
+
+  if (candidateDigits === search10Digits || candidateDigits === `1${search10Digits}`) {
+    return true;
+  }
+
+  if (candidateDigits.includes(search10Digits)) {
+    return true;
+  }
+
+  if (candidateDigits.length > 10 && candidateDigits.startsWith('1')) {
+    const candidateCore10 = candidateDigits.slice(1, 11);
+    if (candidateCore10 === search10Digits) return true;
+  }
+
+  return false;
+}
+
+export function isRecordMatch(
+  r: { phone_number?: string; phone_digits?: string; cleanPhone?: string; phone?: string; alt_phone_number?: string; alt_phone_digits?: string },
+  search10Digits: string
+): boolean {
+  if (!r || !search10Digits) return false;
+  const p1 = r.phone_digits || r.cleanPhone || r.phone_number || r.phone;
+  const p2 = r.alt_phone_digits || r.alt_phone_number;
+  return matchPhoneSequence(p1, search10Digits) || matchPhoneSequence(p2, search10Digits);
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
