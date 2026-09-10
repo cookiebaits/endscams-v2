@@ -52,11 +52,15 @@ function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
 }
 
 function normalizeInput(raw: string): string {
-  return raw.replace(/\D/g, '').slice(0, 10);
+  let digits = raw.replace(/\D/g, '');
+  if (digits.length > 10 && digits.startsWith('1')) {
+    digits = digits.slice(1);
+  }
+  return digits.slice(0, 10);
 }
 
 function formatTyping(value: string): string {
-  const d = value.replace(/\D/g, '').slice(0, 10);
+  const d = normalizeInput(value);
   if (d.length <= 3) return d;
   if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
@@ -372,7 +376,7 @@ export default function HomePage() {
                     setResult(null);
                     setSearched(false);
                   }}
-                  maxLength={14}
+                  maxLength={25}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-12 pr-4 h-14 text-lg rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all"
                 />
               </div>
