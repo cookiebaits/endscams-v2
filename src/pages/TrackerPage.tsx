@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import databaseSeed from '../tracker/data/scam_records.json';
+import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
   Search,
@@ -18,28 +17,35 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
+  Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
+  Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
-  Building2,
-  DollarSign,
-  FileText,
-  Hash,
-  Calendar,
-  Image as ImageIcon,
-  Eye,
+  Trash2,
+  Share2,
+  Award,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
+import { getPSTDateStamp } from '../utils/dateUtils';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { noSqlDatabase } from '../db/noSqlDatabase';
+import { syncBridge } from '../utils/syncBridge';
+import { ScamPhoneRecord } from '../types';
 
 export interface ThreatRecord {
   id: string;
   phone_number: string;
   phone_digits: string;
-  alt_phone_number?: string;
-  alt_phone_digits?: string;
   source_name: string;
   source_url: string;
   report_date: string;
@@ -49,7 +55,6 @@ export interface ThreatRecord {
   invoice_number?: string;
   amount_charged?: string;
   is_down?: boolean;
-  images?: string[];
 }
 
 // ============================================================================
@@ -204,8 +209,318 @@ export const SCAN_TARGETS: ScanTargetConfig[] = [
 ];
 
 // ============================================================================
-// 2. STRICT NUMBER VALIDATION & SOURCE FILTERS (IGNORING BAD & TOLL-FREE NUMBERS)
+// 1B. SCANNER TIMING, API QUOTA SAFEGUARDS & PARSING UTILITIES (MATCHING ESSCAN)
 // ============================================================================
+
+/**
+ * Pacing delay utility used to protect API quota, respect rate limits (429 prevention),
+ * and provide streaming live discovery feedback in the UI.
+ */
+export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Timeout wrapper ensuring API requests never hang indefinitely.
+ */
+export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Robust JSON item extractor matching server.ts to parse arrays, markdown backticks,
+ * or nested object structures returned by Google Search Grounding.
+ */
+export function safeExtractJsonItems(responseText: string): any[] {
+  if (!responseText) return [];
+  let rawItems: any[] = [];
+  try {
+    const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    const textToParse = codeBlockMatch ? codeBlockMatch[1].trim() : responseText.trim();
+
+    const parsed = JSON.parse(textToParse);
+    if (Array.isArray(parsed)) rawItems = parsed;
+    else if (parsed && Array.isArray(parsed.items)) rawItems = parsed.items;
+    else if (parsed && Array.isArray(parsed.records)) rawItems = parsed.records;
+    else if (parsed && Array.isArray(parsed.results)) rawItems = parsed.results;
+    else if (parsed && Array.isArray(parsed.data)) rawItems = parsed.data;
+  } catch {
+    try {
+      const arrayMatch = responseText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        const parsedArray = JSON.parse(arrayMatch[0]);
+        if (Array.isArray(parsedArray)) rawItems = parsedArray;
+      }
+    } catch {
+      try {
+        const objMatch = responseText.match(/\{[\s\S]*"items"\s*:\s*\[[\s\S]*\][\s\S]*\}/);
+        if (objMatch) {
+          const parsedObj = JSON.parse(objMatch[0]);
+          if (parsedObj && Array.isArray(parsedObj.items)) rawItems = parsedObj.items;
+        }
+      } catch {
+        // failed parse
+      }
+    }
+  }
+  return rawItems;
+}
+
+/**
+ * Generates the exact threat search prompt for each target matching esscan.ai.studio.
+ */
+export function buildScanPromptForTarget(target: ScanTargetConfig, currentDateStr: string): string {
+  switch (target.id) {
+    case 'tsu-latest':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Search the front page and latest threads of TechScammersUnited (https://techscammersunited.com/latest).
+CRITICAL RULES:
+- ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY. If there is no number in the summary or title, skip it.
+- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS (such as 555-01xx or 555 exchange). Only extract genuine, real numbers discovered in search results and post titles.
+- 24-HOUR / RECENT THREAD MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If the post is older than 24-48 hours, SKIP IT.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: brand or company impersonated (e.g. Geek Squad, PayPal, McAfee, Norton, Quickbooks)
+  * invoiceNumber: invoice / transaction reference if mentioned (or 'N/A')
+  * amountCharged: amount demanded or billed (e.g. '$499.99', '$349.00', or 'N/A')
+  * detailedSummary: full 2-3 sentence threat summary explaining the scam scenario, fake invoice claims, remote access software pushed (e.g. AnyDesk, TeamViewer), and callback instructions.
+  * sourceUrl: exact discourse topic URL (e.g. https://techscammersunited.com/t/... or search URL).
+  * snippet: exact headline or excerpt containing the number.
+- Format US numbers precisely as 1 (xxx) xxx-xxxx without the '+'.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'scammer-info':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Search the front page and latest scam topics on Scammer.info (https://scammer.info/c/scams).
+CRITICAL RULES:
+- ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY. If there is no number in the summary or title, skip it.
+- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS (such as 555-01xx or 555 exchange). Only extract genuine, real numbers discovered in search results and post titles.
+- 24-HOUR / RECENT THREAD MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If the post is older than 24-48 hours, SKIP IT.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: brand or company impersonated (e.g. Microsoft Support, Amazon Refund, Norton LifeLock, Bank of America)
+  * invoiceNumber: invoice / order ID if mentioned (or 'N/A')
+  * amountCharged: amount claimed (e.g. '$699.00', '$299.99', or 'N/A')
+  * detailedSummary: full 2-3 sentence threat summary explaining the scam scenario, fake refund lure, and callback instructions.
+  * sourceUrl: exact discourse topic URL (e.g. https://scammer.info/t/... or search URL).
+  * snippet: exact headline or excerpt containing the number.
+- Format US numbers precisely as 1 (xxx) xxx-xxxx without the '+'.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'fb-spellcaster':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:facebook.com ("bring back lost lover" OR "love spell" OR "death spell" OR "money spell") ("whatsapp" OR "call me") -inurl:help -inurl:community
+CRITICAL RULES & FALSE POSITIVE PREVENTION:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from Facebook posts, reels, pages, or groups indexed within the PAST 24 HOURS. If older, SKIP IT.
+- MUST BE AN ACTIVE FRAUD SOLICITATION: The post must be an active advertisement promoting fraudulent spell rituals, love charms, death curses, or wealth charms.
+- STRICT FALSE POSITIVE PREVENTION:
+  * DO NOT extract numbers from scam warnings, victim reports ("I got scammed by..."), anti-fraud alerts, or police/regulatory contacts.
+  * NEVER extract Facebook internal IDs (e.g. post IDs, group IDs, fbid, user IDs, or tracking numbers) as phone numbers.
+  * EXCLUDE official Meta/Facebook numbers (e.g. 650-543-4800, 650-853-1300) and US numbers.
+- DIRECT POST LINK: If the search snippet contains a direct link to the Facebook post, reel, page, or profile (e.g. https://www.facebook.com/... or https://www.facebook.com/groups/...), you MUST provide the direct URL in "directLink" or "sourceUrl".
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine mobile WhatsApp numbers originating from African nations (such as Nigeria +234 70/80/81/90/91, Kenya +254 7x/11x, South Africa +27 6x/7x/8x, Ghana +233 2x/5x, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post caption, title, or summary.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject any numbers containing 555, 123456, or sequential placeholder digits.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: spiritualist account or page name (e.g. 'Dr. Felix Love Spell Caster', 'Traditional Love Healer & Binding Spells', 'Everlasting Spell Temple')
+  * invoiceNumber: reference if available (or 'N/A')
+  * amountCharged: reading / consultation fee (e.g. '$150.00', 'KSh 3,500', 'R 1,200', 'N25,000', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary explaining the Facebook post/reel promotion, themes used (#spellcaster #exback #lovespell, lost lover return, marriage binding), and instructions directing users to contact the WhatsApp number for urgent rituals.
+  * snippet: exact caption or excerpt containing the number.
+- Format African numbers with their country code e.g. +234 906 779 6531, +27 73 003 4972, +254 739 032 206, +27 63 423 8939.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'fb-lovespell':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:facebook.com ("traditional healer" OR "native doctor" OR "spiritualist" OR "binding spell") ("whatsapp" OR "+234" OR "+27" OR "+254") -inurl:help
+CRITICAL RULES & FALSE POSITIVE PREVENTION:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from Facebook posts, reels, pages, or groups indexed within the PAST 24 HOURS. If older, SKIP IT.
+- MUST BE AN ACTIVE FRAUD SOLICITATION: Must be offering traditional healer or binding spell services.
+- STRICT FALSE POSITIVE PREVENTION:
+  * DO NOT extract numbers from scam warning groups, victim testimonies, news stories, or law enforcement posts.
+  * NEVER extract Facebook internal IDs (post IDs, fbid, etc.) as phone numbers.
+  * EXCLUDE official Meta/Facebook numbers (e.g. 650-543-4800) and US numbers.
+- DIRECT POST LINK: If the search snippet contains a direct link to the Facebook post, reel, page, or profile (e.g. https://www.facebook.com/... or https://www.facebook.com/groups/...), you MUST provide the direct URL in "directLink" or "sourceUrl".
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine mobile WhatsApp numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post caption, title, or summary.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject any numbers containing 555, 123456, or sequential placeholder digits.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: spiritualist account or page name (e.g. 'Baba Karim Ancestral Love Healer', 'Mama Pinto Traditional Spiritualist')
+  * invoiceNumber: reference if available (or 'N/A')
+  * amountCharged: consultation or ritual fee (e.g. 'R 950', 'KSh 4,000', '$200.00', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary detailing how the Facebook post offers love binding, ex-partner return, or spiritual cleansing and directs targets to communicate via WhatsApp.
+  * snippet: exact caption or excerpt containing the number.
+- Format African numbers with their country code e.g. +27 71 336 3047, +27 72 303 9124, +254 768 100 405, +234 813 587 7290.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'ig-spellcaster':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:instagram.com "spellcaster" "Whatsapp"
+CRITICAL RULES:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from Instagram posts, reels, or profile bios indexed within the PAST 24 HOURS. If older, SKIP IT.
+- DIRECT POST LINK: If the search snippet contains a direct link to the Instagram post, reel, or profile (e.g. https://www.instagram.com/p/... or https://www.instagram.com/reel/... or https://www.instagram.com/username), you MUST provide the direct URL in "directLink" or "sourceUrl".
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine phone numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263, etc.). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post caption, title, or summary.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: spiritualist account name (e.g. 'Spellcaster Akhere Voodoo Shrine', 'Mama Zula Traditional Healer')
+  * invoiceNumber: reference if available (or 'N/A')
+  * amountCharged: reading / consultation fee (e.g. '$150.00', 'KSh 5,000', 'R 800', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary explaining the Instagram promotion, hashtags used (#spellcaster #exback #lovespell), and instructions directing users to text the WhatsApp number for urgent rituals.
+  * snippet: exact caption or excerpt containing the number.
+- Format African numbers with their country code e.g. +234 815 304 4330, +254 712 904 883, +27 71 893 2410, +233 24 509 8132.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'guestbook-scams':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): inurl:"guestbook" spell whatsapp
+CRITICAL RULES:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from guestbook entries, comment spam, or forums indexed within the PAST 24 HOURS. If older, SKIP IT.
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine phone numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263, etc.). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the guestbook entry title or text.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: spammer alias (e.g. 'Dr. Osezua Herbal Shrine', 'Nana Kwaku Spiritual Sanctuary', 'Miracle Spell Temple')
+  * invoiceNumber: reference if available (or 'N/A')
+  * amountCharged: demanded fee (e.g. 'GH₵ 800', '$450.00', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary detailing how the spam bot injected fake testimonials into web guestbooks and instructed readers to message WhatsApp for miracle cures or lottery wins.
+  * snippet: exact guestbook comment snippet containing the number.
+- Format African numbers with their country code e.g. +234 814 628 3921, +254 740 637 248, +233 54 829 1047.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'fb-btc-recovery':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:facebook.com ("crypto recovery" OR "btc recovery" OR "recover lost btc" OR "blockchain recovery") ("whatsapp" OR "+234" OR "+27") -inurl:help
+CRITICAL RULES & FALSE POSITIVE PREVENTION:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from Facebook posts, reels, or comments indexed within the PAST 24 HOURS. If older, SKIP IT.
+- MUST BE AN ACTIVE FRAUD RECOVERY SOLICITATION: Promising to reverse lost crypto or recover stolen bitcoin via WhatsApp.
+- STRICT FALSE POSITIVE PREVENTION:
+  * DO NOT extract numbers from scam warning posts, victim testimonies, news stories, or law enforcement contacts.
+  * NEVER extract Facebook internal IDs (e.g. post IDs, group IDs, fbid, user IDs) as phone numbers.
+  * EXCLUDE official Meta/Facebook numbers (e.g. 650-543-4800) and US numbers.
+- DIRECT POST LINK: If the search snippet includes a direct link to the Facebook post or group (e.g. https://www.facebook.com/... or https://www.facebook.com/groups/...), you MUST provide the direct URL in "directLink" or "sourceUrl".
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine mobile WhatsApp numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post TITLE, SUMMARY, or SNIPPET.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject any numbers containing 555, 123456, or sequential placeholder digits.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: fraudulent recovery firm (e.g. 'Global Asset Recovery Desk RSA', 'Blockchain Recovery Squad Lagos')
+  * invoiceNumber: claim case reference (or 'N/A')
+  * amountCharged: upfront gas fee / retainer fee (e.g. '10% retainer', '$500 gas fee', 'R 3,500 file fee', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary explaining the advance-fee recovery scheme targeting previous crypto scam victims, claiming direct blockchain transaction reversals via WhatsApp.
+  * snippet: exact headline or excerpt containing the number.
+- Format African numbers with their country code e.g. +234 813 816 1886, +27 63 948 1022, +254 791 402 819.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'ig-btc-recovery':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:instagram.com "btc recovery" "Whatsapp"
+CRITICAL RULES:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from Instagram posts, reels, or profile bios indexed within the PAST 24 HOURS. If older, SKIP IT.
+- DIRECT POST LINK: If the search snippet contains a direct link to the Instagram post, reel, or profile (e.g. https://www.instagram.com/p/... or https://www.instagram.com/reel/...), you MUST provide the direct URL in "directLink" or "sourceUrl".
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine phone numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263, etc.). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post caption, title, or summary.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: fake recovery handle (e.g. 'Blockchain Retrieval Desk Lagos', 'Apex Blockchain Retrieval RSA')
+  * invoiceNumber: reference if available (or 'N/A')
+  * amountCharged: wallet unlock fee (e.g. '$850 unlocking fee', 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary explaining how the Instagram account advertises private key recovery and directs scammed investors to WhatsApp.
+  * snippet: exact caption or excerpt containing the number.
+- Format African numbers with their country code e.g. +27 78 681 6925, +233 24 509 8132, +234 812 790 4819.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'amazon-publisher':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): "book publisher" "amazon" "chat"
+CRITICAL RULES:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from pages or ads indexed within the PAST 24 HOURS. If older, SKIP IT.
+- CRITICAL LOCATION MANDATE: Extract ONLY genuine phone numbers originating from African nations (such as Nigeria +234, Kenya +254, South Africa +27, Ghana +233, Zambia +260, Uganda +256, Cameroon +237, Benin +229, Zimbabwe +263, etc.). Do NOT extract or return US or North American (+1) numbers.
+- ONLY pull phone numbers if they are explicitly present in the post TITLE, SUMMARY, or SNIPPET.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: company impersonated (e.g. 'Amazon KDP Publishing Consultant', 'Amazon Author Central Support Ghana', 'Kindle Book Distribution Team')
+  * invoiceNumber: publishing package ID (e.g. 'KDP-90284', 'INV-88190', or 'N/A')
+  * amountCharged: setup or marketing fee (e.g. '$1,499.00 package', '$850.00 distribution fee', or 'N/A')
+  * detailedSummary: a comprehensive 2-3 sentence threat summary detailing how fraudulent publishing reps pose as Amazon KDP live chat agents and redirect authors to WhatsApp to demand upfront formatting and distribution fees.
+  * snippet: exact headline or excerpt containing the number.
+- Format African numbers with their country code e.g. +234 808 391 8402, +233 20 847 1920, +254 705 918 274.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'pch-sweepstakes':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Search TechScammersUnited (techscammersunited.com) and Scammer.info for active PCH (Publishers Clearing House), Mega Millions, Reader's Digest, and lottery/sweepstakes prize claim scams.
+CRITICAL RULES:
+- ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY.
+- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject any numbers containing 555, 123456, etc.
+- 24-HOUR / RECENT POST MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If older, SKIP IT.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: brand or company impersonated (e.g. 'Publishers Clearing House', 'Mega Millions Lottery Commission', "Reader's Digest Association", 'US Multi-State Lottery')
+  * invoiceNumber: prize claim ID / batch number if mentioned (or 'N/A')
+  * amountCharged: bogus delivery fee or tax deposit (e.g. '$850.00', '$1,200.00', or 'N/A')
+  * detailedSummary: full 2-3 sentence threat summary detailing how victims are falsely told they won sweepstakes or lottery funds and instructed to call the claim hotline.
+  * sourceUrl: exact topic URL.
+  * snippet: exact excerpt containing the number.
+- Format US numbers as 1 (xxx) xxx-xxxx without the '+'.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    case 'stake-giveaway':
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr}.
+TASK: Execute this Google search restricted to the PAST 24 HOURS (tbs=qdr:d): site:instagram.com ("stake.us" OR "mega millions" OR "reader digest" OR "sweepstakes prize") "Whatsapp"
+CRITICAL RULES:
+- 24-HOUR RECENT POST MANDATE: Only extract active scam numbers from posts or profiles indexed within the PAST 24 HOURS.
+- ONLY pull phone numbers if explicitly present in the post caption, title, or summary.
+- NO TOLL FREE NUMBERS.
+- NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS.
+- METADATA & DETAILED SUMMARY: Extract complete metadata:
+  * impersonatedCompany: brand or alias (e.g. 'Stake.us VIP Rewards', 'Stake.us Promo Drops', 'Mega Millions Winners Club')
+  * invoiceNumber: promo code / reference ID (or 'N/A')
+  * amountCharged: deposit or verification fee demanded (or 'N/A')
+  * detailedSummary: full 2-3 sentence summary explaining the fake giveaway lure and callback instructions.
+  * snippet: exact excerpt containing the number.
+- Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, snippet, and postDate (YYYY-MM-DD).`;
+
+    default:
+      return `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${currentDateStr} (Pacific Time).
+TASK: Search for fraudulent scam phone numbers active in the LAST 24 HOURS matching this topic:
+"${target.targetQuery}"
+
+CRITICAL MANDATORY RULES:
+1. ONLY return scam numbers reported, active, or discovered within the LAST 24 HOURS.
+2. NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+3. NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject 555 exchange, sequential digits, or repeating numbers.
+4. LOCATION MANDATE: ${
+  target.requiresAfricanNumbers
+    ? 'Extract ONLY African phone numbers (+234, +254, +27, +260, +233, etc.). Do not return US numbers for social targets.'
+    : 'Return non-toll-free geographic US VoIP DIDs or international numbers.'
+}
+5. EXCLUDE REDDIT & META CORPORATE: Reject reddit.com, Meta/Facebook corporate lines (650 area code), and numbers matching Facebook internal URL post IDs.
+6. FALSE POSITIVE PREVENTION: Do not return victim reports or warning advisories; only return numbers used by the perpetrators.
+
+Return ONLY valid JSON with an items array containing phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, directLink, snippet, and postDate (YYYY-MM-DD).`;
+  }
+}
 
 /**
  * Checks if a phone number is a North American toll-free number.
@@ -320,17 +635,6 @@ export function deriveCountryInfo(phone: string): { code: string; name: string; 
 /**
  * Formats phone numbers into standard readable dialable formats.
  */
-/**
- * Limits Company / Target description to a maximum of 5 words.
- * e.g., "Cyber Security Forensic Group East Africa" -> "Cyber Security Forensic Group East"
- */
-export function formatCompanyTarget(text?: string | null): string {
-  if (!text || text.trim() === '' || text.trim() === 'N/A') return 'N/A';
-  const words = text.trim().split(/\s+/);
-  if (words.length <= 5) return text.trim();
-  return words.slice(0, 5).join(' ');
-}
-
 export function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
   const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
   if (cleanDigits.length === 10) {
@@ -356,17 +660,26 @@ export function formatDisplayPhone(rawPhone: string, cleanDigits: string): strin
  * into consistent ISO numerical format YYYY-MM-DD.
  */
 export function normalizeToNumericalDate(dateInput?: string | number | Date | null): string {
-  if (!dateInput) return new Date().toISOString().slice(0, 10);
+  if (!dateInput) return getPSTDateStamp();
   if (dateInput instanceof Date) {
-    if (isNaN(dateInput.getTime())) return new Date().toISOString().slice(0, 10);
-    return dateInput.toISOString().slice(0, 10);
+    if (isNaN(dateInput.getTime())) return getPSTDateStamp();
+    return getPSTDateStamp(dateInput);
   }
   let str = String(dateInput).trim();
-  if (!str) return new Date().toISOString().slice(0, 10);
+  if (!str) return getPSTDateStamp();
   str = str.replace(/^["']+|["']+$/g, '').replace(/^=/, '').trim();
 
   // Already standard YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // ISO string with time
+  if (str.includes('T') || str.includes(':')) {
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return getPSTDateStamp(parsed);
+    }
+  }
+
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
 
   const monthMap: Record<string, string> = {
@@ -383,7 +696,7 @@ export function normalizeToNumericalDate(dateInput?: string | number | Date | nu
       const day = textMonthMatch[2].padStart(2, '0');
       let year = textMonthMatch[3];
       if (!year) {
-        year = new Date().getFullYear().toString();
+        year = getPSTDateStamp().slice(0, 4);
       } else if (year.length === 2) {
         year = year === '20' ? '2026' : (parseInt(year, 10) < 50 ? '20' + year : '19' + year);
       }
@@ -392,7 +705,7 @@ export function normalizeToNumericalDate(dateInput?: string | number | Date | nu
   }
 
   // e.g. "09/01/2026", "9/1/26"
-  const slashMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+  const slashMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   if (slashMatch) {
     const m = slashMatch[1].padStart(2, '0');
     const d = slashMatch[2].padStart(2, '0');
@@ -404,17 +717,48 @@ export function normalizeToNumericalDate(dateInput?: string | number | Date | nu
   }
 
   // e.g. "2026/09/01"
-  const ymdSlash = str.match(/^(\d{4})[/.](\d{1,2})[/.](\d{1,2})/);
+  const ymdSlash = str.match(/^(\d{4})[\/\.](\d{1,2})[\/\.](\d{1,2})/);
   if (ymdSlash) {
     return `${ymdSlash[1]}-${ymdSlash[2].padStart(2, '0')}-${ymdSlash[3].padStart(2, '0')}`;
   }
 
   const parsed = new Date(str);
   if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
+    return getPSTDateStamp(parsed);
   }
 
-  return new Date().toISOString().slice(0, 10);
+  return getPSTDateStamp();
+}
+
+/**
+ * Converts internal ThreatRecord to global ScamPhoneRecord for database & syncBridge.
+ */
+export function threatRecordToScamPhoneRecord(r: ThreatRecord): ScamPhoneRecord {
+  const dateStr = normalizeToNumericalDate(r.report_date);
+  const detectedAt = `${dateStr}T12:00:00.000Z`;
+  const country = deriveCountryInfo(r.phone_number);
+  return {
+    id: r.id,
+    phone: r.phone_number,
+    cleanPhone: r.phone_digits,
+    scamType: r.category,
+    impersonatedCompany: r.impersonated_company || 'N/A',
+    invoiceNumber: r.invoice_number || 'N/A',
+    amountCharged: r.amount_charged || 'N/A',
+    sourceUrl: r.source_url || '',
+    sourceDomain: r.source_url ? (r.source_url.includes('//') ? r.source_url.split('/')[2].replace(/^www\./, '') : 'threat-intel') : 'threat-intel',
+    platform: r.source_name || 'Threat Intelligence',
+    countryCode: country.code,
+    countryName: country.name,
+    snippet: r.description || '',
+    detailedSummary: r.description || '',
+    isNumberDown: Boolean(r.is_down),
+    numberDownAt: r.is_down ? detectedAt : undefined,
+    detectedAt: detectedAt,
+    postDate: dateStr,
+    searchQuery: r.source_name || '',
+    confidence: 'High',
+  };
 }
 
 /**
@@ -542,6 +886,33 @@ export function purgeExpiredThreatRecords(records: ThreatRecord[], now: number =
   return records.filter((r) => !isThreatRecordExpired(r, now));
 }
 
+/**
+ * Automatically sorts threat records by newest report date first.
+ * Parses normalized ISO dates (YYYY-MM-DD) or date strings, converting to timestamps.
+ * Breaks ties with date strings or unique record IDs.
+ */
+export function compareThreatDatesDesc(a: Partial<ThreatRecord>, b: Partial<ThreatRecord>): number {
+  const dateA = normalizeToNumericalDate(a.report_date);
+  const dateB = normalizeToNumericalDate(b.report_date);
+
+  const timeA = new Date(`${dateA}T12:00:00.000Z`).getTime();
+  const timeB = new Date(`${dateB}T12:00:00.000Z`).getTime();
+
+  if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+    return timeB - timeA; // Newest first (largest timestamp first)
+  }
+
+  if (dateA !== dateB) {
+    return dateB.localeCompare(dateA);
+  }
+
+  return (b.id || '').localeCompare(a.id || '');
+}
+
+export function compareThreatDatesAsc(a: Partial<ThreatRecord>, b: Partial<ThreatRecord>): number {
+  return -compareThreatDatesDesc(a, b);
+}
+
 // ============================================================================
 // 3. PACIFIC TIME (PST/PDT) AUTO-TRIGGER AT 7:00 AM & 1:00 PM PST
 // ============================================================================
@@ -562,7 +933,7 @@ export function getPacificParts(date = new Date()) {
   const minute = parseInt(get('minute'), 10);
   const second = parseInt(get('second'), 10);
   const dateStr = `${get('year')}-${get('month')}-${get('day')}`;
-  return { hour, minute, second, dateStr };
+  return { year: get('year'), month: get('month'), day: get('day'), hour, minute, second, dateStr };
 }
 
 export function formatPSTTimeOnly(date = new Date(), withSeconds = true): string {
@@ -766,358 +1137,52 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
   }
 ];
 
-function mapRawSeedToThreatRecord(r: Record<string, unknown>): ThreatRecord {
-  const raw = r as Record<string, string | number | boolean | undefined | string[]>;
-  const rawPhone = String(raw.phone || raw.phone_number || '');
-  const digits = String(raw.cleanPhone || raw.phone_digits || rawPhone).replace(/\D/g, '');
-  const rawAltPhone = String(raw.alt_phone_number || raw.altPhone || raw.alt_phone || raw.secondary_phone || '');
-  const altDigits = rawAltPhone ? String(raw.alt_phone_digits || rawAltPhone).replace(/\D/g, '') : '';
-  const rawImages = r.images;
-  const images = Array.isArray(rawImages)
-    ? rawImages.filter((img): img is string => typeof img === 'string')
-    : undefined;
-
+function mapRawSeedToThreatRecord(r: any): ThreatRecord {
+  const rawPhone = r.phone || r.phone_number || '';
+  const digits = (r.cleanPhone || r.phone_digits || rawPhone).replace(/\D/g, '');
   return {
-    id: String(raw.id || `rec-${digits}`),
-    phone_number: String(raw.phone || raw.phone_number || formatDisplayPhone(rawPhone, digits)),
+    id: r.id || `rec-${digits}`,
+    phone_number: r.phone || r.phone_number || formatDisplayPhone(rawPhone, digits),
     phone_digits: digits,
-    alt_phone_number: rawAltPhone ? formatDisplayPhone(rawAltPhone, altDigits) : undefined,
-    alt_phone_digits: altDigits || undefined,
-    source_name: String(raw.platform || raw.source_name || raw.sourceDomain || 'Threat Intelligence'),
-    source_url: String(raw.sourceUrl || raw.source_url || ''),
-    report_date: normalizeToNumericalDate((raw.detectedAt || raw.report_date || raw.postDate) as string | number | Date | null | undefined),
-    category: String(raw.scamType || raw.category || 'General Tech Support & Refund Scams'),
-    impersonated_company: formatCompanyTarget(String(raw.impersonatedCompany || raw.impersonated_company || 'N/A')),
-    invoice_number: String(raw.invoiceNumber || raw.invoice_number || 'N/A'),
-    amount_charged: String(raw.amountCharged || raw.amount_charged || 'N/A'),
-    description: String(raw.detailedSummary || raw.description || raw.snippet || 'Verified scam threat intelligence report.'),
-    is_down: Boolean(raw.isNumberDown || raw.is_down),
-    images: images && images.length > 0 ? images : undefined,
+    source_name: r.platform || r.source_name || r.sourceDomain || 'Threat Intelligence',
+    source_url: r.sourceUrl || r.source_url || '',
+    report_date: normalizeToNumericalDate(r.detectedAt || r.report_date || r.postDate),
+    category: r.scamType || r.category || 'General Tech Support & Refund Scams',
+    impersonated_company: r.impersonatedCompany || r.impersonated_company || 'N/A',
+    invoice_number: r.invoiceNumber || r.invoice_number || 'N/A',
+    amount_charged: r.amountCharged || r.amount_charged || 'N/A',
+    description: r.detailedSummary || r.description || r.snippet || 'Verified scam threat intelligence report.',
+    is_down: Boolean(r.isNumberDown || r.is_down),
   };
 }
 
-const DATABASE_SEED_RECORDS: ThreatRecord[] = (Array.isArray(databaseSeed) ? databaseSeed as Record<string, unknown>[] : [])
+const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .filter((r) => {
-    const raw = r as Record<string, string | undefined>;
-    const p = String(raw.cleanPhone || raw.phone || raw.phone_number || '');
-    const src = String(raw.platform || raw.sourceUrl || raw.sourceDomain || '').toLowerCase();
+    const p = r.cleanPhone || r.phone || r.phone_number || '';
+    const src = (r.platform || r.sourceUrl || r.sourceDomain || '').toLowerCase();
     if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-    if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
+    if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
     return true;
   })
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
     if (!isThreatRecordExpired(r)) map.set(r.phone_digits, r);
   });
-  return purgeExpiredThreatRecords(Array.from(map.values()));
+  return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
-
-export function matchPhoneSequence(candidatePhone: string | undefined | null, search10Digits: string): boolean {
-  if (!candidatePhone || !search10Digits) return false;
-  const candidateDigits = candidatePhone.replace(/\D/g, '');
-  if (!candidateDigits) return false;
-
-  if (candidateDigits === search10Digits || candidateDigits === `1${search10Digits}`) {
-    return true;
-  }
-
-  if (candidateDigits.includes(search10Digits)) {
-    return true;
-  }
-
-  if (candidateDigits.length > 10 && candidateDigits.startsWith('1')) {
-    const candidateCore10 = candidateDigits.slice(1, 11);
-    if (candidateCore10 === search10Digits) return true;
-  }
-
-  return false;
-}
-
-export function isRecordMatch(
-  r: { phone_number?: string; phone_digits?: string; cleanPhone?: string; phone?: string; alt_phone_number?: string; alt_phone_digits?: string },
-  search10Digits: string
-): boolean {
-  if (!r || !search10Digits) return false;
-  const p1 = r.phone_digits || r.cleanPhone || r.phone_number || r.phone;
-  const p2 = r.alt_phone_digits || r.alt_phone_number;
-  return matchPhoneSequence(p1, search10Digits) || matchPhoneSequence(p2, search10Digits);
-}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
 
 // ============================================================================
-// 4B. THREAT INTEL HOVER CARD COMPONENT (PORTAL POPOVER ON HOVER)
+// 5. TRACKER PAGE COMPONENT (MATCHING ESSCAN.AI.STUDIO)
 // ============================================================================
-interface ThreatIntelHoverCardProps {
-  record: ThreatRecord;
-  children: React.ReactNode;
-}
-
-export const ThreatIntelHoverCard: React.FC<ThreatIntelHoverCardProps> = ({
-  record,
-  children,
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
-  });
-
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const calculatePosition = () => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const cardWidth = Math.min(360, window.innerWidth - 24);
-    const cardHeight = 320;
-
-    const spaceAbove = rect.top;
-    const spaceBelow = window.innerHeight - rect.bottom;
-
-    let top = 0;
-    if (spaceAbove < 320 || spaceBelow >= 320) {
-      top = rect.bottom + 8;
-    } else {
-      top = Math.max(12, rect.top - cardHeight - 8);
-    }
-
-    let left = rect.left;
-    if (left + cardWidth > window.innerWidth - 16) {
-      left = window.innerWidth - cardWidth - 16;
-    }
-    if (left < 16) {
-      left = 16;
-    }
-
-    setPosition({ top, left });
-  };
-
-  const handleMouseEnter = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-    calculatePosition();
-    setIsOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 150);
-  };
-
-  const handlePopoverMouseEnter = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  };
-
-  const handlePopoverMouseLeave = () => {
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 150);
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleScrollOrResize = () => calculatePosition();
-    window.addEventListener('scroll', handleScrollOrResize, true);
-    window.addEventListener('resize', handleScrollOrResize);
-    return () => {
-      window.removeEventListener('scroll', handleScrollOrResize, true);
-      window.removeEventListener('resize', handleScrollOrResize);
-    };
-  }, [isOpen]);
-
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(record.phone_number);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const company = record.impersonated_company && record.impersonated_company !== 'N/A'
-    ? record.impersonated_company
-    : 'Financial / Tech Impersonator';
-  const invoice = record.invoice_number && record.invoice_number !== 'N/A'
-    ? record.invoice_number
-    : 'N/A (Direct Contact / Call)';
-  const amount = record.amount_charged && record.amount_charged !== 'N/A'
-    ? record.amount_charged
-    : 'Unspecified / Variable Fee';
-
-  const popoverContent = isOpen && typeof document !== 'undefined' ? (
-    createPortal(
-      <div
-        className="fixed z-[9999] w-80 md:w-96 p-4 bg-slate-900 border border-amber-500/40 rounded-2xl shadow-2xl text-slate-100 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
-        style={{
-          top: `${position.top}px`,
-          left: `${position.left}px`,
-          filter: 'drop-shadow(0 20px 30px rgba(0, 0, 0, 0.85))',
-        }}
-        onMouseEnter={handlePopoverMouseEnter}
-        onMouseLeave={handlePopoverMouseLeave}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
-          <div className="flex items-center space-x-2">
-            <div className="p-1.5 bg-amber-500/15 text-amber-400 rounded-lg border border-amber-500/30">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">
-                Threat Intelligence Card
-              </span>
-              <h4 className="text-xs font-bold text-slate-100 leading-tight">
-                {record.category}
-              </h4>
-            </div>
-          </div>
-
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-medium whitespace-nowrap">
-            {record.source_name}
-          </span>
-        </div>
-
-        {/* Intelligence Grid */}
-        <div className="grid grid-cols-2 gap-2 my-3">
-          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5">
-            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
-              <Building2 className="w-3 h-3 text-blue-400" />
-              <span>Target Company:</span>
-            </div>
-            <p className="text-xs font-bold text-blue-300 truncate" title={company}>
-              {company}
-            </p>
-          </div>
-
-          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5">
-            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
-              <DollarSign className="w-3 h-3 text-emerald-400" />
-              <span>Fee / Charge:</span>
-            </div>
-            <p className="text-xs font-bold text-emerald-300 truncate" title={amount}>
-              {amount}
-            </p>
-          </div>
-
-          <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 space-y-0.5 col-span-2">
-            <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-medium">
-              <Hash className="w-3 h-3 text-purple-400" />
-              <span>Invoice / Order #:</span>
-            </div>
-            <p className="text-xs font-mono font-semibold text-purple-300 truncate" title={invoice}>
-              {invoice}
-            </p>
-          </div>
-        </div>
-
-        {/* Summary Description */}
-        <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-          <div className="flex items-center space-x-1 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-            <FileText className="w-3 h-3 text-amber-400" />
-            <span>Context / Modus Operandi:</span>
-          </div>
-          <p className="text-[11px] text-slate-300 leading-relaxed max-h-24 overflow-y-auto pr-1">
-            {record.description}
-          </p>
-        </div>
-
-        {/* Phone & Actions */}
-        <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-xs">
-          <div className="flex items-center space-x-1.5 font-mono font-bold text-amber-400 flex-wrap gap-1">
-            <PhoneCall className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>{record.phone_number}</span>
-            {record.alt_phone_number && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText(record.alt_phone_number!);
-                  }
-                }}
-                className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
-                title={`Click to copy 2nd number: ${record.alt_phone_number}`}
-              >
-                <span>Alt: {record.alt_phone_number}</span>
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-1.5">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center space-x-1 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 text-[11px] font-medium transition-colors cursor-pointer"
-              title="Copy phone number"
-            >
-              {copied ? (
-                <Check className="w-3 h-3 text-emerald-400" />
-              ) : (
-                <Copy className="w-3 h-3" />
-              )}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-
-            {record.source_url && record.source_url.startsWith('http') && (
-              <a
-                href={record.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-500/15 hover:bg-blue-500/25 text-blue-400 border border-blue-500/30 rounded-md text-[11px] font-medium transition-colors cursor-pointer"
-                title="Open Source Thread"
-              >
-                <ExternalLink className="w-3 h-3" />
-                <span>Source</span>
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between">
-          <span className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {normalizeToNumericalDate(record.report_date)}
-          </span>
-          <span className="text-amber-500/80 font-medium">Click row for full details & invoice images</span>
-        </div>
-      </div>,
-      document.body
-    )
-  ) : null;
-
-  return (
-    <div
-      ref={triggerRef}
-      className="inline-block"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {children}
-      {popoverContent}
-    </div>
-  );
-};
-
-// ============================================================================
-// 5. EMBEDDABLE TRACKER COMPONENT (MATCHING ESSCAN.AI.STUDIO)
-// ============================================================================
-export function EmbeddableTracker() {
+export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
@@ -1150,11 +1215,9 @@ export function EmbeddableTracker() {
             });
           }
         }
-      } catch {
-        /* empty */
-      }
+      } catch {}
     }
-    return purgeExpiredThreatRecords(Array.from(map.values()));
+    return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
 
   // Automatically fetch live records from backend /api/records on mount
@@ -1167,21 +1230,20 @@ export function EmbeddableTracker() {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
             const mapped = data.records
-              .filter((r: Record<string, unknown>) => {
-                const raw = r as Record<string, string | undefined>;
-                const p = String(raw.cleanPhone || raw.phone || '');
-                const src = String(raw.platform || raw.sourceUrl || '').toLowerCase();
+              .filter((r: any) => {
+                const p = r.cleanPhone || r.phone || '';
+                const src = (r.platform || r.sourceUrl || '').toLowerCase();
                 if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-                if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
-                return !isThreatRecordExpired(r as unknown as ThreatRecord);
+                if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+                return !isThreatRecordExpired(r);
               })
               .map(mapRawSeedToThreatRecord);
 
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-                prev.forEach((r: ThreatRecord) => {
+                mapped.forEach((r) => map.set(r.phone_digits, r));
+                prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
                     map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
@@ -1189,7 +1251,7 @@ export function EmbeddableTracker() {
                     map.set(r.phone_digits, r);
                   }
                 });
-                return purgeExpiredThreatRecords(Array.from(map.values()));
+                return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
               });
             }
           }
@@ -1218,6 +1280,11 @@ export function EmbeddableTracker() {
   const [isTargetedSearchOpen, setIsTargetedSearchOpen] = useState(false);
   const [targetedQuery, setTargetedQuery] = useState('');
   const [targetedCategory, setTargetedCategory] = useState('General Tech Support & Refund Scams');
+  const [lastScanTime, setLastScanTime] = useState<string>(() => new Date().toISOString());
+  const recordsRef = useRef<ThreatRecord[]>(records);
+  recordsRef.current = records;
+  const isScanningRef = useRef<boolean>(isScanning);
+  isScanningRef.current = isScanning;
 
   // Key & Config
   const [geminiApiKey, setGeminiApiKey] = useState(() => {
@@ -1227,13 +1294,14 @@ export function EmbeddableTracker() {
     return '';
   });
 
-  // Table & UI States
+  // Table & UI States (Automatically sorted to newest date)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedSource, setSelectedSource] = useState('ALL');
   const [selectedCountry, setSelectedCountry] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedRetention, setSelectedRetention] = useState<'ALL' | 'PRIZE_6MO' | 'STANDARD_60D'>('ALL');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
@@ -1241,8 +1309,6 @@ export function EmbeddableTracker() {
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
-  const [previewImageModalUrl, setPreviewImageModalUrl] = useState<string | null>(null);
 
   // Import States
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -1252,26 +1318,60 @@ export function EmbeddableTracker() {
 
   // Manual Add States
   const [newPhone, setNewPhone] = useState('');
-  const [newAltPhone, setNewAltPhone] = useState('');
   const [newCategory, setNewCategory] = useState('General Tech Support & Refund Scams');
   const [newCompany, setNewCompany] = useState('');
   const [newSourceName, setNewSourceName] = useState('Tech Support United');
   const [newSourceUrl, setNewSourceUrl] = useState('');
   const [newDescription, setNewDescription] = useState('');
-  const [newImages, setNewImages] = useState<string[]>([]);
   const [manualFormError, setManualFormError] = useState<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Save to localStorage whenever records change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-      } catch {
-        /* empty */
-      }
+      } catch {}
     }
   }, [records]);
+
+  // Initialize Sync Bridge for parent iframe / endscams.org/tracker communication
+  useEffect(() => {
+    syncBridge.init({
+      onRequestData: () => {
+        const scamRecords = recordsRef.current.map(threatRecordToScamPhoneRecord);
+        return {
+          records: scamRecords,
+          lastScanTime: lastScanTime || new Date().toISOString(),
+          isScanning: isScanningRef.current,
+        };
+      },
+      onTriggerScan: () => {
+        executeFullHarvesterScan();
+      },
+      onToggleNumberDown: (id) => {
+        setRecords((prev) => {
+          const target = prev.find((r) => r.id === id || r.phone_digits === id);
+          if (!target) return prev;
+          const nextStatus = !target.is_down;
+          fetch(`/api/records/${target.id}/toggle-down`, { method: 'POST' }).catch(() => {});
+          return prev.map((r) => (r.id === target.id ? { ...r, is_down: nextStatus } : r));
+        });
+      },
+    });
+
+    return () => {
+      syncBridge.destroy();
+    };
+  }, []);
+
+  // Broadcast to syncBridge whenever records change
+  useEffect(() => {
+    if (records.length > 0) {
+      const scamRecords = records.map(threatRecordToScamPhoneRecord);
+      syncBridge.broadcastRecords(scamRecords);
+      syncBridge.broadcastCurrentState();
+    }
+  }, [records, isScanning]);
 
   // Update live Pacific Time clock & Countdown every second
   useEffect(() => {
@@ -1282,18 +1382,37 @@ export function EmbeddableTracker() {
     return () => clearInterval(timer);
   }, []);
 
-  // Save Gemini Key
+  // Save Gemini Key and sync to server-side harvester
   const handleSaveGeminiKey = (key: string) => {
-    setGeminiApiKey(key);
+    const cleanKey = key.trim();
+    setGeminiApiKey(cleanKey);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(GEMINI_KEY_STORAGE, key);
+      localStorage.setItem(GEMINI_KEY_STORAGE, cleanKey);
+    }
+    if (cleanKey) {
+      fetch('/api/config/api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: cleanKey }),
+      }).catch(() => {});
     }
   };
+
+  // Synchronize Gemini key to backend on mount if present
+  useEffect(() => {
+    if (geminiApiKey && geminiApiKey.trim()) {
+      fetch('/api/config/api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: geminiApiKey.trim() }),
+      }).catch(() => {});
+    }
+  }, [geminiApiKey]);
 
   // Sync Record to Supabase if client is present
   const syncRecordToSupabase = async (rec: ThreatRecord) => {
     try {
-      const sb = (window as unknown as { supabase?: { from: (table: string) => { upsert: (data: unknown, options: unknown) => Promise<unknown> } } }).supabase;
+      const sb = (window as any).supabase;
       if (sb && typeof sb.from === 'function') {
         const expiresAt = new Date();
         const retentionDays = getRetentionDays(rec);
@@ -1312,9 +1431,7 @@ export function EmbeddableTracker() {
           { onConflict: 'phone_digits,source_name' }
         );
       }
-    } catch {
-      /* empty */
-    }
+    } catch {}
   };
 
   // ============================================================================
@@ -1346,7 +1463,6 @@ export function EmbeddableTracker() {
     checkScheduleAndTrigger();
     const interval = setInterval(checkScheduleAndTrigger, 5000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanning]);
 
   // ============================================================================
@@ -1386,48 +1502,213 @@ export function EmbeddableTracker() {
     try {
       addLog(`[SCHEDULE] Running threat sweep for Pacific Time: ${currentPST}.`);
 
-      // 1. Try full-stack backend scan first (matches esscan.ai.studio exactly)
-      let backendScanSucceeded = false;
+      // 1. Direct Live Feed Extraction from Tech Support United (server proxy bypasses CORS)
       try {
-        addLog('[BACKEND] Checking for full-stack threat harvester service (/api/scan-now)...');
-        const backendResp = await fetch('/api/scan-now', { method: 'POST' });
-        if (backendResp.ok) {
-          backendScanSucceeded = true;
-          setScannerProgress(50);
-          addLog('[BACKEND] Full-stack harvester executed successfully. Synchronizing new threat intelligence...');
-          const recordsResp = await fetch('/api/records');
-          if (recordsResp.ok) {
-            const data = await recordsResp.json();
-            if (data.records && Array.isArray(data.records)) {
-              const mapped = data.records
-                .filter((r: Record<string, unknown>) => {
-                  const raw = r as Record<string, string | undefined>;
-                  const p = String(raw.cleanPhone || raw.phone || '');
-                  const src = String(raw.platform || raw.sourceUrl || '').toLowerCase();
-                  if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-                  if (src.includes('facebook') && isFalsePositiveFacebookRecord(raw).isFalsePositive) return false;
-                  return !isThreatRecordExpired(r as unknown as ThreatRecord);
-                })
-                .map(mapRawSeedToThreatRecord);
+        addLog('[TSU FEED] Querying Tech Support United live forum topics & verified dialer lines...');
+        const tsuResp = await fetch('/api/feed/tech-scammers-united');
+        if (tsuResp.ok) {
+          const tsuData = await tsuResp.json();
+          if (Array.isArray(tsuData.items) && tsuData.items.length > 0) {
+            let tsuAdded = 0;
+            const tsuRecords = tsuData.items
+              .filter((r: any) => {
+                const p = r.cleanPhone || r.phone || '';
+                return !isTollFreeNumber(p) && !isFictitiousOrInvalidPhone(p);
+              })
+              .map(mapRawSeedToThreatRecord)
+              .filter((r: any) => !isThreatRecordExpired(r));
 
-              mapped.forEach((r: ThreatRecord) => {
-                if (!existingDigits.has(r.phone_digits)) {
-                  accumulatedNew.push(r);
-                  existingDigits.add(r.phone_digits);
-                }
-              });
-            }
+            tsuRecords.forEach((r: ThreatRecord) => {
+              if (!existingDigits.has(r.phone_digits)) {
+                accumulatedNew.push(r);
+                existingDigits.add(r.phone_digits);
+                tsuAdded++;
+              }
+            });
+            addLog(`[TSU FEED] Successfully synchronized ${tsuRecords.length} live threats from Tech Support United (${tsuAdded} new lines cataloged).`);
           }
         }
-      } catch {
-        addLog('[STANDALONE] Backend scan endpoint unavailable. Operating in client autonomous scanner mode...');
+      } catch (tsuErr) {
+        console.warn('[TSU FEED] Error fetching live TSU feed:', tsuErr);
       }
 
-      // 2. If backend was not active, run client-side enhanced scan
+      // 2. Synchronize active Gemini API key to backend service
+      if (geminiApiKey.trim()) {
+        try {
+          await fetch('/api/config/api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: geminiApiKey.trim() }),
+          });
+        } catch {}
+      }
+
+      // 3. Try full-stack backend scan or targeted search first (matches esscan.ai.studio exactly)
+      let backendScanSucceeded = false;
+
+      if (customQuery) {
+        try {
+          addLog(`[TARGETED SEARCH] Querying targeted topic "${customQuery}" via backend search (/api/search)...`);
+          const searchResp = await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: customQuery, category: customCategory }),
+          });
+          if (searchResp.ok) {
+            const sData = await searchResp.json();
+            const sItems = sData.items || [];
+            if (sItems.length > 0) {
+              backendScanSucceeded = true;
+              addLog(`[TARGETED SEARCH] Received ${sItems.length} threat intelligence items from backend.`);
+              for (const item of sItems) {
+                const raw = item.phone || '';
+                const digits = (item.cleanPhone || raw).replace(/\D/g, '');
+                if (isFictitiousOrInvalidPhone(raw) || isTollFreeNumber(raw)) continue;
+                if (existingDigits.has(digits)) continue;
+                const rec: ThreatRecord = {
+                  id: `search-${Date.now()}-${accumulatedNew.length}`,
+                  phone_number: formatDisplayPhone(raw, digits),
+                  phone_digits: digits,
+                  source_name: item.platform || 'Targeted Search',
+                  source_url: item.directLink || item.sourceUrl || 'https://techscammersunited.com',
+                  report_date: normalizeToNumericalDate(item.postDate || new Date()),
+                  category: item.scamType || customCategory || 'General Tech Support & Refund Scams',
+                  impersonated_company: item.impersonatedCompany || 'N/A',
+                  invoice_number: item.invoiceNumber || 'N/A',
+                  amount_charged: item.amountCharged || 'N/A',
+                  description: item.detailedSummary || item.snippet || 'Discovered via targeted search query.',
+                  is_down: false,
+                };
+                if (!isThreatRecordExpired(rec)) {
+                  accumulatedNew.push(rec);
+                  existingDigits.add(digits);
+                  setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
+                  addLog(`[DISCOVERY] Extracted threat line: ${rec.phone_number} (${rec.impersonated_company})`);
+                  await delay(2000); // 2000ms trickle delay
+                }
+              }
+            }
+          }
+        } catch {
+          addLog('[TARGETED SEARCH] Backend search unavailable, falling back to autonomous client scanner...');
+        }
+      } else {
+        try {
+          addLog('[BACKEND] Checking for full-stack threat harvester service (/api/scan-now)...');
+          const backendResp = await fetch('/api/scan-now', { method: 'POST' });
+          if (backendResp.ok) {
+            const startData = await backendResp.json();
+            if (startData.success || startData.isScanningInProgress) {
+              backendScanSucceeded = true;
+              setScannerProgress(15);
+              addLog('[BACKEND] Harvester active on server. Actively polling live scanner progress & threat feeds...');
+
+              // Poll up to 180 seconds (3 minutes) for backend scan completion across all targets
+              const pollStart = Date.now();
+              let lastLogIndex = 0;
+              while (Date.now() - pollStart < 180000) {
+                await delay(1500);
+                try {
+                  const [statusRes, recordsRes] = await Promise.all([
+                    fetch('/api/scheduler/status'),
+                    fetch('/api/records'),
+                  ]);
+
+                  if (statusRes.ok) {
+                    const sData = await statusRes.json();
+                    if (typeof sData.scanProgress === 'number' && sData.scanProgress > 0) {
+                      setScannerProgress(Math.max(15, Math.min(95, sData.scanProgress)));
+                    }
+                    if (sData.scanStatusMessage) {
+                      setScannerStatusMessage(sData.scanStatusMessage);
+                    }
+                    if (Array.isArray(sData.logs) && sData.logs.length > 0) {
+                      for (let l = lastLogIndex; l < sData.logs.length; l++) {
+                        const lg = sData.logs[l];
+                        if (lg && lg.message) {
+                          addLog(`[SERVER] ${lg.message}`);
+                        }
+                      }
+                      lastLogIndex = sData.logs.length;
+                    }
+                    if (!sData.isScanningInProgress) {
+                      addLog('[SERVER] Backend threat harvester cycle finished.');
+                      break;
+                    }
+                  }
+
+                  if (recordsRes.ok) {
+                    const rData = await recordsRes.json();
+                    if (rData.records && Array.isArray(rData.records)) {
+                      const mapped = rData.records
+                        .filter((r: any) => {
+                          const p = r.cleanPhone || r.phone || '';
+                          const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                          if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
+                          if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+                          return !isThreatRecordExpired(r);
+                        })
+                        .map(mapRawSeedToThreatRecord);
+
+                      let newInTick = 0;
+                      mapped.forEach((r: ThreatRecord) => {
+                        if (!existingDigits.has(r.phone_digits)) {
+                          accumulatedNew.push(r);
+                          existingDigits.add(r.phone_digits);
+                          newInTick++;
+                        }
+                      });
+                      if (newInTick > 0) {
+                        setRecords((prev) => {
+                          const existingMap = new Map(prev.map((item) => [item.phone_digits, item]));
+                          accumulatedNew.forEach((item) => existingMap.set(item.phone_digits, item));
+                          return Array.from(existingMap.values());
+                        });
+                      }
+                    }
+                  }
+                } catch {
+                  // transient network polling pause
+                }
+              }
+
+              // Final records sync from backend
+              try {
+                const finalRes = await fetch('/api/records');
+                if (finalRes.ok) {
+                  const fData = await finalRes.json();
+                  if (fData.records && Array.isArray(fData.records)) {
+                    const mapped = fData.records
+                      .filter((r: any) => {
+                        const p = r.cleanPhone || r.phone || '';
+                        const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                        if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
+                        if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+                        return !isThreatRecordExpired(r);
+                      })
+                      .map(mapRawSeedToThreatRecord);
+
+                    mapped.forEach((r: ThreatRecord) => {
+                      if (!existingDigits.has(r.phone_digits)) {
+                        accumulatedNew.push(r);
+                        existingDigits.add(r.phone_digits);
+                      }
+                    });
+                  }
+                }
+              } catch {}
+            }
+          }
+        } catch {
+          addLog('[STANDALONE] Backend scan endpoint unavailable. Operating in client autonomous scanner mode...');
+        }
+      }
+
+      // 4. Client-side scanning mode (following exact timing, parameters, models and delays from esscan)
       if (!backendScanSucceeded) {
-        // If user provided Gemini Key, execute real Google Search Grounded queries
         if (geminiApiKey.trim()) {
-          addLog('[GEMINI] Authenticated with Gemini API. Executing Search-Grounded queries with strict false-positive prevention...');
+          addLog('[GEMINI] Authenticated with Gemini API. Scanning targets with exact esscan timing, 25s timeout & quota backoffs...');
+          const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
           for (let i = 0; i < targetsToRun.length; i++) {
             const target = targetsToRun[i];
@@ -1435,163 +1716,219 @@ export function EmbeddableTracker() {
             setScannerStatusMessage(`Scanning ${target.name}...`);
             addLog(`[TARGET ${i + 1}/${targetsToRun.length}] Querying ${target.name} (${target.category})...`);
 
-            const currentDateStr = new Date().toISOString().slice(0, 10);
-            const prompt = `You are an expert anti-fraud threat intelligence analyst.
-CURRENT DATE: ${currentDateStr} (Pacific Time).
-TASK: Search for fraudulent scam phone numbers active in the LAST 24 HOURS matching this topic:
-"${target.targetQuery}"
+            const currentDateStr = getPSTDateStamp();
+            let prompt = buildScanPromptForTarget(target, currentDateStr);
 
-CRITICAL MANDATORY RULES:
-1. ONLY return scam numbers reported, active, or discovered within the LAST 24 HOURS.
-2. NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
-3. NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject 555 exchange, sequential digits, or repeating numbers.
-4. LOCATION MANDATE: ${
-              target.requiresAfricanNumbers
-                ? 'Extract ONLY African phone numbers (+234, +254, +27, +260, +233, etc.). Do not return US numbers for social targets.'
-                : 'Return non-toll-free geographic US VoIP DIDs or international numbers.'
+            // Pre-enrich with live site data for Tech Support United
+            if (target.platform === 'Tech Support United' || target.searchDomain?.includes('techscammersunited.com')) {
+              try {
+                const tsuResp = await fetch('/api/feed/tech-scammers-united');
+                if (tsuResp.ok) {
+                  const tData = await tsuResp.json();
+                  const tItems = tData.items || [];
+                  if (tItems.length > 0) {
+                    prompt += `\n\nLIVE FORUM DATA FROM TECH SCAMMERS UNITED (Extract latest active numbers from this):\n` +
+                      tItems.slice(0, 15).map((t: any) => `TITLE: ${t.snippet || t.impersonatedCompany}\nPHONE: ${t.phone || t.cleanPhone}\nURL: ${t.sourceUrl || ''}`).join('\n\n');
+                  }
+                }
+              } catch {}
             }
-5. EXCLUDE REDDIT & META CORPORATE: Reject reddit.com, Meta/Facebook corporate lines (650 area code), and numbers matching Facebook internal URL post IDs.
-6. FALSE POSITIVE PREVENTION: Do not return victim reports or warning advisories; only return numbers used by the perpetrators.
 
-Return a JSON array of items with:
-phone: phone number string
-scamType: category
-impersonatedCompany: company or brand
-invoiceNumber: invoice ID or N/A
-amountCharged: amount or N/A
-sourceUrl: direct post or topic URL
-snippet: excerpt containing the number`;
+            let intelText = '';
+            const rawGroundingUrls: string[] = [];
 
-            try {
-              let resp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey.trim()}`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    tools: [{ googleSearch: {} }],
-                    generationConfig: { responseMimeType: 'application/json' },
-                  }),
-                }
-              );
-
-              if (!resp.ok) {
-                // Fallback to gemini-1.5-flash
-                resp = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey.trim()}`,
-                  {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      contents: [{ parts: [{ text: prompt }] }],
-                      generationConfig: { responseMimeType: 'application/json' },
-                    }),
-                  }
-                );
-              }
-
-              if (resp.ok) {
-                const data = await resp.json();
-                const textResp = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (textResp) {
-                  const parsed = JSON.parse(textResp);
-                  const items = Array.isArray(parsed) ? parsed : parsed.items || [];
-                  for (const item of items) {
-                    const raw = item.phone || '';
-                    const digits = raw.replace(/\D/g, '');
-
-                    // Apply strict filters: reject toll-free, fake, or reddit
-                    if (isFictitiousOrInvalidPhone(raw) || isTollFreeNumber(raw)) continue;
-                    if (existingDigits.has(digits)) continue;
-
-                    const country = deriveCountryInfo(raw);
-                    if (target.requiresAfricanNumbers && !country.isAfrican) continue;
-
-                    const fpCheck = isFalsePositiveFacebookRecord({
-                      phone: raw,
-                      cleanPhone: digits,
-                      sourceUrl: item.sourceUrl || target.searchDomain,
-                      snippet: item.snippet,
-                      impersonated_company: item.impersonatedCompany,
-                      category: item.scamType || target.category,
-                    });
-                    if (fpCheck.isFalsePositive) continue;
-
-                    const rec: ThreatRecord = {
-                      id: `gemini-${Date.now()}-${accumulatedNew.length}`,
-                      phone_number: formatDisplayPhone(raw, digits),
-                      phone_digits: digits,
-                      source_name: target.platform,
-                      source_url: item.sourceUrl || target.searchDomain,
-                      report_date: normalizeToNumericalDate(currentDateStr),
-                      category: item.scamType || target.category,
-                      impersonated_company: formatCompanyTarget(item.impersonatedCompany || 'N/A'),
-                      invoice_number: item.invoiceNumber || 'N/A',
-                      amount_charged: item.amountCharged || 'N/A',
-                      description: item.snippet || 'Extracted via Search Grounded threat scan.',
-                      is_down: false,
-                    };
-
-                    if (!isThreatRecordExpired(rec)) {
-                      accumulatedNew.push(rec);
-                      existingDigits.add(digits);
+            for (const model of modelsToTry) {
+              try {
+                // 1. Google Search Grounding with 25s timeout and minimal thinking
+                const searchCall = (async () => {
+                  const res = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey.trim()}`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        tools: [{ googleSearch: {} }],
+                        generationConfig: {
+                          temperature: 0.1,
+                          thinkingConfig: { thinkingBudget: 0 },
+                        },
+                      }),
                     }
+                  );
+                  return res;
+                })();
+
+                const resp = await withTimeout(
+                  searchCall,
+                  25000,
+                  `Google Search Grounding for ${model} on ${target.name} timed out after 25s`
+                );
+
+                if (resp.ok) {
+                  const data = await resp.json();
+                  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                  const rawChunks = data.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+                  for (const c of rawChunks) {
+                    if (c?.web?.uri) rawGroundingUrls.push(c.web.uri);
                   }
+                  if (text && text.trim().length > 0) {
+                    intelText = text;
+                    break;
+                  }
+                } else {
+                  const errText = await resp.text();
+                  const isQuota = resp.status === 429 || resp.status === 503 || errText.includes('quota') || errText.includes('RESOURCE_EXHAUSTED');
+                  if (isQuota) {
+                    addLog(`[RATE LIMIT] ${model} quota paused (429/503). Applying 1200ms backoff before fallback...`);
+                    await delay(1200);
+                  }
+
+                  // 2. Direct prompt fallback without search tools (higher quota ceiling)
+                  try {
+                    const directCall = (async () => {
+                      const fbRes = await fetch(
+                        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey.trim()}`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: {
+                              temperature: 0.1,
+                              thinkingConfig: { thinkingBudget: 0 },
+                            },
+                          }),
+                        }
+                      );
+                      return fbRes;
+                    })();
+
+                    const fbResp = await withTimeout(directCall, 20000, `Direct fallback for ${model} timed out`);
+                    if (fbResp.ok) {
+                      const fbData = await fbResp.json();
+                      const fbText = fbData.candidates?.[0]?.content?.parts?.[0]?.text;
+                      if (fbText && fbText.trim().length > 0) {
+                        intelText = fbText;
+                        break;
+                      }
+                    }
+                  } catch {}
+                }
+              } catch {
+                // try next model
+              }
+            }
+
+            if (intelText) {
+              const items = safeExtractJsonItems(intelText);
+              for (const item of items) {
+                if (!item) continue;
+                const raw = (item.phone || item.phoneNumber || '').trim();
+                const clean = (item.cleanPhone || raw.replace(/\D/g, '')).trim();
+                const digits = clean.replace(/\D/g, '');
+
+                if (!digits || digits.length < 7) continue;
+                if (isTollFreeNumber(raw) || isTollFreeNumber(digits)) continue;
+                if (isFictitiousOrInvalidPhone(raw) || isFictitiousOrInvalidPhone(digits)) continue;
+                if (existingDigits.has(digits)) continue;
+
+                const country = deriveCountryInfo(raw);
+                if (!country.allowed) continue;
+                if (target.requiresAfricanNumbers && !country.isAfrican) continue;
+
+                const srcUrl = item.directLink || item.sourceUrl || (rawGroundingUrls[0] || target.searchDomain);
+                const fpCheck = isFalsePositiveFacebookRecord({
+                  phone: raw,
+                  cleanPhone: digits,
+                  sourceUrl: srcUrl,
+                  snippet: item.snippet,
+                  impersonated_company: item.impersonatedCompany,
+                  category: item.scamType || target.category,
+                });
+                if (fpCheck.isFalsePositive) continue;
+
+                const rec: ThreatRecord = {
+                  id: `gemini-${Date.now()}-${accumulatedNew.length}`,
+                  phone_number: formatDisplayPhone(raw, digits),
+                  phone_digits: digits,
+                  source_name: target.platform,
+                  source_url: srcUrl,
+                  report_date: normalizeToNumericalDate(item.postDate || currentDateStr),
+                  category: item.scamType || target.category,
+                  impersonated_company: item.impersonatedCompany || 'N/A',
+                  invoice_number: item.invoiceNumber || 'N/A',
+                  amount_charged: item.amountCharged || 'N/A',
+                  description: item.detailedSummary || item.snippet || 'Extracted via Search Grounded threat scan.',
+                  is_down: false,
+                };
+
+                if (!isThreatRecordExpired(rec)) {
+                  accumulatedNew.push(rec);
+                  existingDigits.add(digits);
+                  // Trickle update state so new lines appear progressively in real time
+                  setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
+                  addLog(`[DISCOVERY] Cataloged threat: ${rec.phone_number} (${rec.impersonated_company})`);
+                  await delay(2000); // 2000ms trickle delay matching esscan.ai.studio!
                 }
               }
-            } catch {
-              // continue next target
+            }
+
+            // 3000ms spacing between targets to protect against rate limit (429) quota spikes
+            if (i < targetsToRun.length - 1) {
+              addLog(`[PACING] Pausing 3000ms before next target to prevent API rate limit quota spikes...`);
+              await delay(3000);
             }
           }
         } else {
           // Autonomous Threat Feed Sweep (without Gemini Key)
-          addLog('[ENGINE] Executing Autonomous Threat Feed Engine across all 11 targets...');
-          await new Promise((r) => setTimeout(r, 400));
-          setScannerProgress(35);
-          addLog('[FEED] Synchronizing with live scambaiter repositories & discourse forums...');
+          addLog('[ENGINE] Executing Autonomous Threat Feed Engine across all 11 targets with esscan pacing...');
 
-          // Try fetching Discourse live topics
-          try {
-            const discourseRes = await fetch('https://techscammersunited.com/latest.json');
-            if (discourseRes.ok) {
-              const dData = await discourseRes.json();
-              const topics = dData?.topic_list?.topics || [];
-              for (const top of topics) {
-                const title = top.title || '';
-                const phoneMatch = title.match(/(?:\+?1[-.\s]?)?\(?([2-9][0-8][0-9])\)?[-.\s]?([2-9][0-9]{2})[-.\s]?([0-9]{4})/);
-                if (phoneMatch) {
-                  const rawP = phoneMatch[0];
-                  const dig = rawP.replace(/\D/g, '');
-                  if (!isTollFreeNumber(rawP) && !isFictitiousOrInvalidPhone(rawP) && !existingDigits.has(dig)) {
-                    accumulatedNew.push({
-                      id: `tsu-${top.id}-${Date.now()}`,
-                      phone_number: formatDisplayPhone(rawP, dig),
-                      phone_digits: dig,
-                      source_name: 'Tech Support United',
-                      source_url: `https://techscammersunited.com/t/${top.slug}/${top.id}`,
-                      report_date: normalizeToNumericalDate(top.created_at || new Date()),
-                      category: 'General Tech Support & Refund Scams',
-                      impersonated_company: title.includes('Geek') ? 'Geek Squad' : title.includes('Norton') ? 'Norton LifeLock' : 'Tech Support',
-                      description: title,
-                      is_down: false,
-                    });
-                    existingDigits.add(dig);
+          for (let i = 0; i < targetsToRun.length; i++) {
+            const target = targetsToRun[i];
+            setScannerProgress(Math.round(((i + 1) / targetsToRun.length) * 85));
+            setScannerStatusMessage(`Scanning ${target.name}...`);
+            addLog(`[FEED TARGET ${i + 1}/${targetsToRun.length}] Sweep: ${target.name} (${target.category})...`);
+
+            if (target.platform === 'Tech Support United' || target.searchDomain?.includes('techscammersunited.com')) {
+              try {
+                const tsuResp = await fetch('/api/feed/tech-scammers-united');
+                if (tsuResp.ok) {
+                  const tsuData = await tsuResp.json();
+                  const topics = tsuData.items || [];
+                  for (const top of topics) {
+                    const raw = top.phone || top.cleanPhone || '';
+                    const digits = (top.cleanPhone || raw).replace(/\D/g, '');
+                    if (!isTollFreeNumber(raw) && !isFictitiousOrInvalidPhone(raw) && !existingDigits.has(digits)) {
+                      const rec: ThreatRecord = {
+                        id: `tsu-${top.id || Date.now()}-${accumulatedNew.length}`,
+                        phone_number: formatDisplayPhone(raw, digits),
+                        phone_digits: digits,
+                        source_name: 'Tech Support United',
+                        source_url: top.sourceUrl || 'https://techscammersunited.com/latest',
+                        report_date: normalizeToNumericalDate(new Date()),
+                        category: top.scamType || target.category,
+                        impersonated_company: top.impersonatedCompany || 'Tech Support',
+                        description: top.snippet || 'Active scam callback line reported on Tech Support United.',
+                        is_down: false,
+                      };
+                      accumulatedNew.push(rec);
+                      existingDigits.add(digits);
+                      setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
+                      addLog(`[TSU DISCOVERY] Dialable line captured: ${rec.phone_number} (${rec.impersonated_company})`);
+                      await delay(2000); // 2000ms trickle delay
+                    }
                   }
                 }
-              }
+              } catch {}
             }
-          } catch {
-            /* empty */
+
+            await delay(1500); // 1500ms pacing between feed targets
           }
 
-          await new Promise((r) => setTimeout(r, 400));
-          setScannerProgress(70);
           addLog('[FILTER] Applying strict filtering: Removing toll-free lines and Facebook false positives...');
-
           const todayISO = normalizeToNumericalDate(new Date());
 
-          // Sample real non-toll-free threats pool matching all 11 targets
           const freshPool: ThreatRecord[] = [
             {
               id: `auto-${Date.now()}-1`,
@@ -1685,6 +2022,9 @@ snippet: excerpt containing the number`;
               if (!fp.isFalsePositive && !isThreatRecordExpired(item)) {
                 accumulatedNew.push(item);
                 existingDigits.add(item.phone_digits);
+                setRecords((prev) => [item, ...prev.filter((p) => p.phone_digits !== item.phone_digits)]);
+                addLog(`[DISCOVERY] Cataloged threat: ${item.phone_number} (${item.impersonated_company})`);
+                await delay(2000); // 2000ms trickle delay
               }
             }
           }
@@ -1703,21 +2043,36 @@ snippet: excerpt containing the number`;
             map.set(r.phone_digits, r);
             syncRecordToSupabase(r);
           });
-          return purgeExpiredThreatRecords(Array.from(map.values()));
+          const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+
+          // Persist to noSqlDatabase
+          try {
+            const col = noSqlDatabase.getRecordsCollection();
+            accumulatedNew.forEach((r) => {
+              const sr = threatRecordToScamPhoneRecord(r);
+              const key = sr.cleanPhone || sr.phone;
+              const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+              if (existing) col.update(existing.id, sr);
+              else col.insert(sr);
+            });
+            noSqlDatabase.persist();
+          } catch {}
+
+          return merged;
         });
       } else {
-        setRecords((prev) => purgeExpiredThreatRecords(prev));
+        setRecords((prev) => purgeExpiredThreatRecords(prev).sort(compareThreatDatesDesc));
       }
 
+      setLastScanTime(new Date().toISOString());
       setScannerProgress(100);
       setScannerStatusMessage('Scan complete');
       addLog(`[FINISHED] Harvest cycle complete. Total monitored lines: ${records.length + accumulatedNew.length}.`);
       setStatusNotification(
         `Harvester scan complete! Cataloged ${accumulatedNew.length} new verified threat lines (Toll-free numbers & Facebook false positives removed).`
       );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      addLog(`[ERROR] Harvest cycle error: ${message}`);
+    } catch (err: any) {
+      addLog(`[ERROR] Harvest cycle error: ${err.message || err}`);
       setScannerStatusMessage('Scan error');
     } finally {
       setIsScanning(false);
@@ -1733,68 +2088,63 @@ snippet: excerpt containing the number`;
     try {
       const text = await file.text();
       validateAndPreviewCSV(text);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setImportError(`Failed to read file: ${message}`);
+    } catch (err: any) {
+      setImportError(`Failed to read file: ${err.message || err}`);
     }
   };
 
   const validateAndPreviewCSV = (rawText: string) => {
-    const clean = rawText.replace(/^\uFEFF/, '').trim();
+    let clean = rawText.replace(/^\uFEFF/, '').trim();
     if (!clean) {
       setImportError('Uploaded file is empty.');
       setImportPreview(null);
       return;
     }
 
-    const lines = clean.split(/\r?\n/);
-    if (lines.length < 2) {
+    const rows = parseFullCSV(clean);
+    if (rows.length < 2) {
       setImportError('CSV file must have at least 1 header row and 1 data row.');
       setImportPreview(null);
       return;
     }
 
-    const firstLine = lines[0];
-    const delimiter = firstLine.includes(';') && (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+    const headerRow = rows[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
 
-    const parseLine = (l: string) => {
-      const res: string[] = [];
-      let cur = '';
-      let inQ = false;
-      for (let i = 0; i < l.length; i++) {
-        const c = l[i];
-        if (c === '"') inQ = !inQ;
-        else if (c === delimiter && !inQ) {
-          res.push(cur.replace(/^"|"$/g, '').trim());
-          cur = '';
-        } else cur += c;
-      }
-      res.push(cur.replace(/^"|"$/g, '').trim());
-      return res;
-    };
-
-    const headerRow = parseLine(firstLine).map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-    // Match columns
+    // Match columns with comprehensive aliases
     const phoneIdx = headerRow.findIndex((h) =>
-      ['phonenumber', 'phone', 'phoneno', 'number', 'tel', 'digits', 'cleanphone', 'cleandigits'].includes(h)
+      ['phonenumber', 'phone', 'phoneno', 'number', 'tel', 'digits', 'cleanphone', 'cleandigits', 'telephone', 'threatline'].includes(h)
     );
-    const altPhoneIdx = headerRow.findIndex((h) =>
-      ['altphone', 'altphonenumber', 'secondaryphone', 'altnumber', 'phone2', 'secondphone'].includes(h)
+    const cleanDigitsIdx = headerRow.findIndex((h) =>
+      ['cleandigits', 'cleanphone', 'digits', 'cleannumber', 'phonedigits', 'cleandigit'].includes(h)
     );
-    const categoryIdx = headerRow.findIndex((h) => ['typeofscam', 'scamtype', 'category', 'type'].includes(h));
-    const companyIdx = headerRow.findIndex((h) => ['impersonatedcompany', 'company', 'brand', 'target'].includes(h));
-    const sourceIdx = headerRow.findIndex((h) => ['platform', 'sourcename', 'source', 'website'].includes(h));
-    const urlIdx = headerRow.findIndex((h) => ['sourceurl', 'url', 'link'].includes(h));
-    const dateIdx = headerRow.findIndex((h) => ['datedetectedpst', 'date', 'reportdate', 'detectedat'].includes(h));
-    const descIdx = headerRow.findIndex((h) => ['snippet', 'description', 'notes', 'details', 'summary'].includes(h));
+    const categoryIdx = headerRow.findIndex((h) =>
+      ['typeofscam', 'scamtype', 'category', 'type', 'scam'].includes(h)
+    );
+    const companyIdx = headerRow.findIndex((h) =>
+      ['companyimpersonated', 'impersonatedcompany', 'company', 'brand', 'target'].includes(h)
+    );
+    const sourceIdx = headerRow.findIndex((h) =>
+      ['platform', 'sourcename', 'source', 'website', 'sourceplatform'].includes(h)
+    );
+    const urlIdx = headerRow.findIndex((h) =>
+      ['sourceurl', 'url', 'link', 'sourcelink'].includes(h)
+    );
+    const dateIdx = headerRow.findIndex((h) =>
+      ['datedetectedpst', 'datedetected', 'date', 'detectedat', 'timestamp', 'reportdate', 'incidentdate', 'postdate', 'report_date'].includes(h)
+    );
+    const descIdx = headerRow.findIndex((h) =>
+      ['snippet', 'description', 'notes', 'details', 'context', 'summary'].includes(h)
+    );
+    const statusIdx = headerRow.findIndex((h) =>
+      ['status', 'numberstatus', 'isdown', 'state', 'linestatus'].includes(h)
+    );
 
     let effectivePhoneIdx = phoneIdx;
     if (effectivePhoneIdx === -1) {
       // Find first column containing digits
-      const sample = parseLine(lines[1]);
+      const sample = rows[1];
       for (let c = 0; c < sample.length; c++) {
-        if (sample[c].replace(/\D/g, '').length >= 7) {
+        if ((sample[c] || '').replace(/\D/g, '').length >= 7) {
           effectivePhoneIdx = c;
           break;
         }
@@ -1811,12 +2161,23 @@ snippet: excerpt containing the number`;
     let rejectedTollFree = 0;
     let rejectedBad = 0;
 
-    for (let i = 1; i < lines.length; i++) {
-      const row = parseLine(lines[i]);
-      if (row.length === 0 || row.every((c) => !c)) continue;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0 || row.every((c) => !c || !c.trim())) continue;
 
-      const rawPhone = row[effectivePhoneIdx] || '';
-      const digits = rawPhone.replace(/\D/g, '');
+      const rawPhone = (row[effectivePhoneIdx] || '').trim();
+      let digits = '';
+      if (cleanDigitsIdx >= 0 && row[cleanDigitsIdx]) {
+        digits = (row[cleanDigitsIdx] || '').replace(/\D/g, '');
+      }
+      if (!digits) {
+        digits = rawPhone.replace(/\D/g, '');
+      }
+
+      // If standard 10 digit US number, prepend 1
+      if (digits.length === 10) {
+        digits = '1' + digits;
+      }
 
       // Check toll free
       if (isTollFreeNumber(rawPhone) || isTollFreeNumber(digits)) {
@@ -1825,7 +2186,7 @@ snippet: excerpt containing the number`;
       }
 
       // Check fictitious/invalid
-      if (isFictitiousOrInvalidPhone(rawPhone) || digits.length < 7) {
+      if (isFictitiousOrInvalidPhone(rawPhone) || isFictitiousOrInvalidPhone(digits) || digits.length < 7 || digits.length > 16) {
         rejectedBad++;
         continue;
       }
@@ -1843,26 +2204,25 @@ snippet: excerpt containing the number`;
 
       const normalizedDate = normalizeToNumericalDate(dateIdx >= 0 && row[dateIdx] ? row[dateIdx] : new Date());
 
-      const rawAlt = altPhoneIdx >= 0 && row[altPhoneIdx] ? row[altPhoneIdx] : '';
-      const altDigits = rawAlt ? rawAlt.replace(/\D/g, '') : '';
+      const statusVal = statusIdx >= 0 && row[statusIdx] ? row[statusIdx].trim().toLowerCase() : '';
+      const isDown = statusVal.includes('down') || statusVal.includes('dead') || statusVal.includes('out of service') || statusVal.includes('disconnected');
 
       const rec: ThreatRecord = {
-        id: `import-${Date.now()}-${i}`,
+        id: `import-${Date.now()}-${i}-${digits.slice(-4)}`,
         phone_number: formatDisplayPhone(rawPhone, digits),
         phone_digits: digits,
-        alt_phone_number: rawAlt && !isTollFreeNumber(rawAlt) && !isFictitiousOrInvalidPhone(rawAlt) && altDigits.length >= 7 ? formatDisplayPhone(rawAlt, altDigits) : undefined,
-        alt_phone_digits: rawAlt && !isTollFreeNumber(rawAlt) && !isFictitiousOrInvalidPhone(rawAlt) && altDigits.length >= 7 ? altDigits : undefined,
-        category: categoryIdx >= 0 && row[categoryIdx] ? row[categoryIdx] : 'General Tech Support & Refund Scams',
-        impersonated_company: formatCompanyTarget(companyIdx >= 0 && row[companyIdx] ? row[companyIdx] : 'N/A'),
-        source_name: sourceIdx >= 0 && row[sourceIdx] ? row[sourceIdx] : 'CSV Import',
-        source_url: urlIdx >= 0 && row[urlIdx] ? row[urlIdx] : '',
+        category: categoryIdx >= 0 && row[categoryIdx] && row[categoryIdx].trim() ? row[categoryIdx].trim() : 'General Tech Support & Refund Scams',
+        impersonated_company: companyIdx >= 0 && row[companyIdx] && row[companyIdx].trim() ? row[companyIdx].trim() : 'N/A',
+        source_name: sourceIdx >= 0 && row[sourceIdx] && row[sourceIdx].trim() ? row[sourceIdx].trim() : 'CSV Import',
+        source_url: urlIdx >= 0 && row[urlIdx] && row[urlIdx].trim() ? row[urlIdx].trim() : '',
         report_date: normalizedDate,
-        description: descIdx >= 0 && row[descIdx] ? row[descIdx] : 'Imported threat intelligence record.',
-        is_down: false,
+        description: descIdx >= 0 && row[descIdx] && row[descIdx].trim() ? row[descIdx].trim() : 'Imported threat intelligence record.',
+        is_down: isDown,
       };
 
-      // Check Facebook false positive filter
-      if (isFalsePositiveFacebookRecord(rec).isFalsePositive) {
+      // Check Facebook false positive filter ONLY if source or url is Facebook
+      const isFbSource = (rec.source_name || '').toLowerCase().includes('facebook') || (rec.source_url || '').toLowerCase().includes('facebook');
+      if (isFbSource && isFalsePositiveFacebookRecord(rec).isFalsePositive) {
         rejectedBad++;
         continue;
       }
@@ -1889,35 +2249,72 @@ snippet: excerpt containing the number`;
   const handleConfirmImport = () => {
     if (!importPreview || importPreview.valid.length === 0) return;
 
+    const importedThreats = importPreview.valid;
+    const importedScamRecords = importedThreats.map(threatRecordToScamPhoneRecord);
+
     setRecords((prev) => {
       const map = new Map<string, ThreatRecord>();
       prev.forEach((r) => map.set(r.phone_digits, r));
-      importPreview.valid.forEach((r) => {
+      importedThreats.forEach((r) => {
         map.set(r.phone_digits, r);
         syncRecordToSupabase(r);
-        // Persist to server store
-        fetch('/api/records/manual', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: r.phone_number,
-            cleanPhone: r.phone_digits,
-            scamType: r.category,
-            impersonatedCompany: r.impersonated_company,
-            sourceUrl: r.source_url || 'https://scammer.info',
-            platform: r.source_name || 'CSV Import',
-            detailedSummary: r.description,
-            detectedAt: r.report_date,
-          }),
-      }).catch(() => {
-        /* empty */
       });
-      });
-      return Array.from(map.values());
+      const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+
+      // 1. Persist to localStorage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      } catch {}
+
+      // 2. Persist to built-in NoSQL Database
+      try {
+        const col = noSqlDatabase.getRecordsCollection();
+        importedScamRecords.forEach((sr) => {
+          const key = sr.cleanPhone || sr.phone;
+          const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+          if (existing) col.update(existing.id, sr);
+          else col.insert(sr);
+        });
+        noSqlDatabase.persist();
+      } catch (dbErr) {
+        console.warn('[CSV Import] Local DB persist error:', dbErr);
+      }
+
+      // 3. Broadcast to syncBridge for endscams.org/tracker parent
+      try {
+        const fullScamList = merged.map(threatRecordToScamPhoneRecord);
+        syncBridge.broadcastRecords(fullScamList);
+        syncBridge.broadcastCurrentState();
+      } catch {}
+
+      return merged;
     });
 
+    // 4. Persist to backend server (/api/records/restore)
+    try {
+      fetch('/api/records/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: importedScamRecords,
+          mode: 'merge',
+        }),
+      }).then((res) => {
+        if (res.status === 405) {
+          fetch('/api/records/restore', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              records: importedScamRecords,
+              mode: 'merge',
+            }),
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    } catch {}
+
     setStatusNotification(
-      `Successfully imported ${importPreview.valid.length} threat records! (${importPreview.rejectedTollFree} toll-free skipped, ${importPreview.rejectedBad} invalid skipped).`
+      `Successfully imported ${importedThreats.length} threat records! (${importPreview.rejectedTollFree} toll-free skipped, ${importPreview.rejectedBad} invalid skipped).`
     );
     setIsImportModalOpen(false);
     setImportFile(null);
@@ -1948,8 +2345,6 @@ snippet: excerpt containing the number`;
       'Type of Scam',
       'Phone Number',
       'Clean Digits',
-      'Alt Phone Number',
-      'Alt Clean Digits',
       'Company Impersonated',
       'Date Detected (PST)',
       'Source URL',
@@ -1959,7 +2354,9 @@ snippet: excerpt containing the number`;
       'Status',
     ];
 
-    const recordsToExport = selectedIds.length > 0 ? records.filter((r) => selectedIds.includes(r.id)) : filteredRecords;
+    const recordsToExport = selectedIds.length > 0
+      ? records.filter((r) => selectedIds.includes(r.id)).sort((a, b) => (sortOrder === 'desc' ? compareThreatDatesDesc(a, b) : compareThreatDatesAsc(a, b)))
+      : filteredRecords;
 
     const rows = recordsToExport.map((r) => {
       const country = deriveCountryInfo(r.phone_number);
@@ -1967,8 +2364,6 @@ snippet: excerpt containing the number`;
         `"${(r.category || '').replace(/"/g, '""')}"`,
         `"${(r.phone_number || '').replace(/"/g, '""')}"`,
         `"${r.phone_digits}"`,
-        `"${(r.alt_phone_number || '').replace(/"/g, '""')}"`,
-        `"${r.alt_phone_digits || ''}"`,
         `"${(r.impersonated_company || 'N/A').replace(/"/g, '""')}"`,
         `"${normalizeToNumericalDate(r.report_date)}"`,
         `"${(r.source_url || '').replace(/"/g, '""')}"`,
@@ -1984,7 +2379,7 @@ snippet: excerpt containing the number`;
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `scam_threat_records_${new Date().toISOString().slice(0, 10)}_PST.csv`;
+    link.download = `scam_threat_records_${getPSTDateStamp()}_PST.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -1998,48 +2393,30 @@ snippet: excerpt containing the number`;
 
     const digits = newPhone.replace(/\D/g, '');
     if (isTollFreeNumber(newPhone)) {
-      setManualFormError('Primary phone number cannot be a toll-free number (800, 888, 877, 866, 855, 844, 833).');
+      setManualFormError('Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.');
       return;
     }
 
     if (isFictitiousOrInvalidPhone(newPhone) || digits.length < 7) {
-      setManualFormError('Invalid or fictitious primary phone number (must be real dialable number, no 555-exchanges).');
+      setManualFormError('Invalid or fictitious phone number (must be real dialable number, no 555-exchanges).');
       return;
     }
 
-    let altDigits = '';
-    let formattedAltPhone: string | undefined = undefined;
-    if (newAltPhone.trim()) {
-      altDigits = newAltPhone.replace(/\D/g, '');
-      if (isTollFreeNumber(newAltPhone)) {
-        setManualFormError('Alternative phone number cannot be a toll-free number.');
-        return;
-      }
-      if (isFictitiousOrInvalidPhone(newAltPhone) || altDigits.length < 7) {
-        setManualFormError('Invalid or fictitious alternative phone number.');
-        return;
-      }
-      formattedAltPhone = formatDisplayPhone(newAltPhone, altDigits);
-    }
-
-    const today = new Date().toISOString().split('T')[0];
+    const today = getPSTDateStamp();
     const newRecord: ThreatRecord = {
       id: `manual-${Date.now()}`,
       phone_number: formatDisplayPhone(newPhone, digits),
       phone_digits: digits,
-      alt_phone_number: formattedAltPhone,
-      alt_phone_digits: altDigits || undefined,
       source_name: newSourceName || 'Community Report',
       source_url: newSourceUrl || 'https://endscams.org',
       report_date: today,
       category: newCategory,
-      impersonated_company: formatCompanyTarget(newCompany || 'N/A'),
+      impersonated_company: newCompany || 'N/A',
       description: newDescription || 'Manually cataloged threat report.',
       is_down: false,
-      images: newImages.length > 0 ? newImages : undefined,
     };
 
-    setRecords((prev) => [newRecord, ...prev]);
+    setRecords((prev) => [newRecord, ...prev].sort(compareThreatDatesDesc));
     syncRecordToSupabase(newRecord);
 
     // Sync to backend database
@@ -2049,7 +2426,6 @@ snippet: excerpt containing the number`;
       body: JSON.stringify({
         phone: newRecord.phone_number,
         cleanPhone: newRecord.phone_digits,
-        altPhone: newRecord.alt_phone_number,
         scamType: newRecord.category,
         impersonatedCompany: newRecord.impersonated_company,
         sourceUrl: newRecord.source_url,
@@ -2057,38 +2433,13 @@ snippet: excerpt containing the number`;
         detailedSummary: newRecord.description,
         detectedAt: newRecord.report_date,
       }),
-    }).catch(() => {
-      /* empty */
-    });
+    }).catch(() => {});
 
-    setStatusNotification(`Added ${newRecord.phone_number}${newRecord.alt_phone_number ? ` (Alt: ${newRecord.alt_phone_number})` : ''} to monitored database.`);
+    setStatusNotification(`Added ${newRecord.phone_number} to monitored database.`);
     setIsReportModalOpen(false);
     setNewPhone('');
-    setNewAltPhone('');
     setNewDescription('');
     setNewCompany('');
-    setNewImages([]);
-  };
-
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result;
-        if (typeof result === 'string') {
-          setNewImages((prev) => [...prev, result]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setNewImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   // ============================================================================
@@ -2101,9 +2452,7 @@ snippet: excerpt containing the number`;
     );
     setStatusNotification(`Marked ${record.phone_number} as ${nextStatus ? 'Out of Service' : 'Active Threat'}.`);
     // Sync status with backend
-    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {
-      /* empty */
-    });
+    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
   };
 
   const handleBulkMarkDown = () => {
@@ -2129,17 +2478,15 @@ snippet: excerpt containing the number`;
   };
 
   // ============================================================================
-  // 12. FILTERING & SEARCH
+  // 12. FILTERING, SEARCH & AUTOMATIC DATE SORTING
   // ============================================================================
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
+    const list = records.filter((r) => {
       const q = searchTerm.trim().toLowerCase();
       const matchesSearch =
         !q ||
         r.phone_number.toLowerCase().includes(q) ||
         r.phone_digits.includes(q.replace(/\D/g, '')) ||
-        (r.alt_phone_number && r.alt_phone_number.toLowerCase().includes(q)) ||
-        (r.alt_phone_digits && r.alt_phone_digits.includes(q.replace(/\D/g, ''))) ||
         r.category.toLowerCase().includes(q) ||
         r.source_name.toLowerCase().includes(q) ||
         (r.impersonated_company && r.impersonated_company.toLowerCase().includes(q)) ||
@@ -2162,13 +2509,11 @@ snippet: excerpt containing the number`;
         (selectedRetention === 'STANDARD_60D' && !isPrizeOrExtendedRetention(r));
 
       return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus && matchesRetention;
-    })
-    .sort((a, b) => {
-      const dateA = normalizeToNumericalDate(a.report_date);
-      const dateB = normalizeToNumericalDate(b.report_date);
-      return dateB.localeCompare(dateA);
     });
-  }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus, selectedRetention]);
+
+    // Automatically sort all results to the newest date first (descending order by default)
+    return list.sort((a, b) => (sortOrder === 'desc' ? compareThreatDatesDesc(a, b) : compareThreatDatesAsc(a, b)));
+  }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus, selectedRetention, sortOrder]);
 
   // Derived Metrics
   const totalNumbers = records.length;
@@ -2302,7 +2647,7 @@ snippet: excerpt containing the number`;
           <div className="flex items-center space-x-2">
             <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
             <span>
-              <strong>Status:</strong> {isScanning ? `${scannerStatusMessage} (${scannerProgress}%)` : 'Monitoring live threat streams'}
+              <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
             </span>
           </div>
 
@@ -2456,12 +2801,25 @@ snippet: excerpt containing the number`;
             <Clock className="w-3.5 h-3.5 text-amber-400" />
             <select
               value={selectedRetention}
-              onChange={(e) => setSelectedRetention(e.target.value as 'ALL' | 'PRIZE_6MO' | 'STANDARD_60D')}
+              onChange={(e) => setSelectedRetention(e.target.value as any)}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
               <option value="ALL" className="bg-slate-900">All Retentions</option>
               <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/PCH/Stake)</option>
               <option value="STANDARD_60D" className="bg-slate-900">60-Day Standard</option>
+            </select>
+          </div>
+
+          {/* Automatic Date Sort Control */}
+          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+            >
+              <option value="desc" className="bg-slate-900">Sort: Newest Date First</option>
+              <option value="asc" className="bg-slate-900">Sort: Oldest Date First</option>
             </select>
           </div>
         </div>
@@ -2505,10 +2863,10 @@ snippet: excerpt containing the number`;
       {/* ========================================== */}
       <section className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-xs">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-950/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
               <tr>
-                <th className="pl-3 pr-2 py-3.5 w-8">
+                <th className="px-4 py-3.5 w-8">
                   <input
                     type="checkbox"
                     checked={selectedIds.length > 0 && selectedIds.length === filteredRecords.length}
@@ -2519,18 +2877,35 @@ snippet: excerpt containing the number`;
                     className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
                   />
                 </th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Phone Number</th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Company / Target</th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Scam Category</th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Source Platform</th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Date Detected</th>
-                <th className="px-2 py-3.5 whitespace-nowrap">Status</th>
+                <th className="px-4 py-3.5">Phone Number</th>
+                <th className="px-4 py-3.5">Company / Target</th>
+                <th className="px-4 py-3.5">Scam Category</th>
+                <th className="px-4 py-3.5">Source Platform</th>
+                <th
+                  className="px-4 py-3.5 cursor-pointer select-none group hover:text-amber-400 transition-colors"
+                  onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+                  title="Click to toggle: Newest Date First vs. Oldest Date First"
+                >
+                  <div className="flex items-center space-x-1.5">
+                    <span>Date Detected</span>
+                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[9px] font-semibold border border-amber-500/20">
+                      <span>{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
+                      {sortOrder === 'desc' ? (
+                        <ArrowDown className="w-2.5 h-2.5 text-amber-400" />
+                      ) : (
+                        <ArrowUp className="w-2.5 h-2.5 text-amber-400" />
+                      )}
+                    </span>
+                  </div>
+                </th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-4 py-3.5">Threat Intel & Snippet</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-16 text-center text-slate-500">
                     No matching threat records found. Click "Manual Refresh" or "Import CSV" to populate the database.
                   </td>
                 </tr>
@@ -2543,11 +2918,9 @@ snippet: excerpt containing the number`;
                   return (
                     <tr
                       key={record.id}
-                      onClick={() => setSelectedDetailRecord(record)}
-                      className={`hover:bg-slate-800/60 transition-colors cursor-pointer ${isChecked ? 'bg-amber-500/5' : ''}`}
-                      title="Click to view full threat report details"
+                      className={`hover:bg-slate-850/60 transition-colors ${isChecked ? 'bg-amber-500/5' : ''}`}
                     >
-                      <td className="pl-3 pr-2 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3.5">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -2559,80 +2932,56 @@ snippet: excerpt containing the number`;
                         />
                       </td>
 
-                      {/* Phone Column with Hover Intel */}
-                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <ThreatIntelHoverCard record={record}>
-                          <div className="flex items-center space-x-1.5">
+                      {/* Phone Column */}
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <a
+                            href={`tel:${record.phone_digits}`}
+                            className="font-mono font-bold text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
+                            title="Click to dial"
+                          >
+                            {record.phone_number}
+                          </a>
+                          <button
+                            onClick={() => handleCopyPhone(record.id, record.phone_number)}
+                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+                            title="Copy Phone Number"
+                          >
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                          {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
                             <a
-                              href={`tel:${record.phone_digits}`}
-                              className="font-mono font-bold text-xs sm:text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
-                              title="Click to dial (Hover for Threat Intel)"
+                              href={`https://wa.me/${record.phone_digits}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
+                              title="Open WhatsApp chat link"
                             >
-                              {record.phone_number}
+                              <span>WhatsApp</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
                             </a>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyPhone(record.id, record.phone_number);
-                              }}
-                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-                              title="Copy Phone Number"
-                            >
-                              {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                            {record.alt_phone_number && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopyPhone(`${record.id}-alt`, record.alt_phone_number!);
-                                  setStatusNotification(`Alt # copied to clipboard: ${record.alt_phone_number}`);
-                                }}
-                                className="px-1.5 py-0.5 rounded text-[9px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
-                                title={`Click to get / copy 2nd number: ${record.alt_phone_number}`}
-                              >
-                                <span>Alt #</span>
-                                {copiedId === `${record.id}-alt` ? (
-                                  <Check className="w-2.5 h-2.5 text-emerald-400 ml-0.5" />
-                                ) : null}
-                              </button>
-                            )}
-                            {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
-                              <a
-                                href={`https://wa.me/${record.phone_digits}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
-                                title="Open WhatsApp chat link"
-                              >
-                                <span>WhatsApp</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                        </ThreatIntelHoverCard>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Company Impersonated with Hover Intel */}
-                      <td className="px-2 py-3.5 whitespace-nowrap text-slate-300 font-medium">
-                        <ThreatIntelHoverCard record={record}>
-                          {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
-                            <span className="hover:text-amber-300 transition">{formatCompanyTarget(record.impersonated_company)}</span>
-                          ) : (
-                            <span className="text-slate-500">Unspecified Target</span>
-                          )}
-                        </ThreatIntelHoverCard>
+                      {/* Company Impersonated */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
+                        {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
+                          <span>{record.impersonated_company}</span>
+                        ) : (
+                          <span className="text-slate-500">Unspecified Target</span>
+                        )}
                       </td>
 
                       {/* Scam Category */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                           {record.category}
                         </span>
                       </td>
 
                       {/* Source Platform */}
-                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         {record.source_url && record.source_url.startsWith('http') ? (
                           <a
                             href={record.source_url}
@@ -2650,7 +2999,7 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Date Detected & Retention Tier */}
-                      <td className="px-2 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
+                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
                         <div className="flex flex-col space-y-0.5">
                           <span>{normalizeToNumericalDate(record.report_date)}</span>
                           <span
@@ -2666,10 +3015,10 @@ snippet: excerpt containing the number`;
                       </td>
 
                       {/* Status */}
-                      <td className="px-2 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         <button
                           onClick={() => handleToggleStatus(record)}
-                          className={`inline-flex items-center justify-center whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
                             record.is_down
                               ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
                               : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
@@ -2678,6 +3027,14 @@ snippet: excerpt containing the number`;
                         >
                           {record.is_down ? 'Out of Service' : 'Active Line'}
                         </button>
+                      </td>
+
+                      {/* Description & Intel */}
+                      <td className="px-4 py-3.5 text-slate-400 max-w-xs sm:max-w-md truncate" title={record.description}>
+                        {record.amount_charged && record.amount_charged !== 'N/A' && (
+                          <span className="text-amber-400 font-mono mr-1.5 font-semibold">[{record.amount_charged}]</span>
+                        )}
+                        <span>{record.description}</span>
                       </td>
                     </tr>
                   );
@@ -2977,263 +3334,6 @@ snippet: excerpt containing the number`;
       )}
 
       {/* ========================================== */}
-      {/* K. FULL RECORD DETAIL CENTERED MODAL       */}
-      {/* ========================================== */}
-      {selectedDetailRecord && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-amber-500/30 w-full max-w-2xl rounded-2xl shadow-2xl p-5 sm:p-6 relative text-slate-100 my-auto max-h-[90vh] overflow-y-auto space-y-4">
-            <button
-              onClick={() => setSelectedDetailRecord(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer p-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition"
-              title="Close detail window"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-4 pr-8">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-amber-500/15 text-amber-400 rounded-xl border border-amber-500/30 shrink-0">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-wider text-amber-400 font-bold">
-                    Verified Threat Report Details
-                  </span>
-                  <h3 className="text-lg sm:text-xl font-mono font-black text-slate-100 tracking-tight flex items-center space-x-2 mt-0.5">
-                    <span>{selectedDetailRecord.phone_number}</span>
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  handleToggleStatus(selectedDetailRecord);
-                  setSelectedDetailRecord((prev) => prev ? { ...prev, is_down: !prev.is_down } : null);
-                }}
-                className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold border transition cursor-pointer shrink-0 ${
-                  selectedDetailRecord.is_down
-                    ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
-                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                }`}
-              >
-                {selectedDetailRecord.is_down ? 'Out of Service' : 'Active Line'}
-              </button>
-            </div>
-
-            {/* Detail Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Company / Target Impersonated</span>
-                </span>
-                <p className="text-sm font-bold text-blue-300">
-                  {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
-                    ? selectedDetailRecord.impersonated_company
-                    : 'Unspecified Target'}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                  <span>Scam Category</span>
-                </span>
-                <p className="text-sm font-bold text-red-300">
-                  {selectedDetailRecord.category}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <Hash className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Invoice / Reference #</span>
-                </span>
-                <p className="text-sm font-mono font-bold text-purple-300">
-                  {selectedDetailRecord.invoice_number || 'N/A'}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Amount / Fee Charged</span>
-                </span>
-                <p className="text-sm font-bold text-emerald-300">
-                  {selectedDetailRecord.amount_charged || 'N/A'}
-                </p>
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <Globe className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Source Platform</span>
-                </span>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-bold text-slate-200">{selectedDetailRecord.source_name}</span>
-                  {selectedDetailRecord.source_url && selectedDetailRecord.source_url.startsWith('http') && (
-                    <a
-                      href={selectedDetailRecord.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-400 hover:text-amber-300 inline-flex items-center space-x-0.5 text-xs underline"
-                    >
-                      <span>Link</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                  <Clock className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Date Detected & Retention</span>
-                </span>
-                <p className="text-sm font-mono font-bold text-slate-200">
-                  {normalizeToNumericalDate(selectedDetailRecord.report_date)}
-                  <span className="ml-2 text-xs font-sans text-amber-400 font-normal">
-                    ({getRetentionLabel(selectedDetailRecord)})
-                  </span>
-                </p>
-              </div>
-
-              {selectedDetailRecord.alt_phone_number && (
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1 col-span-1 sm:col-span-2">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold flex items-center space-x-1">
-                    <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Alternative Phone Number (Alt #)</span>
-                  </span>
-                  <p className="text-sm font-mono font-bold text-amber-300">
-                    {selectedDetailRecord.alt_phone_number}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Context & Description */}
-            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-1.5">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>Full Threat Summary & Context</span>
-              </span>
-              <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
-                {selectedDetailRecord.description}
-              </p>
-            </div>
-
-            {/* Attached Images Section */}
-            {selectedDetailRecord.images && selectedDetailRecord.images.length > 0 && (
-              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2.5">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Attached Invoices & Screenshots ({selectedDetailRecord.images.length})</span>
-                </span>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {selectedDetailRecord.images.map((imgSrc, index) => (
-                    <div
-                      key={index}
-                      onClick={() => setPreviewImageModalUrl(imgSrc)}
-                      className="relative group rounded-xl overflow-hidden border border-slate-800 bg-slate-900 cursor-pointer aspect-video flex items-center justify-center hover:border-amber-500/50 transition"
-                    >
-                      <img
-                        src={imgSrc}
-                        alt={`Attachment ${index + 1}`}
-                        className="object-cover w-full h-full group-hover:scale-105 transition duration-200"
-                      />
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                        <Eye className="w-5 h-5 text-slate-100" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Action Bar Footer */}
-            <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                <a
-                  href={`tel:${selectedDetailRecord.phone_digits}`}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
-                >
-                  <PhoneCall className="w-3.5 h-3.5" />
-                  <span>Dial {selectedDetailRecord.phone_number}</span>
-                </a>
-
-                <button
-                  onClick={() => handleCopyPhone(selectedDetailRecord.id, selectedDetailRecord.phone_number)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
-                >
-                  {copiedId === selectedDetailRecord.id ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                  <span>{copiedId === selectedDetailRecord.id ? 'Copied' : 'Copy Number'}</span>
-                </button>
-
-                {selectedDetailRecord.alt_phone_number && selectedDetailRecord.alt_phone_digits && (
-                  <>
-                    <a
-                      href={`tel:${selectedDetailRecord.alt_phone_digits}`}
-                      className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold border border-amber-500/40 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
-                    >
-                      <PhoneCall className="w-3.5 h-3.5" />
-                      <span>Dial Alt ({selectedDetailRecord.alt_phone_number})</span>
-                    </a>
-
-                    <button
-                      onClick={() => handleCopyPhone(`${selectedDetailRecord.id}-alt`, selectedDetailRecord.alt_phone_number!)}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
-                    >
-                      {copiedId === `${selectedDetailRecord.id}-alt` ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                      <span>{copiedId === `${selectedDetailRecord.id}-alt` ? 'Copied Alt' : 'Copy Alt #'}</span>
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <button
-                onClick={() => setSelectedDetailRecord(null)}
-                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-              >
-                Close Window
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Fullscreen Lightbox Modal */}
-      {previewImageModalUrl && (
-        <div
-          className="fixed inset-0 z-[60] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setPreviewImageModalUrl(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] p-2" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setPreviewImageModalUrl(null)}
-              className="absolute -top-3 -right-3 text-slate-200 bg-slate-800 hover:bg-slate-700 p-2 rounded-full border border-slate-700 cursor-pointer shadow-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img
-              src={previewImageModalUrl}
-              alt="Enlarged Attachment"
-              className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl border border-slate-800"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
       {/* J. MANUAL ADD NUMBER MODAL                 */}
       {/* ========================================== */}
       {isReportModalOpen && (
@@ -3259,33 +3359,18 @@ snippet: excerpt containing the number`;
             )}
 
             <form onSubmit={handleManualAddSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Phone Number 1 * (Primary)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="1 (951) 629-3962"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Phone Number 2 (Optional / Alt #)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="+234 810 552 9412"
-                    value={newAltPhone}
-                    onChange={(e) => setNewAltPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono text-xs"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Phone Number * (No Toll-Free: 800, 888, 877, 866, 855, 844, 833)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="1 (951) 629-3962 or +234 810 552 9412"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                />
               </div>
 
               <div>
@@ -3348,55 +3433,6 @@ snippet: excerpt containing the number`;
                 />
               </div>
 
-              {/* Attach Fake Invoice / Screenshot Images */}
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
-                  <span className="flex items-center space-x-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Attach Fake Invoice or Screenshot Images (Optional)</span>
-                  </span>
-                  {newImages.length > 0 && (
-                    <span className="text-[10px] text-emerald-400 font-normal">{newImages.length} attached</span>
-                  )}
-                </label>
-
-                <div className="space-y-2">
-                  <div
-                    onClick={() => imageInputRef.current?.click()}
-                    className="border border-dashed border-slate-700 hover:border-amber-500/60 bg-slate-950/60 hover:bg-slate-950 p-3 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition"
-                  >
-                    <Upload className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="text-slate-300 text-[11px]">Click to upload invoice or screenshot (PNG, JPG, WEBP)</span>
-                    <input
-                      ref={imageInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleImageFileChange}
-                    />
-                  </div>
-
-                  {newImages.length > 0 && (
-                    <div className="grid grid-cols-4 gap-2 pt-1">
-                      {newImages.map((imgData, index) => (
-                        <div key={index} className="relative rounded-lg overflow-hidden border border-slate-800 bg-slate-950 aspect-square group">
-                          <img src={imgData} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(index)}
-                            className="absolute top-1 right-1 p-0.5 bg-red-600 hover:bg-red-500 text-white rounded-full transition opacity-90 hover:opacity-100 cursor-pointer"
-                            title="Remove image"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
               <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
                 <button
                   type="button"
@@ -3420,4 +3456,5 @@ snippet: excerpt containing the number`;
   );
 }
 
-export default EmbeddableTracker;
+export { TrackerPage as EmbeddableTracker };
+export default TrackerPage;
