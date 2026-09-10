@@ -324,10 +324,12 @@ export default function EducationPage() {
 
       <div className="max-w-5xl mx-auto px-4 pt-8">
         <div className="text-center mb-14">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-500/10 mb-6">
-            <BookOpen className="w-8 h-8 text-brand-500" />
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <div className="flex-shrink-0 inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-brand-500/10">
+              <BookOpen className="w-7 h-7 sm:w-8 sm:h-8 text-brand-500" />
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-white text-left">Scam Education Center</h1>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-4">Scam Education Center</h1>
           <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
             Knowledge is your best defense. Learn to recognize the most common scam tactics and protect yourself and your loved ones.
           </p>
