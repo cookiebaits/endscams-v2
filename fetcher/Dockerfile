@@ -11,4 +11,5 @@ EXPOSE 8000
 
 # --allow-net covers Supabase, Google CSE, BBB, Google Sheets
 # --allow-env for reading Dokploy env vars
-CMD ["deno", "run", "--allow-net", "--allow-env", "main.ts"]
+# --allow-read and --allow-write for persistent SQLite database file
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-write", "main.ts"]
