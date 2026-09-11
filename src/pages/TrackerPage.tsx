@@ -2598,6 +2598,9 @@ export function TrackerPage() {
 
     if (!rawInput && !cleanedInput) return false;
 
+
+    if (!rawInput && !cleanedInput) return false;
+
     const envPassRaw = (
       import.meta.env.VITE_TRACKER_PASS ||
       import.meta.env.VITE_TRACKER ||
@@ -2628,6 +2631,18 @@ export function TrackerPage() {
         if (data.success || data.verified) return true;
       }
     } catch {}
+
+    if (!cleanedEnv && (cleanedInput === 'admin' || rawInput === 'admin')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleVerifyPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPasswordError(null);
+
 
     if (!cleanedEnv && (cleanedInput === 'admin' || rawInput === 'admin')) {
       return true;
