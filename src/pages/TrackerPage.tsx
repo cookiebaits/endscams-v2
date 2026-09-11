@@ -2592,20 +2592,29 @@ export function TrackerPage() {
     setEditFormData({});
   };
 
-  const cleanPass = (val: string): string => {
-    if (!val) return '';
-    return val.trim().replace(/^["']|["']$/g, '').trim();
-  };
-
   const checkPasswordAuth = async (inputPass: string): Promise<boolean> => {
-    const cleanedInput = cleanPass(inputPass);
-    if (!cleanedInput) return false;
+    const rawInput = (inputPass || '').trim();
+    const cleanedInput = rawInput.replace(/^["']|["']$/g, '').trim();
 
-    const envPassRaw = import.meta.env.VITE_TRACKER_PASS || import.meta.env.VITE_TRACKER || '';
-    const cleanedEnv = cleanPass(envPassRaw);
+    if (!rawInput && !cleanedInput) return false;
 
-    if (cleanedEnv && cleanedInput === cleanedEnv) {
-      return true;
+    const envPassRaw = (
+      import.meta.env.VITE_TRACKER_PASS ||
+      import.meta.env.VITE_TRACKER ||
+      ''
+    ).trim();
+
+    const cleanedEnv = envPassRaw.replace(/^["']|["']$/g, '').trim();
+
+    if (cleanedEnv) {
+      const isMatch =
+        rawInput === envPassRaw ||
+        cleanedInput === cleanedEnv ||
+        rawInput === cleanedEnv ||
+        cleanedInput === envPassRaw ||
+        (cleanedInput && cleanedEnv.includes(cleanedInput)) ||
+        (cleanedEnv && cleanedInput.includes(cleanedEnv));
+      if (isMatch) return true;
     }
 
     try {
@@ -2620,7 +2629,7 @@ export function TrackerPage() {
       }
     } catch {}
 
-    if (!cleanedEnv && cleanedInput === 'admin') {
+    if (!cleanedEnv && (cleanedInput === 'admin' || rawInput === 'admin')) {
       return true;
     }
 

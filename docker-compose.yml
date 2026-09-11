@@ -6,8 +6,10 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://rnrqvdwtbehilaoyzfgf.supabase.co}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucnF2ZHd0YmVoaWxhb3l6ZmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0OTk3MDcsImV4cCI6MjA4OTA3NTcwN30.dummy_key_do_not_use_in_prod}
+        VITE_DB: ${DB:-${VITE_DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
+        VITE_DB_KEY: ${DB_Key:-${DB_KEY:-${VITE_DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-${DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${DB_Key:-${DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
         VITE_FETCHER_URL: ${VITE_FETCHER_URL:-https://fetcher.endscams.org}
         VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
         TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
@@ -41,8 +43,10 @@ services:
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       GOOGLE_CX: ${GOOGLE_CX}
-      SUPABASE_URL: ${SUPABASE_URL}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      DB: ${DB:-${SUPABASE_URL:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
+      DB_Key: ${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+      SUPABASE_URL: ${SUPABASE_URL:-${DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${DB_Key:-${DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://endscams.org}
       PORT: "8000"
       ABSTRACT_PHONE_API_KEY: ${ABSTRACT_PHONE_API_KEY}
