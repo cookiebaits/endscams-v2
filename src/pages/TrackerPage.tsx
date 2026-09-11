@@ -17,24 +17,20 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
-  Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
-  Trash2,
-  Share2,
-  Award,
   ArrowDown,
   ArrowUp,
+  Edit3,
+  Lock,
+  Unlock,
+  Save,
 } from 'lucide-react';
 import { getPSTDateStamp } from '../tracker/src/utils/dateUtils';
 import { syncBridge } from '../tracker/src/utils/syncBridge';
@@ -85,9 +81,9 @@ export function parseFullCSV(csvText: string): string[][] {
 
 export const noSqlDatabase = {
   getRecordsCollection: () => ({
-    findOne: () => null,
-    update: () => {},
-    insert: () => {},
+    findOne: (_predicate?: (e: any) => boolean) => null as any,
+    update: (_id: any, _data: any) => {},
+    insert: (_data: any) => {},
   }),
   persist: () => {},
 };
@@ -1299,7 +1295,7 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
                 prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
@@ -1328,9 +1324,17 @@ export function TrackerPage() {
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [scheduleInfo, setScheduleInfo] = useState<{ label: string; countdown: string }>(getNextScheduledPSTInfo());
 
+  // Detail Modal & Password Editing States
+  const [viewingRecord, setViewingRecord] = useState<ThreatRecord | null>(null);
+  const [isEditingRecord, setIsEditingRecord] = useState(false);
+  const [trackerPassword, setTrackerPassword] = useState('');
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<ThreatRecord>>({});
+
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [_scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -2496,6 +2500,85 @@ export function TrackerPage() {
   };
 
   // ============================================================================
+  // 10B. RECORD DETAIL & PROTECTED EDITING HANDLERS
+  // ============================================================================
+  const handleOpenRecordDetail = (record: ThreatRecord) => {
+    setViewingRecord(record);
+    setIsEditingRecord(false);
+    setIsPasswordVerified(false);
+    setTrackerPassword('');
+    setPasswordError(null);
+    setEditFormData({ ...record });
+  };
+
+  const handleCloseRecordDetail = () => {
+    setViewingRecord(null);
+    setIsEditingRecord(false);
+    setIsPasswordVerified(false);
+    setTrackerPassword('');
+    setPasswordError(null);
+    setEditFormData({});
+  };
+
+  const handleVerifyPassword = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setPasswordError(null);
+
+    const expectedPass =
+      import.meta.env.VITE_TRACKER_PASS ||
+      import.meta.env.VITE_TRACKER ||
+      'admin';
+
+    if (trackerPassword.trim() === expectedPass) {
+      setIsPasswordVerified(true);
+      setIsEditingRecord(true);
+      setPasswordError(null);
+    } else {
+      setPasswordError('Invalid password. Access denied.');
+    }
+  };
+
+  const handleSaveEditedRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingRecord) return;
+
+    const rawPhone = editFormData.phone_number || viewingRecord.phone_number;
+    const digits = rawPhone.replace(/\D/g, '');
+
+    if (isTollFreeNumber(rawPhone) || isTollFreeNumber(digits)) {
+      setPasswordError('Toll-free numbers are strictly prohibited.');
+      return;
+    }
+
+    if (isFictitiousOrInvalidPhone(rawPhone) || isFictitiousOrInvalidPhone(digits) || digits.length < 7) {
+      setPasswordError('Invalid or fictitious phone number.');
+      return;
+    }
+
+    const updatedRecord: ThreatRecord = {
+      ...viewingRecord,
+      ...editFormData,
+      phone_number: formatDisplayPhone(rawPhone, digits),
+      phone_digits: digits,
+    };
+
+    setRecords((prev) =>
+      prev.map((r) => (r.id === updatedRecord.id ? updatedRecord : r))
+    );
+
+    syncRecordToSupabase(updatedRecord);
+
+    fetch(`/api/records/${updatedRecord.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedRecord),
+    }).catch(() => {});
+
+    setStatusNotification(`Successfully updated threat record for ${updatedRecord.phone_number}.`);
+    handleCloseRecordDetail();
+  };
+
+  // ============================================================================
   // 11. BULK ACTIONS & STATUS TOGGLES
   // ============================================================================
   const handleToggleStatus = (record: ThreatRecord) => {
@@ -2971,13 +3054,15 @@ export function TrackerPage() {
                   return (
                     <tr
                       key={record.id}
-                      className={`hover:bg-slate-850/60 transition-colors ${isChecked ? 'bg-amber-500/5' : ''}`}
+                      onClick={() => handleOpenRecordDetail(record)}
+                      className={`hover:bg-slate-800/80 transition-colors cursor-pointer ${isChecked ? 'bg-amber-500/5' : ''}`}
                     >
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={(e) => {
+                            e.stopPropagation();
                             if (e.target.checked) setSelectedIds((prev) => [...prev, record.id]);
                             else setSelectedIds((prev) => prev.filter((id) => id !== record.id));
                           }}
@@ -2990,13 +3075,17 @@ export function TrackerPage() {
                         <div className="flex items-center space-x-2">
                           <a
                             href={`tel:${record.phone_digits}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="font-mono font-bold text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
                             title="Click to dial"
                           >
                             {record.phone_number}
                           </a>
                           <button
-                            onClick={() => handleCopyPhone(record.id, record.phone_number)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyPhone(record.id, record.phone_number);
+                            }}
                             className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
                             title="Copy Phone Number"
                           >
@@ -3007,6 +3096,7 @@ export function TrackerPage() {
                               href={`https://wa.me/${record.phone_digits}`}
                               target="_blank"
                               rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
                               className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
                               title="Open WhatsApp chat link"
                             >
@@ -3040,6 +3130,7 @@ export function TrackerPage() {
                             href={record.source_url}
                             target="_blank"
                             rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center space-x-1 text-slate-300 hover:text-amber-400 underline decoration-slate-600 underline-offset-2 transition"
                             title={`Open verified source: ${record.source_name}`}
                           >
@@ -3068,9 +3159,12 @@ export function TrackerPage() {
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => handleToggleStatus(record)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleStatus(record);
+                          }}
                           className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
                             record.is_down
                               ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
@@ -3097,6 +3191,353 @@ export function TrackerPage() {
           </table>
         </div>
       </section>
+
+      {/* ========================================== */}
+      {/* G1. RECORD DETAIL & PROTECTED EDIT MODAL   */}
+      {/* ========================================== */}
+      {viewingRecord && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative space-y-5 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={handleCloseRecordDetail}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100 flex items-center space-x-2">
+                    <span>Threat Record Details</span>
+                    {viewingRecord.is_down ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                        Out of Service
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        Active Threat
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">
+                    ID: {viewingRecord.id}
+                  </p>
+                </div>
+              </div>
+
+              {!isEditingRecord && (
+                <button
+                  onClick={() => setIsEditingRecord(true)}
+                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Edit Information</span>
+                </button>
+              )}
+            </div>
+
+            {/* Password Verification Dialog (Shown when Edit clicked but not yet verified) */}
+            {isEditingRecord && !isPasswordVerified && (
+              <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-3">
+                <div className="flex items-center space-x-2 text-amber-400">
+                  <Lock className="w-4 h-4" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider">
+                    Authentication Required (TRACKER_PASS)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Please enter the authorization password to edit this threat record.
+                </p>
+
+                {passwordError && (
+                  <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-lg flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{passwordError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleVerifyPassword} className="flex items-center space-x-2">
+                  <input
+                    type="password"
+                    placeholder="Enter TRACKER_PASS"
+                    value={trackerPassword}
+                    onChange={(e) => setTrackerPassword(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Unlock</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingRecord(false)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Read-Only Mode vs Edit Mode Form */}
+            {!isEditingRecord || (isEditingRecord && !isPasswordVerified) ? (
+              <div className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/80 border border-slate-800 p-4 rounded-xl">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Phone Number</span>
+                    <a
+                      href={`tel:${viewingRecord.phone_digits}`}
+                      className="text-base font-mono font-bold text-amber-400 hover:underline"
+                    >
+                      {viewingRecord.phone_number}
+                    </a>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Impersonated Brand / Company</span>
+                    <span className="text-sm font-semibold text-slate-200">
+                      {viewingRecord.impersonated_company || 'N/A'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Scam Category</span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                      {viewingRecord.category}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Date Detected (PST)</span>
+                    <span className="text-slate-300 font-mono">
+                      {normalizeToNumericalDate(viewingRecord.report_date)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Source Platform</span>
+                    {viewingRecord.source_url && viewingRecord.source_url.startsWith('http') ? (
+                      <a
+                        href={viewingRecord.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-slate-200 hover:text-amber-400 underline inline-flex items-center space-x-1"
+                      >
+                        <span>{viewingRecord.source_name}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-500" />
+                      </a>
+                    ) : (
+                      <span className="text-slate-300">{viewingRecord.source_name}</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Amount Demanded / Charged</span>
+                    <span className="text-amber-400 font-mono font-semibold">
+                      {viewingRecord.amount_charged || 'N/A'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Invoice / Order Reference</span>
+                    <span className="text-purple-300 font-mono">
+                      {viewingRecord.invoice_number || 'N/A'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Country / Region</span>
+                    <span className="text-slate-300">
+                      {deriveCountryInfo(viewingRecord.phone_number).name}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">Detailed Threat Intelligence & Snippet</span>
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-slate-300 leading-relaxed break-words">
+                    {viewingRecord.description}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleCopyPhone(viewingRecord.id, viewingRecord.phone_number)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
+                    >
+                      {copiedId === viewingRecord.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>Copy Number</span>
+                    </button>
+                    {(deriveCountryInfo(viewingRecord.phone_number).isAfrican || viewingRecord.phone_digits.startsWith('234') || viewingRecord.phone_digits.startsWith('254') || viewingRecord.phone_digits.startsWith('27')) && (
+                      <a
+                        href={`https://wa.me/${viewingRecord.phone_digits}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open WhatsApp</span>
+                      </a>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleCloseRecordDetail}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Verified Edit Mode Form */
+              <form onSubmit={handleSaveEditedRecord} className="space-y-4 text-xs">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                  <Edit3 className="w-4 h-4 shrink-0" />
+                  <span>Authenticated — You are currently editing this threat record.</span>
+                </div>
+
+                {passwordError && (
+                  <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>{passwordError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Phone Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.phone_number || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Company / Impersonated Target</label>
+                    <input
+                      type="text"
+                      value={editFormData.impersonated_company || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, impersonated_company: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Scam Category *</label>
+                    <select
+                      value={editFormData.category || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
+                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                      <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
+                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
+                      <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Source Platform Name</label>
+                    <input
+                      type="text"
+                      value={editFormData.source_name || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, source_name: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Source URL</label>
+                    <input
+                      type="text"
+                      value={editFormData.source_url || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, source_url: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Line Status</label>
+                    <select
+                      value={editFormData.is_down ? 'DOWN' : 'ACTIVE'}
+                      onChange={(e) => setEditFormData({ ...editFormData, is_down: e.target.value === 'DOWN' })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="ACTIVE">Active Threat Line</option>
+                      <option value="DOWN">Out of Service / Disconnected</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Amount Demanded / Charged</label>
+                    <input
+                      type="text"
+                      value={editFormData.amount_charged || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, amount_charged: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Invoice / Reference ID</label>
+                    <input
+                      type="text"
+                      value={editFormData.invoice_number || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, invoice_number: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Threat Context / Detailed Summary</label>
+                  <textarea
+                    rows={3}
+                    value={editFormData.description || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingRecord(false);
+                      setIsPasswordVerified(false);
+                    }}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
+                  >
+                    Cancel Editing
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ========================================== */}
       {/* G. TARGETED SEARCH MODAL                   */}
