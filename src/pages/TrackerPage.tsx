@@ -1332,6 +1332,14 @@ export function TrackerPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<ThreatRecord>>({});
 
+  // Action Authorization States (for Import CSV & Status Changes)
+  const [pendingActionModal, setPendingActionModal] = useState<{
+    type: 'IMPORT_CSV' | 'TOGGLE_STATUS' | 'BULK_MARK_DOWN';
+    record?: ThreatRecord;
+  } | null>(null);
+  const [actionAuthPassword, setActionAuthPassword] = useState('');
+  const [actionAuthError, setActionAuthError] = useState<string | null>(null);
+
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
   const [_scannerProgress, setScannerProgress] = useState(0);
@@ -2579,9 +2587,19 @@ export function TrackerPage() {
   };
 
   // ============================================================================
-  // 11. BULK ACTIONS & STATUS TOGGLES
+  // 11. BULK ACTIONS & STATUS TOGGLES WITH PASSWORD AUTHORIZATION
   // ============================================================================
-  const handleToggleStatus = (record: ThreatRecord) => {
+  const handleOpenImportModal = () => {
+    if (isPasswordVerified) {
+      setIsImportModalOpen(true);
+    } else {
+      setPendingActionModal({ type: 'IMPORT_CSV' });
+      setActionAuthPassword('');
+      setActionAuthError(null);
+    }
+  };
+
+  const executeToggleStatus = (record: ThreatRecord) => {
     const nextStatus = !record.is_down;
     setRecords((prev) =>
       prev.map((r) => (r.id === record.id ? { ...r, is_down: nextStatus } : r))
@@ -2591,12 +2609,61 @@ export function TrackerPage() {
     fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
   };
 
-  const handleBulkMarkDown = () => {
+  const handleToggleStatus = (record: ThreatRecord) => {
+    if (isPasswordVerified) {
+      executeToggleStatus(record);
+    } else {
+      setPendingActionModal({ type: 'TOGGLE_STATUS', record });
+      setActionAuthPassword('');
+      setActionAuthError(null);
+    }
+  };
+
+  const executeBulkMarkDown = () => {
     setRecords((prev) =>
       prev.map((r) => (selectedIds.includes(r.id) ? { ...r, is_down: true } : r))
     );
     setStatusNotification(`Marked ${selectedIds.length} selected lines as Out of Service.`);
     setSelectedIds([]);
+  };
+
+  const handleBulkMarkDown = () => {
+    if (isPasswordVerified) {
+      executeBulkMarkDown();
+    } else {
+      setPendingActionModal({ type: 'BULK_MARK_DOWN' });
+      setActionAuthPassword('');
+      setActionAuthError(null);
+    }
+  };
+
+  const verifyActionPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionAuthError(null);
+    const expectedPass =
+      import.meta.env.VITE_TRACKER_PASS ||
+      import.meta.env.VITE_TRACKER ||
+      'admin';
+
+    if (actionAuthPassword.trim() === expectedPass) {
+      setIsPasswordVerified(true);
+      const action = pendingActionModal;
+      setPendingActionModal(null);
+      setActionAuthPassword('');
+      setActionAuthError(null);
+
+      if (action) {
+        if (action.type === 'IMPORT_CSV') {
+          setIsImportModalOpen(true);
+        } else if (action.type === 'TOGGLE_STATUS' && action.record) {
+          executeToggleStatus(action.record);
+        } else if (action.type === 'BULK_MARK_DOWN') {
+          executeBulkMarkDown();
+        }
+      }
+    } else {
+      setActionAuthError('Invalid password. Access denied.');
+    }
   };
 
   const handleBulkDelete = () => {
@@ -2742,7 +2809,7 @@ export function TrackerPage() {
 
             {/* Import CSV */}
             <button
-              onClick={() => setIsImportModalOpen(true)}
+              onClick={handleOpenImportModal}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-blue-400" />
@@ -3014,9 +3081,6 @@ export function TrackerPage() {
                   />
                 </th>
                 <th className="px-4 py-3.5">Phone Number</th>
-                <th className="px-4 py-3.5">Company / Target</th>
-                <th className="px-4 py-3.5">Scam Category</th>
-                <th className="px-4 py-3.5">Source Platform</th>
                 <th
                   className="px-4 py-3.5 cursor-pointer select-none group hover:text-amber-400 transition-colors"
                   onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
@@ -3034,6 +3098,9 @@ export function TrackerPage() {
                     </span>
                   </div>
                 </th>
+                <th className="px-4 py-3.5">Company / Target</th>
+                <th className="px-4 py-3.5">Scam Category</th>
+                <th className="px-4 py-3.5">Source Platform</th>
                 <th className="px-4 py-3.5">Status</th>
                 <th className="px-4 py-3.5">Threat Intel & Snippet</th>
               </tr>
@@ -3107,6 +3174,22 @@ export function TrackerPage() {
                         </div>
                       </td>
 
+                      {/* Date Detected & Retention Tier */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
+                        <div className="flex flex-col space-y-0.5">
+                          <span>{normalizeToNumericalDate(record.report_date)}</span>
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-sans font-semibold tracking-wide w-fit ${
+                              isPrizeOrExtendedRetention(record)
+                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}
+                          >
+                            {getRetentionLabel(record)}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Company Impersonated */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
@@ -3140,22 +3223,6 @@ export function TrackerPage() {
                         ) : (
                           <span className="text-slate-300 font-medium">{record.source_name}</span>
                         )}
-                      </td>
-
-                      {/* Date Detected & Retention Tier */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
-                        <div className="flex flex-col space-y-0.5">
-                          <span>{normalizeToNumericalDate(record.report_date)}</span>
-                          <span
-                            className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-sans font-semibold tracking-wide w-fit ${
-                              isPrizeOrExtendedRetention(record)
-                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                                : 'bg-slate-800 text-slate-400 border border-slate-700'
-                            }`}
-                          >
-                            {getRetentionLabel(record)}
-                          </span>
-                        </div>
                       </td>
 
                       {/* Status */}
@@ -3709,6 +3776,81 @@ export function TrackerPage() {
                 <span>Execute Scan Now</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* H2. ACTION AUTHORIZATION PASSWORD MODAL    */}
+      {/* ========================================== */}
+      {pendingActionModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
+            <button
+              onClick={() => {
+                setPendingActionModal(null);
+                setActionAuthPassword('');
+                setActionAuthError(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">
+                  Authentication Required (TRACKER_PASS)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  {pendingActionModal.type === 'IMPORT_CSV'
+                    ? 'Enter authorization password to import CSV records.'
+                    : 'Enter authorization password to modify record status.'}
+                </p>
+              </div>
+            </div>
+
+            {actionAuthError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{actionAuthError}</span>
+              </div>
+            )}
+
+            <form onSubmit={verifyActionPassword} className="space-y-3">
+              <input
+                type="password"
+                placeholder="Enter TRACKER_PASS"
+                value={actionAuthPassword}
+                onChange={(e) => setActionAuthPassword(e.target.value)}
+                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                autoFocus
+              />
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingActionModal(null);
+                    setActionAuthPassword('');
+                    setActionAuthError(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow cursor-pointer flex items-center space-x-1"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>Authorize & Continue</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
