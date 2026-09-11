@@ -2750,6 +2750,15 @@ export function TrackerPage() {
 
     const isValid = await checkPasswordAuth(actionAuthPassword);
     if (isValid) {
+  const verifyActionPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionAuthError(null);
+    const expectedPass =
+      import.meta.env.VITE_TRACKER_PASS ||
+      import.meta.env.VITE_TRACKER ||
+      'admin';
+
+    if (actionAuthPassword.trim() === expectedPass) {
       setIsPasswordVerified(true);
       const action = pendingActionModal;
       setPendingActionModal(null);
