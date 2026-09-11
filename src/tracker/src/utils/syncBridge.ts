@@ -30,7 +30,7 @@ class SyncBridgeManager {
   private broadcastChannel: BroadcastChannel | null = null;
   private isEmbeddedInIframe = false;
   private hasParentWindow = false;
-  private isEndScamsParentDetected = false;
+  public isEndScamsParentDetected = false;
   private heartbeatInterval: any = null;
   private messagesSentCount = 0;
   private messagesReceivedCount = 0;
