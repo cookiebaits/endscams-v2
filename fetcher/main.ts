@@ -28,6 +28,105 @@
 */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
+
+/* ================================================================ */
+/*  Persistent SQLite Local Database                                 */
+/* ================================================================ */
+try {
+  Deno.mkdirSync("./data", { recursive: true });
+} catch {}
+
+const db = new DB("./data/tracker.db");
+
+db.execute(`
+  CREATE TABLE IF NOT EXISTS tracker_entries (
+    id TEXT PRIMARY KEY,
+    phone_number TEXT NOT NULL,
+    phone_digits TEXT NOT NULL,
+    source_name TEXT,
+    source_url TEXT,
+    report_date TEXT,
+    category TEXT,
+    description TEXT,
+    impersonated_company TEXT,
+    invoice_number TEXT,
+    amount_charged TEXT,
+    is_down INTEGER DEFAULT 0,
+    expires_at TEXT,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_phone_digits ON tracker_entries(phone_digits);
+`);
+
+function saveRecordToSqlite(r: any) {
+  try {
+    const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
+    const phone_number = r.phone_number || r.phone || "";
+    const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
+    const source_name = r.source_name || r.platform || "Threat Intelligence";
+    const source_url = r.source_url || r.sourceUrl || "";
+    const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
+    const category = r.category || r.scamType || "General Tech Support & Refund Scams";
+    const description = r.description || r.detailedSummary || r.snippet || "";
+    const impersonated_company = r.impersonated_company || r.impersonatedCompany || "N/A";
+    const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
+    const amount_charged = r.amount_charged || r.amountCharged || "N/A";
+    const is_down = r.is_down || r.isNumberDown ? 1 : 0;
+    const expires_at = r.expires_at || new Date(Date.now() + 60 * 86400000).toISOString();
+
+    db.query(
+      `INSERT OR REPLACE INTO tracker_entries (
+        id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at
+      ]
+    );
+  } catch (err) {
+    console.warn("saveRecordToSqlite err:", err);
+  }
+}
+
+function getAllRecordsFromSqlite(): any[] {
+  try {
+    const rows = db.query(
+      `SELECT id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at FROM tracker_entries ORDER BY report_date DESC`
+    );
+    return rows.map((row: any) => ({
+      id: row[0],
+      phone_number: row[1],
+      phone_digits: row[2],
+      source_name: row[3],
+      source_url: row[4],
+      report_date: row[5],
+      category: row[6],
+      description: row[7],
+      impersonated_company: row[8],
+      invoice_number: row[9],
+      amount_charged: row[10],
+      is_down: Boolean(row[11]),
+      expires_at: row[12],
+    }));
+  } catch (err) {
+    console.warn("getAllRecordsFromSqlite err:", err);
+    return [];
+  }
+}
+
+function toggleRecordDownInSqlite(id: string): boolean {
+  try {
+    const rows = db.query(`SELECT is_down FROM tracker_entries WHERE id = ? OR phone_digits = ?`, [id, id]);
+    if (rows.length === 0) return false;
+    const currentDown = rows[0][0];
+    const newDown = currentDown ? 0 : 1;
+    db.query(`UPDATE tracker_entries SET is_down = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR phone_digits = ?`, [newDown, id, id]);
+    return true;
+  } catch (err) {
+    console.warn("toggleRecordDownInSqlite err:", err);
+    return false;
+  }
+}
 
 /* ================================================================ */
 /*  ENV                                                              */
@@ -417,6 +516,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   let inserted = 0;
   const errors: string[] = [];
   for (const entry of finalEntries) {
+    saveRecordToSqlite(entry);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 31);
     const { error } = await supabase.from("tracker_entries").upsert(
@@ -560,6 +660,178 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/api/tools") {
     return await handleAbstractProxy(req);
+  }
+
+  if (url.pathname === "/api/records" || url.pathname === "/records") {
+    let records = getAllRecordsFromSqlite();
+    if (records.length === 0) {
+      try {
+        const { data } = await supabase.from("tracker_entries").select("*").order("report_date", { ascending: false });
+        if (data && data.length > 0) {
+          data.forEach((r: any) => saveRecordToSqlite(r));
+          records = getAllRecordsFromSqlite();
+        }
+      } catch {}
+    }
+    return json({ success: true, count: records.length, records });
+  }
+
+  if (url.pathname === "/api/records/manual") {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+    saveRecordToSqlite(body);
+    try {
+      await supabase.from("tracker_entries").upsert({
+        phone_number: body.phone || body.phone_number,
+        phone_digits: body.cleanPhone || body.phone_digits,
+        source_name: body.platform || body.source_name || "Community Report",
+        source_url: body.sourceUrl || body.source_url || "",
+        report_date: body.detectedAt || body.report_date || new Date().toISOString().split("T")[0],
+        category: body.scamType || body.category || "General Tech Support & Refund Scams",
+        description: body.detailedSummary || body.description || "",
+      }, { onConflict: "phone_digits,source_name" });
+    } catch {}
+    return json({ success: true, record: body });
+  }
+
+  if (url.pathname.startsWith("/api/records/") && url.pathname.endsWith("/toggle-down")) {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    const ok = toggleRecordDownInSqlite(id);
+    return json({ success: ok, id });
+  }
+
+  if (url.pathname === "/api/records/restore") {
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+    const list = Array.isArray(body) ? body : (body.records || []);
+    let count = 0;
+    for (const item of list) {
+      saveRecordToSqlite(item);
+      count++;
+    }
+    return json({ success: true, count });
+  }
+
+  if (url.pathname === "/api/db/download" || url.pathname === "/db/download") {
+    try {
+      const dbBytes = await Deno.readFile("./data/tracker.db");
+      return cors(new Response(dbBytes, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/x-sqlite3",
+          "Content-Disposition": 'attachment; filename="tracker.db"',
+        },
+      }));
+    } catch {
+      return json({ error: "Database file not found" }, 404);
+    }
+  }
+
+  if (url.pathname === "/api/db/restore-db") {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    try {
+      let bytes: Uint8Array | null = null;
+      const contentType = req.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const body = await req.json();
+        if (body.base64Db) {
+          const binaryStr = atob(body.base64Db);
+          bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+        } else if (Array.isArray(body.records)) {
+          for (const item of body.records) {
+            saveRecordToSqlite(item);
+          }
+          return json({ success: true, message: `Restored ${body.records.length} records into database` });
+        }
+      } else {
+        const buf = await req.arrayBuffer();
+        if (buf.byteLength > 0) {
+          bytes = new Uint8Array(buf);
+        }
+      }
+
+      if (bytes && bytes.length > 0) {
+        await Deno.writeFile("./data/tracker.db", bytes);
+        return json({ success: true, message: "Successfully restored tracker.db database file!" });
+      }
+      return json({ error: "No valid database binary provided" }, 400);
+    } catch (e) {
+      return json({ error: String(e) }, 500);
+    }
+  }
+
+  if (url.pathname === "/api/db/backup-gdrive") {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    const targetEmail = "cwnendscams@gmail.com";
+    const gdriveToken = Deno.env.get("GDRIVE_ACCESS_TOKEN") || Deno.env.get("GOOGLE_DRIVE_TOKEN") || "";
+
+    let uploaded = false;
+    let gdriveFileId = "";
+
+    if (gdriveToken) {
+      try {
+        const dbBytes = await Deno.readFile("./data/tracker.db");
+        const metadata = {
+          name: `tracker_backup_${new Date().toISOString().slice(0, 10)}.db`,
+          mimeType: "application/x-sqlite3",
+          description: `Database backup for ${targetEmail}`,
+        };
+        const form = new FormData();
+        form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+        form.append("file", new Blob([dbBytes], { type: "application/x-sqlite3" }));
+
+        const gRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${gdriveToken}` },
+          body: form,
+        });
+
+        if (gRes.ok) {
+          const gData = await gRes.json();
+          uploaded = true;
+          gdriveFileId = gData.id || "";
+        }
+      } catch (err) {
+        console.warn("GDrive upload err:", err);
+      }
+    }
+
+    return json({
+      success: true,
+      account: targetEmail,
+      uploadedToDrive: uploaded,
+      fileId: gdriveFileId,
+      backupTimestamp: new Date().toISOString(),
+      downloadUrl: "/api/db/download",
+      message: uploaded
+        ? `Database successfully uploaded to Google Drive for ${targetEmail}`
+        : `Database snapshot saved locally for ${targetEmail}. (Configure GDRIVE_ACCESS_TOKEN in Dokploy for direct drive upload).`,
+    });
+  }
+
+  if (url.pathname === "/api/verify-password") {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+    const candidate = (body.password || "").trim().replace(/^["']|["']$/g, "").trim();
+    const envPass = (
+      Deno.env.get("TRACKER_PASS") ||
+      Deno.env.get("VITE_TRACKER_PASS") ||
+      Deno.env.get("TRACKER") ||
+      "admin"
+    ).trim().replace(/^["']|["']$/g, "").trim();
+
+    if (candidate && candidate === envPass) {
+      return cors(json({ success: true, verified: true }));
+    } else {
+      return cors(json({ success: false, verified: false, error: "Invalid password" }, 401));
+    }
   }
 
 

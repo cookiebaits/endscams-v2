@@ -9,6 +9,8 @@ services:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-https://rnrqvdwtbehilaoyzfgf.supabase.co}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucnF2ZHd0YmVoaWxhb3l6ZmdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0OTk3MDcsImV4cCI6MjA4OTA3NTcwN30.dummy_key_do_not_use_in_prod}
         VITE_FETCHER_URL: ${VITE_FETCHER_URL:-https://fetcher.endscams.org}
+        VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
+        TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
     restart: always
     expose:
       - "80"
@@ -48,6 +50,10 @@ services:
       ABSTRACT_IP_API_KEY: ${ABSTRACT_IP_API_KEY}
       ABSTRACT_SCRAPE_API_KEY: ${ABSTRACT_SCRAPE_API_KEY}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
+      VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
+    volumes:
+      - tracker-db-data:/app/data
     expose:
       - "8000"
     networks:
@@ -62,3 +68,6 @@ services:
 networks:
   dokploy-network:
     external: true
+
+volumes:
+  tracker-db-data:
