@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import databaseSeed from '../tracker/data/scam_records.json';
+import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import {
   Shield,
   Search,
@@ -2590,6 +2591,7 @@ export function TrackerPage() {
   // 11. BULK ACTIONS & STATUS TOGGLES WITH PASSWORD AUTHORIZATION
   // ============================================================================
   const handleOpenImportModal = () => {
+    if (!requireDisclaimerAcceptance()) return;
     if (isPasswordVerified) {
       setIsImportModalOpen(true);
     } else {
@@ -2610,6 +2612,7 @@ export function TrackerPage() {
   };
 
   const handleToggleStatus = (record: ThreatRecord) => {
+    if (!requireDisclaimerAcceptance()) return;
     if (isPasswordVerified) {
       executeToggleStatus(record);
     } else {
@@ -2628,6 +2631,7 @@ export function TrackerPage() {
   };
 
   const handleBulkMarkDown = () => {
+    if (!requireDisclaimerAcceptance()) return;
     if (isPasswordVerified) {
       executeBulkMarkDown();
     } else {

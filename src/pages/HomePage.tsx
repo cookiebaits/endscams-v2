@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { supabase, formatPhoneDisplay } from '../lib/supabase';
 import Banner from '../components/Banner';
+import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import { MASTER_SEED_RECORDS, isRecordMatch } from './TrackerPage';
 
 type ImpactStats = {
@@ -206,6 +207,7 @@ export default function HomePage() {
 
   const handlePhoneToolSearch = async (e?: React.FormEvent, overridePhone?: string) => {
     if (e) e.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     const query = (overridePhone || phoneToolInput).trim();
     if (!query) return;
 
@@ -223,6 +225,7 @@ export default function HomePage() {
 
   const handleEmailToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     if (!emailToolInput.trim()) return;
 
     setEmailToolLoading(true);
@@ -239,6 +242,7 @@ export default function HomePage() {
 
   const handleIpToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     setIpToolLoading(true);
     setIpToolResult(null);
     try {
@@ -253,6 +257,7 @@ export default function HomePage() {
 
   const handleScrapeToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     if (!scrapeToolInput.trim()) return;
 
     setScrapeToolLoading(true);
@@ -269,6 +274,7 @@ export default function HomePage() {
 
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     const core10Digits = normalizeInput(input);
     if (core10Digits.length < 10) return;
 

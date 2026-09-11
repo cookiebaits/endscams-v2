@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
+import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 
 type FormData = {
   phoneNumber: string;
@@ -219,6 +220,7 @@ export default function ReportScamPage() {
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (!requireDisclaimerAcceptance()) return;
     if (!validate()) return;
     setStatus('submitting');
     setErrorMsg('');
