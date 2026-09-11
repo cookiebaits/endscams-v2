@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../data/database_seed.json';
+import databaseSeed from '../tracker/data/scam_records.json';
 import {
   Shield,
   Search,
@@ -36,11 +36,61 @@ import {
   ArrowDown,
   ArrowUp,
 } from 'lucide-react';
-import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
-import { noSqlDatabase } from '../db/noSqlDatabase';
-import { syncBridge } from '../utils/syncBridge';
-import { ScamPhoneRecord } from '../types';
+import { getPSTDateStamp } from '../tracker/src/utils/dateUtils';
+import { syncBridge } from '../tracker/src/utils/syncBridge';
+import { ScamPhoneRecord } from '../tracker/src/types';
+
+export const CSV_EXPORT_HEADERS = [
+  'Type of Scam',
+  'Phone Number',
+  'Clean Digits',
+  'Company Impersonated',
+  'Date Detected (PST)',
+  'Source URL',
+  'Platform',
+  'Country',
+  'Snippet',
+  'Status',
+];
+
+export function parseFullCSV(csvText: string): string[][] {
+  const lines = csvText.split(/\r?\n/);
+  const result: string[][] = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const row: string[] = [];
+    let insideQuotes = false;
+    let currentCell = '';
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (insideQuotes && line[i + 1] === '"') {
+          currentCell += '"';
+          i++;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === ',' && !insideQuotes) {
+        row.push(currentCell.trim());
+        currentCell = '';
+      } else {
+        currentCell += char;
+      }
+    }
+    row.push(currentCell.trim());
+    result.push(row);
+  }
+  return result;
+}
+
+export const noSqlDatabase = {
+  getRecordsCollection: () => ({
+    findOne: () => null,
+    update: () => {},
+    insert: () => {},
+  }),
+  persist: () => {},
+};
 
 export interface ThreatRecord {
   id: string;
@@ -1167,7 +1217,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1175,6 +1225,13 @@ const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(record: any, core10Digits: string): boolean {
+  if (!record || !core10Digits) return false;
+  const digits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
+  const altDigits = (record.alt_phone_digits || record.alt_phone_number || '').replace(/\D/g, '');
+  return (digits && digits.includes(core10Digits)) || (altDigits && altDigits.includes(core10Digits));
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1367,8 +1424,6 @@ export function TrackerPage() {
   // Broadcast to syncBridge whenever records change
   useEffect(() => {
     if (records.length > 0) {
-      const scamRecords = records.map(threatRecordToScamPhoneRecord);
-      syncBridge.broadcastRecords(scamRecords);
       syncBridge.broadcastCurrentState();
     }
   }, [records, isScanning]);
@@ -1708,7 +1763,7 @@ export function TrackerPage() {
       if (!backendScanSucceeded) {
         if (geminiApiKey.trim()) {
           addLog('[GEMINI] Authenticated with Gemini API. Scanning targets with exact esscan timing, 25s timeout & quota backoffs...');
-          const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+          const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-flash-latest'];
 
           for (let i = 0; i < targetsToRun.length; i++) {
             const target = targetsToRun[i];
@@ -2282,8 +2337,6 @@ export function TrackerPage() {
 
       // 3. Broadcast to syncBridge for endscams.org/tracker parent
       try {
-        const fullScamList = merged.map(threatRecordToScamPhoneRecord);
-        syncBridge.broadcastRecords(fullScamList);
         syncBridge.broadcastCurrentState();
       } catch {}
 
