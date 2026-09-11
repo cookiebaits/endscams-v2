@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
 import Banner from '../components/Banner';
+import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 
 type QuestionnaireAnswers = {
   ownsService: string | null;
@@ -36,6 +37,7 @@ export default function TriagePage() {
   const [resultData, setResultData] = useState<{ flags: string[]; explanation: string; }>({ flags: [], explanation: '' });
 
   const handleAnswer = (questionNum: number, answer: string) => {
+    if (!requireDisclaimerAcceptance()) return;
     const newAnswers = { ...answers };
 
     if (questionNum === 1) {

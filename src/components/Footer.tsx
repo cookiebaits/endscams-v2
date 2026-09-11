@@ -52,7 +52,7 @@ export default function Footer() {
               <ul className="space-y-2 text-sm">
                 <li><a href="/report" className="text-red-600 dark:text-red-400 font-medium hover:underline transition-all">Report a Scam</a></li>
                 <li><a href="https://endscams.org/donate" target="_blank" rel="noopener noreferrer" className="text-green-600 dark:text-green-400 font-medium hover:underline transition-all">Donate to Cause</a></li>
-                <li><a href="/disclaimer" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Disclaimer</a></li>
+                <li><a href="/disclaimer" className="text-slate-600 dark:text-slate-400 hover:text-brand-500 dark:hover:text-brand-500 transition-colors">Terms of Use &amp; Privacy Policy</a></li>
               </ul>
             </div>
 
