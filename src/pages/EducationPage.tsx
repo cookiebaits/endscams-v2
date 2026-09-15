@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
-import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay } from 'lucide-react';
+import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay, Printer, FileText } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
 
@@ -335,27 +335,36 @@ export default function EducationPage() {
           </p>
         </div>
 
-        <div className="mb-10 rounded-2xl border-2 border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
-          <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700">
-            <Phone className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+        <a
+          href="/scam_prevention_brochurev2.html"
+          className="block mb-10 group rounded-2xl border-2 border-brand-500/50 bg-brand-50/50 dark:bg-brand-950/30 p-6 shadow-md hover:shadow-xl hover:border-brand-500 transition-all duration-300 transform hover:-translate-y-0.5"
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-shrink-0 flex items-center justify-center w-14 h-14 rounded-xl bg-brand-500 text-white shadow-md group-hover:scale-105 transition-transform duration-300">
+              <Printer className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-brand-500 text-white uppercase tracking-wider">
+                  Printable Brochure
+                </span>
+                <span className="text-xs font-semibold text-brand-600 dark:text-brand-400 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5" /> Tri-Fold Handbook
+                </span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                Download &amp; Print Official Scam Prevention Handbook Brochure
+              </h3>
+              <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">
+                Want a physical reference guide or brochure to print out for family, friends, or senior safety? Click here to open the printable handbook.
+              </p>
+            </div>
+            <div className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-600 group-hover:bg-brand-700 text-white font-bold text-sm transition-colors shadow-md whitespace-nowrap">
+              <Printer className="w-4 h-4" />
+              View Printable Brochure
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-slate-900 dark:text-amber-100 font-semibold text-base leading-snug mb-1">
-              If you believe something is a scam, feel free to call your local sheriff's non-emergency line to verify.
-            </p>
-            <p className="text-slate-600 dark:text-amber-300/80 text-sm">
-              Deputies can help you confirm whether a call, text, or situation is legitimate — before you take any action.</p>
-          </div>
-          <a
-            href="https://search.brave.com/search?q=local+sheriff+non-emergency+line+near+me"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-900 dark:text-white text-sm font-semibold transition-colors shadow-sm whitespace-nowrap"
-          >
-            <Search className="w-4 h-4" />
-            Find the number
-          </a>
-        </div>
+        </a>
 
         <div className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickStatCard icon={Shield} label={`Americans lost to fraud in ${stats.report_year}`} value={stats.total_loss_short} color="text-red-500" />
