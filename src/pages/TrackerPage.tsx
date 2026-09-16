@@ -9,6 +9,7 @@ import {
   Plus,
   ExternalLink,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Copy,
   Check,
@@ -17,16 +18,22 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -38,7 +45,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV } from '../utils/csvHandler';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
@@ -70,14 +77,6 @@ export interface ThreatRecord {
  * Checks if a threat record or specific number is a verified WhatsApp channel.
  * Evaluates explicit flag, category/description keywords, and high-frequency international carrier prefixes.
  */
-export function isRecordMatch(record: any, digits10: string): boolean {
-  if (!record || !digits10) return false;
-  const digits11 = `1${digits10}`;
-  const pDigits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
-  if (!pDigits) return false;
-  return pDigits.includes(digits10) || pDigits.includes(digits11) || digits10.includes(pDigits);
-}
-
 export function isWhatsAppThreat(record: {
   is_whatsapp?: boolean;
   phone_number?: string;
@@ -112,6 +111,21 @@ export function isWhatsAppThreat(record: {
 // ============================================================================
 // 1. EXACT SEARCH PARAMETERS & SCAN TARGETS FROM ESSCAN.AI.STUDIO
 // ============================================================================
+export const GEMINI_SEARCH_MODEL_VARIATIONS: string[] = [
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3.1-pro-preview',
+  'gemini-3-flash-preview',
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-pro-latest',
+];
+
 export interface ScanTargetConfig {
   id: string;
   name: string;
@@ -1266,17 +1280,17 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
 }
 
 const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
-  .filter((r: any) => {
+  .filter((r) => {
     const p = r.cleanPhone || r.phone || r.phone_number || '';
     const src = (r.platform || r.sourceUrl || r.sourceDomain || '').toLowerCase();
     if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
     if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
     return true;
   })
-  .map((r: any) => mapRawSeedToThreatRecord(r))
-  .filter((r: ThreatRecord) => !isThreatRecordExpired(r));
+  .map(mapRawSeedToThreatRecord)
+  .filter((r) => !isThreatRecordExpired(r));
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1338,7 +1352,7 @@ export function TrackerPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-            const mapped: ThreatRecord[] = data.records
+            const mapped = data.records
               .filter((r: any) => {
                 const p = r.cleanPhone || r.phone || '';
                 const src = (r.platform || r.sourceUrl || '').toLowerCase();
@@ -1351,8 +1365,8 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-                prev.forEach((r: ThreatRecord) => {
+                mapped.forEach((r) => map.set(r.phone_digits, r));
+                prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
                     map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
@@ -1450,6 +1464,31 @@ export function TrackerPage() {
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
+  const [isEditingInPopup, setIsEditingInPopup] = useState(false);
+  const [popupEditForm, setPopupEditForm] = useState<{
+    phone_number: string;
+    impersonated_company: string;
+    category: string;
+    source_name: string;
+    source_url: string;
+    report_date: string;
+    is_down: boolean;
+    amount_charged: string;
+    invoice_number: string;
+    description: string;
+  }>({
+    phone_number: '',
+    impersonated_company: '',
+    category: '',
+    source_name: '',
+    source_url: '',
+    report_date: '',
+    is_down: false,
+    amount_charged: '',
+    invoice_number: '',
+    description: '',
+  });
+  const [popupEditError, setPopupEditError] = useState<string | null>(null);
 
   // Edit Monitored Number Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1678,51 +1717,23 @@ export function TrackerPage() {
     setIsPasswordModalOpen(true);
   };
 
-  // Verify password via backend endpoint with fallback to env password
+  // Verify password via backend endpoint
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const candidate = passwordInput.trim();
-    if (!candidate) {
+    if (!passwordInput.trim()) {
       setPasswordError('Please enter your Tracker Password.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
-
-    const clientEnvPass = (
-      (import.meta as any).env?.VITE_TRACKER_PASS ||
-      (import.meta as any).env?.VITE_TRACKER ||
-      (import.meta as any).env?.TRACKER_PASS ||
-      ''
-    ).trim();
-
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: candidate }),
+        body: JSON.stringify({ password: passwordInput.trim() }),
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.verified || data.success) {
-          setIsPasswordVerified(true);
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('tracker_pass_verified', 'true');
-          }
-          setIsPasswordModalOpen(false);
-          setPasswordInput('');
-          setStatusNotification(`Authenticated: ${passwordActionName}`);
-          if (pendingAction) {
-            const act = pendingAction;
-            setPendingAction(null);
-            act();
-          }
-        } else {
-          setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
-        }
-      } else if (clientEnvPass && candidate === clientEnvPass) {
-        // Fallback check if proxy returns 405 or 502/504
+      const data = await res.json();
+      if (data.verified || data.success) {
         setIsPasswordVerified(true);
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('tracker_pass_verified', 'true');
@@ -1736,25 +1747,10 @@ export function TrackerPage() {
           act();
         }
       } else {
-        setPasswordError('Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+        setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
       }
     } catch {
-      if (clientEnvPass && candidate === clientEnvPass) {
-        setIsPasswordVerified(true);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('tracker_pass_verified', 'true');
-        }
-        setIsPasswordModalOpen(false);
-        setPasswordInput('');
-        setStatusNotification(`Authenticated: ${passwordActionName}`);
-        if (pendingAction) {
-          const act = pendingAction;
-          setPendingAction(null);
-          act();
-        }
-      } else {
-        setPasswordError('Network error connecting to authentication server.');
-      }
+      setPasswordError('Network error connecting to authentication server.');
     } finally {
       setIsVerifyingPassword(false);
     }
@@ -1770,27 +1766,25 @@ export function TrackerPage() {
 
   // Edit Monitored Number Handlers
   const handleOpenEditModal = (record: ThreatRecord) => {
-    requireTrackerPass('Edit Monitored Number', () => {
-      setEditingRecord(record);
-      setEditForm({
-        phone_number: record.phone_number,
-        is_whatsapp: isWhatsAppThreat(record),
-        alt_numbers: (record.alt_numbers || []).map((a) => ({
-          phone: typeof a === 'string' ? a : a.phone,
-          is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
-        })),
-        category: record.category,
-        impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
-        source_name: record.source_name,
-        source_url: record.source_url || '',
-        amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
-        invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
-        description: record.description,
-        is_down: Boolean(record.is_down),
-      });
-      setEditError(null);
-      setIsEditModalOpen(true);
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
     });
+    setEditError(null);
+    setIsEditModalOpen(true);
   };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
@@ -1896,52 +1890,168 @@ export function TrackerPage() {
     syncRecordToSupabase(updated);
   };
 
-  // Sync Record to Supabase if client is present
-  const syncRecordToSupabase = async (rec: ThreatRecord) => {
+  // Bulk Sync Records to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend API
+  const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]) => {
+    if (!recs || recs.length === 0) return;
     try {
+      // 1. Supabase Client Upsert
       const sb = (window as any).supabase;
       if (sb && typeof sb.from === 'function') {
-        const expiresAt = new Date();
-        const retentionDays = getRetentionDays(rec);
-        expiresAt.setDate(expiresAt.getDate() + retentionDays);
+        const payloads = recs.map((rec) => {
+          const expiresAt = new Date();
+          const retentionDays = getRetentionDays(rec);
+          expiresAt.setDate(expiresAt.getDate() + retentionDays);
+          return {
+            phone_number: rec.phone_number,
+            phone_digits: rec.phone_digits,
+            source_name: rec.source_name,
+            source_url: rec.source_url,
+            report_date: rec.report_date,
+            category: rec.category,
+            description: rec.description,
+            impersonated_company: rec.impersonated_company || 'N/A',
+            invoice_number: rec.invoice_number || 'N/A',
+            amount_charged: rec.amount_charged || 'N/A',
+            is_down: Boolean(rec.is_down),
+            status: rec.is_down ? 'Out of Service' : 'Active',
+            expires_at: expiresAt.toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        });
 
-        const payload = {
-          phone_number: rec.phone_number,
-          phone_digits: rec.phone_digits,
-          source_name: rec.source_name,
-          source_url: rec.source_url,
-          report_date: rec.report_date,
-          category: rec.category,
-          description: rec.description,
-          impersonated_company: rec.impersonated_company || 'N/A',
-          invoice_number: rec.invoice_number || 'N/A',
-          amount_charged: rec.amount_charged || 'N/A',
-          is_down: Boolean(rec.is_down),
-          status: rec.is_down ? 'Out of Service' : 'Active',
-          expires_at: expiresAt.toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        const res = await sb.from('tracker_entries').upsert(payload, { onConflict: 'phone_digits' });
+        const res = await sb.from('tracker_entries').upsert(payloads, { onConflict: 'phone_digits' });
         if (res.error) {
-          // Fallback to scam_records table if tracker_entries has alternative schema
-          await sb.from('scam_records').upsert(
-            {
-              phone: rec.phone_number,
-              clean_phone: rec.phone_digits,
-              scam_type: rec.category,
-              impersonated_company: rec.impersonated_company || 'N/A',
-              source_url: rec.source_url,
-              platform: rec.source_name,
-              is_number_down: Boolean(rec.is_down),
-            },
-            { onConflict: 'clean_phone' }
-          );
+          const scamRecordsPayload = recs.map((rec) => ({
+            phone: rec.phone_number,
+            clean_phone: rec.phone_digits,
+            scam_type: rec.category,
+            impersonated_company: rec.impersonated_company || 'N/A',
+            source_url: rec.source_url,
+            platform: rec.source_name,
+            is_number_down: Boolean(rec.is_down),
+          }));
+          await sb.from('scam_records').upsert(scamRecordsPayload, { onConflict: 'clean_phone' });
         }
       }
+
+      // 2. Server Bulk-Upsert API for two-way sync and disk persistence
+      const scamPayload = recs.map(threatRecordToScamPhoneRecord);
+      await fetch('/api/records/bulk-upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: scamPayload }),
+      }).catch(() => {});
     } catch (err) {
-      console.warn('[Supabase Sync Error]', err);
+      console.warn('[Supabase Batch Sync Notice]', err);
     }
+  };
+
+  // Sync Single Record to Supabase
+  const syncRecordToSupabase = async (rec: ThreatRecord) => {
+    return syncThreatRecordsToSupabase([rec]);
+  };
+
+  // Open Detailed Threat Post Modal (Center of Screen Popup)
+  const handleOpenPopupDetail = (record: ThreatRecord) => {
+    setSelectedDetailRecord(record);
+    setIsEditingInPopup(false);
+    setPopupEditError(null);
+    setPopupEditForm({
+      phone_number: record.phone_number,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      category: record.category,
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      report_date: record.report_date,
+      is_down: Boolean(record.is_down),
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description || '',
+    });
+  };
+
+  // Start Editing Inside Popup Modal (Gated by TRACKER_PASS)
+  const handleStartEditingInPopup = () => {
+    if (!selectedDetailRecord) return;
+    setPopupEditError(null);
+    setPopupEditForm({
+      phone_number: selectedDetailRecord.phone_number,
+      impersonated_company: selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A' ? selectedDetailRecord.impersonated_company : '',
+      category: selectedDetailRecord.category,
+      source_name: selectedDetailRecord.source_name,
+      source_url: selectedDetailRecord.source_url || '',
+      report_date: selectedDetailRecord.report_date,
+      is_down: Boolean(selectedDetailRecord.is_down),
+      amount_charged: selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' ? selectedDetailRecord.amount_charged : '',
+      invoice_number: selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A' ? selectedDetailRecord.invoice_number : '',
+      description: selectedDetailRecord.description || '',
+    });
+    setIsEditingInPopup(true);
+  };
+
+  // Save Edits from Popup Modal directly to local state, Supabase Database & Backend API
+  const handleSavePopupEdit = async () => {
+    if (!selectedDetailRecord) return;
+    const digits = popupEditForm.phone_number.replace(/\D/g, '');
+    if (digits.length < 7) {
+      setPopupEditError('Phone number must contain at least 7 valid numeric digits.');
+      return;
+    }
+
+    if (isTollFreeNumber(popupEditForm.phone_number) || isFictitiousOrInvalidPhone(popupEditForm.phone_number)) {
+      setPopupEditError('Toll-free and invalid fictitious test numbers cannot be stored.');
+      return;
+    }
+
+    const updated: ThreatRecord = {
+      ...selectedDetailRecord,
+      phone_number: popupEditForm.phone_number.trim(),
+      phone_digits: digits,
+      impersonated_company: popupEditForm.impersonated_company.trim() || 'N/A',
+      category: popupEditForm.category.trim() || 'General Tech Support & Refund Scams',
+      source_name: popupEditForm.source_name.trim() || 'Threat Intel Feed',
+      source_url: popupEditForm.source_url.trim(),
+      report_date: normalizeToNumericalDate(popupEditForm.report_date.trim()),
+      is_down: Boolean(popupEditForm.is_down),
+      amount_charged: popupEditForm.amount_charged.trim() || 'N/A',
+      invoice_number: popupEditForm.invoice_number.trim() || 'N/A',
+      description: popupEditForm.description.trim(),
+    };
+
+    // 1. Update local state
+    setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setSelectedDetailRecord(updated);
+    setIsEditingInPopup(false);
+    setPopupEditError(null);
+    setStatusNotification(`Updated threat post: ${updated.phone_number}`);
+
+    // 2. Persist to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend
+    await syncThreatRecordsToSupabase([updated]);
+
+    // 3. Update backend server specifically
+    try {
+      fetch(`/api/records/${updated.id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          record: {
+            id: updated.id,
+            phone: updated.phone_number,
+            cleanPhone: updated.phone_digits,
+            impersonatedCompany: updated.impersonated_company,
+            scamType: updated.category,
+            platform: updated.source_name,
+            sourceUrl: updated.source_url,
+            snippet: updated.description,
+            detailedSummary: updated.description,
+            postDate: updated.report_date,
+            amountCharged: updated.amount_charged,
+            invoiceNumber: updated.invoice_number,
+            isNumberDown: updated.is_down,
+          },
+        }),
+      }).catch(() => {});
+    } catch {}
   };
 
   // ============================================================================
@@ -2215,14 +2325,19 @@ export function TrackerPage() {
       // 4. Client-side scanning mode (following exact timing, parameters, models and delays from esscan)
       if (!backendScanSucceeded) {
         if (geminiApiKey.trim()) {
-          addLog('[GEMINI] Authenticated with Gemini API. Scanning targets with exact esscan timing, 25s timeout & quota backoffs...');
-          const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+          addLog('[GEMINI] Authenticated with Gemini API. Scanning targets across 12 search-capable Gemini model variations to prevent quota exhaustion...');
 
           for (let i = 0; i < targetsToRun.length; i++) {
             const target = targetsToRun[i];
+            const modelOffset = i % GEMINI_SEARCH_MODEL_VARIATIONS.length;
+            const modelsToTry = [
+              ...GEMINI_SEARCH_MODEL_VARIATIONS.slice(modelOffset),
+              ...GEMINI_SEARCH_MODEL_VARIATIONS.slice(0, modelOffset),
+            ];
+
             setScannerProgress(Math.round(((i + 1) / targetsToRun.length) * 85));
             setScannerStatusMessage(`Scanning ${target.name}...`);
-            addLog(`[TARGET ${i + 1}/${targetsToRun.length}] Querying ${target.name} (${target.category})...`);
+            addLog(`[TARGET ${i + 1}/${targetsToRun.length}] Querying ${target.name} (${target.category}) using ${modelsToTry[0]}...`);
 
             const currentDateStr = getPSTDateStamp();
             let prompt = buildScanPromptForTarget(target, currentDateStr);
@@ -2288,8 +2403,8 @@ export function TrackerPage() {
                   const errText = await resp.text();
                   const isQuota = resp.status === 429 || resp.status === 503 || errText.includes('quota') || errText.includes('RESOURCE_EXHAUSTED');
                   if (isQuota) {
-                    addLog(`[RATE LIMIT] ${model} quota paused (429/503). Applying 1200ms backoff before fallback...`);
-                    await delay(1200);
+                    addLog(`[QUOTA DEFENSE] ${model} rate limit (429/503). Rotating to next search-capable Gemini model variation...`);
+                    await delay(800);
                   }
 
                   // 2. Direct prompt fallback without search tools (higher quota ceiling)
@@ -2798,7 +2913,8 @@ export function TrackerPage() {
       return merged;
     });
 
-    // 4. Persist to backend server (/api/records/restore)
+    // 4. Persist to Supabase and backend server (/api/records/restore)
+    syncThreatRecordsToSupabase(importedThreats);
     try {
       fetch('/api/records/restore', {
         method: 'POST',
@@ -3206,7 +3322,7 @@ export function TrackerPage() {
             <div className="flex items-center space-x-1.5">
               <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
               <span>
-                <strong>Status:</strong> {isScanning ? `${scannerStatusMessage} (${scannerProgress}%)` : 'Monitoring live threat streams'}
+                <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
               </span>
             </div>
 
@@ -3491,9 +3607,9 @@ export function TrackerPage() {
                     </span>
                   </div>
                 </th>
-                <th className="px-4 py-3.5 min-w-[220px]">Scam Category</th>
                 <th className="px-4 py-3.5 min-w-[200px]">Company / Target</th>
-                <th className="px-4 py-3.5 min-w-[140px] text-right sm:text-left">Status</th>
+                <th className="px-4 py-3.5 min-w-[220px]">Scam Category</th>
+                <th className="px-4 py-3.5 min-w-[150px] text-right sm:text-left">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -3507,11 +3623,12 @@ export function TrackerPage() {
                 filteredRecords.map((record) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
+                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
                       key={record.id}
-                      onClick={() => setSelectedDetailRecord(record)}
+                      onClick={() => handleOpenPopupDetail(record)}
                       className={`hover:bg-slate-800/70 transition-colors cursor-pointer group select-none ${isChecked ? 'bg-amber-500/5' : ''}`}
                       title="Click anywhere on row to view full threat intel & details"
                     >
@@ -3655,13 +3772,6 @@ export function TrackerPage() {
                         </div>
                       </td>
 
-                      {/* Scam Category */}
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                          {record.category}
-                        </span>
-                      </td>
-
                       {/* Company Impersonated (Company / Target) */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
@@ -3669,6 +3779,13 @@ export function TrackerPage() {
                         ) : (
                           <span className="text-slate-500 italic">Unspecified Target</span>
                         )}
+                      </td>
+
+                      {/* Scam Category */}
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                          {record.category}
+                        </span>
                       </td>
 
                       {/* Status */}
@@ -4292,15 +4409,17 @@ export function TrackerPage() {
       )}
 
       {/* ======================================================== */}
-      {/* J2. THREAT POST DETAILS POPUP MODAL (CENTER OF SCREEN)  */}
+      {/* J2. THREAT POST DETAILS & ACTIONS POPUP MODAL (CENTER)    */}
       {/* ======================================================== */}
       {selectedDetailRecord && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setSelectedDetailRecord(null)}
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => {
+            if (!isEditingInPopup) setSelectedDetailRecord(null);
+          }}
         >
           <div
-            className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative space-y-5 max-h-[90vh] overflow-y-auto"
+            className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative space-y-5 max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -4324,6 +4443,11 @@ export function TrackerPage() {
                     />
                     {selectedDetailRecord.is_down ? 'Out of Service' : 'Active Line'}
                   </span>
+                  {isEditingInPopup && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-slate-950">
+                      EDITING MODE (TRACKER_PASS UNLOCKED)
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-lg font-bold text-slate-100">
                   {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
@@ -4333,7 +4457,10 @@ export function TrackerPage() {
               </div>
 
               <button
-                onClick={() => setSelectedDetailRecord(null)}
+                onClick={() => {
+                  setIsEditingInPopup(false);
+                  setSelectedDetailRecord(null);
+                }}
                 className="p-1.5 rounded-lg bg-slate-800/60 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition cursor-pointer"
                 title="Close"
               >
@@ -4341,272 +4468,491 @@ export function TrackerPage() {
               </button>
             </div>
 
-            {/* Modal Body / Details */}
-            <div className="space-y-4 text-xs">
-              {/* Phone Numbers Section */}
-              <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
-                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Monitored Contact Numbers
-                </div>
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-400 font-medium">Primary Line:</span>
-                    <a
-                      href={`tel:${selectedDetailRecord.phone_digits}`}
-                      className="font-mono text-base font-bold text-amber-400 hover:text-amber-300 hover:underline transition"
-                    >
-                      {selectedDetailRecord.phone_number}
-                    </a>
-                    <button
-                      onClick={() => handleCopyPhone(selectedDetailRecord.id, selectedDetailRecord.phone_number)}
-                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-                      title="Copy Number"
-                    >
-                      {copiedId === selectedDetailRecord.id ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
+            {popupEditError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{popupEditError}</span>
+              </div>
+            )}
+
+            {/* If NOT editing: Display full post details & Actions section */}
+            {!isEditingInPopup ? (
+              <div className="space-y-4 text-xs">
+                {/* Phone Numbers Section */}
+                <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Monitored Contact Numbers
+                  </div>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-slate-400 font-medium">Primary Line:</span>
+                      <a
+                        href={`tel:${selectedDetailRecord.phone_digits}`}
+                        className="font-mono text-base font-bold text-amber-400 hover:text-amber-300 hover:underline transition"
+                      >
+                        {selectedDetailRecord.phone_number}
+                      </a>
+                      <button
+                        onClick={() => handleCopyPhone(selectedDetailRecord.id, selectedDetailRecord.phone_number)}
+                        className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+                        title="Copy Number"
+                      >
+                        {copiedId === selectedDetailRecord.id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      {isWhatsAppThreat(selectedDetailRecord) && (
+                        <a
+                          href={`https://wa.me/${selectedDetailRecord.phone_digits}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-semibold inline-flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                          title="Open WhatsApp Chat"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span>Verified WhatsApp</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                       )}
-                    </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    {isWhatsAppThreat(selectedDetailRecord) && (
-                      <a
-                        href={`https://wa.me/${selectedDetailRecord.phone_digits}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1 rounded-lg text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-semibold inline-flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
-                        title="Open WhatsApp Chat"
+                  {/* Tied Alternate Numbers */}
+                  {selectedDetailRecord.alt_numbers && selectedDetailRecord.alt_numbers.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                      <div className="text-[11px] font-medium text-cyan-400">
+                        Tied Alternate Numbers ({selectedDetailRecord.alt_numbers.length}):
+                      </div>
+                      <div className="space-y-1.5">
+                        {selectedDetailRecord.alt_numbers.map((alt, aIdx) => {
+                          const altDigits = (alt.digits || alt.phone).replace(/\D/g, '');
+                          const altPhone = alt.phone || formatDisplayPhone(altDigits, altDigits);
+                          const isAltWa = Boolean(
+                            alt.is_whatsapp ||
+                            isWhatsAppThreat({
+                              phone_digits: altDigits,
+                              phone_number: altPhone,
+                              is_whatsapp: alt.is_whatsapp,
+                            })
+                          );
+                          const isAltCopied = copiedId === `${selectedDetailRecord.id}-alt-${aIdx}`;
+                          return (
+                            <div
+                              key={aIdx}
+                              className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono text-[11px] text-cyan-400 font-bold">
+                                  Alt #{aIdx + 2}:
+                                </span>
+                                <a
+                                  href={`tel:${altDigits}`}
+                                  className="font-mono text-sm text-slate-200 hover:text-amber-300 hover:underline transition"
+                                >
+                                  {altPhone}
+                                </a>
+                                <button
+                                  onClick={() => handleCopyPhone(`${selectedDetailRecord.id}-alt-${aIdx}`, altPhone)}
+                                  className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                                  title="Copy Number"
+                                >
+                                  {isAltCopied ? (
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+
+                              {isAltWa && (
+                                <a
+                                  href={`https://wa.me/${altDigits}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold inline-flex items-center space-x-1"
+                                >
+                                  <span>WhatsApp</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2-Column Attributes Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Date Detected */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Calendar className="w-3 h-3 text-amber-400" />
+                      <span>Date Detected (PST)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono font-bold text-slate-200 text-sm">
+                        {normalizeToNumericalDate(selectedDetailRecord.report_date)}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold ${
+                          isPrizeOrExtendedRetention(selectedDetailRecord)
+                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}
                       >
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span>Verified WhatsApp</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        {getRetentionLabel(selectedDetailRecord)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Company / Target */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Shield className="w-3 h-3 text-cyan-400" />
+                      <span>Company / Target</span>
+                    </div>
+                    <div className="text-slate-200 font-semibold text-sm">
+                      {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
+                        ? selectedDetailRecord.impersonated_company
+                        : 'Unspecified Target'}
+                    </div>
+                  </div>
+
+                  {/* Scam Category */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                      Scam Category
+                    </div>
+                    <div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                        {selectedDetailRecord.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Source Platform */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Globe className="w-3 h-3 text-blue-400" />
+                      <span>Source Platform</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {selectedDetailRecord.source_url && selectedDetailRecord.source_url.startsWith('http') ? (
+                        <a
+                          href={selectedDetailRecord.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center space-x-1 text-slate-200 hover:text-amber-400 font-semibold underline decoration-slate-600 underline-offset-2 transition"
+                          title="Open external verified report"
+                        >
+                          <span>{selectedDetailRecord.source_name}</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+                      ) : (
+                        <span className="text-slate-200 font-semibold">{selectedDetailRecord.source_name}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1 sm:col-span-2">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Shield className="w-3 h-3 text-emerald-400" />
+                      <span>Status</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`font-semibold text-xs ${
+                          selectedDetailRecord.is_down ? 'text-slate-400' : 'text-emerald-400'
+                        }`}
+                      >
+                        {selectedDetailRecord.is_down ? 'Out of Service / Inactive' : 'Active Operating Line'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial / Invoice details if available */}
+                {((selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A') ||
+                  (selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A')) && (
+                  <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/20 flex items-center space-x-6">
+                    {selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase block font-medium">Claimed Amount:</span>
+                        <span className="text-amber-400 font-mono font-bold text-sm">
+                          {selectedDetailRecord.amount_charged}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A' && (
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase block font-medium">Invoice ID:</span>
+                        <span className="text-slate-200 font-mono font-semibold text-sm">
+                          {selectedDetailRecord.invoice_number}
+                        </span>
+                      </div>
                     )}
                   </div>
-                </div>
-
-                {/* Tied Alternate Numbers */}
-                {selectedDetailRecord.alt_numbers && selectedDetailRecord.alt_numbers.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                    <div className="text-[11px] font-medium text-cyan-400">
-                      Tied Alternate Numbers ({selectedDetailRecord.alt_numbers.length}):
-                    </div>
-                    <div className="space-y-1.5">
-                      {selectedDetailRecord.alt_numbers.map((alt, aIdx) => {
-                        const altDigits = (alt.digits || alt.phone).replace(/\D/g, '');
-                        const altPhone = alt.phone || formatDisplayPhone(altDigits, altDigits);
-                        const isAltWa = Boolean(
-                          alt.is_whatsapp ||
-                          isWhatsAppThreat({
-                            phone_digits: altDigits,
-                            phone_number: altPhone,
-                            is_whatsapp: alt.is_whatsapp,
-                          })
-                        );
-                        const isAltCopied = copiedId === `${selectedDetailRecord.id}-alt-${aIdx}`;
-                        return (
-                          <div
-                            key={aIdx}
-                            className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800"
-                          >
-                            <div className="flex items-center space-x-2">
-                              <span className="font-mono text-[11px] text-cyan-400 font-bold">
-                                Alt #{aIdx + 2}:
-                              </span>
-                              <a
-                                href={`tel:${altDigits}`}
-                                className="font-mono text-sm text-slate-200 hover:text-amber-300 hover:underline transition"
-                              >
-                                {altPhone}
-                              </a>
-                              <button
-                                onClick={() => handleCopyPhone(`${selectedDetailRecord.id}-alt-${aIdx}`, altPhone)}
-                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                                title="Copy Number"
-                              >
-                                {isAltCopied ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-
-                            {isAltWa && (
-                              <a
-                                href={`https://wa.me/${altDigits}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold inline-flex items-center space-x-1"
-                              >
-                                <span>WhatsApp</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </a>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
                 )}
-              </div>
 
-              {/* 2-Column Attributes Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Date Detected */}
-                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-                    <Calendar className="w-3 h-3 text-amber-400" />
-                    <span>Date Detected (PST)</span>
+                {/* Threat Intel & Snippet */}
+                <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2">
+                  <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Info className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Threat Intel & Snippet</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono font-bold text-slate-200 text-sm">
-                      {normalizeToNumericalDate(selectedDetailRecord.report_date)}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold ${
-                        isPrizeOrExtendedRetention(selectedDetailRecord)
-                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}
-                    >
-                      {getRetentionLabel(selectedDetailRecord)}
-                    </span>
+                  <div className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap bg-slate-900/60 p-3 rounded-lg border border-slate-800/80 text-xs selection:bg-amber-500/30">
+                    {selectedDetailRecord.description || 'No detailed snippet provided for this threat entry.'}
                   </div>
                 </div>
 
-                {/* Status */}
-                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-                    <Shield className="w-3 h-3 text-emerald-400" />
-                    <span>Operational Status</span>
-                  </div>
+                {/* Actions Box directly on popup modal */}
+                <div className="bg-slate-950/80 p-4 rounded-xl border border-amber-500/20 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span
-                      className={`font-semibold text-xs ${
-                        selectedDetailRecord.is_down ? 'text-slate-400' : 'text-emerald-400'
-                      }`}
-                    >
-                      {selectedDetailRecord.is_down ? 'Out of Service / Inactive' : 'Active Operating Line'}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <Shield className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                        Actions (Gated by TRACKER_PASS)
+                      </span>
+                    </div>
+                    {!isPasswordVerified && (
+                      <span className="text-[10px] text-amber-400/90 font-mono flex items-center space-x-1">
+                        <Lock className="w-3 h-3" />
+                        <span>Password Required to Edit</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center flex-wrap gap-2 pt-1">
                     <button
-                      onClick={() =>
+                      type="button"
+                      onClick={() => {
+                        requireTrackerPass('Edit Monitored Number', () => {
+                          handleStartEditingInPopup();
+                        });
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
+                      title="Edit threat post details (requires TRACKER_PASS)"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit Threat Post (Actions)</span>
+                      {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
                         requireTrackerPass('Change Line Status', () => {
                           handleToggleStatus(selectedDetailRecord);
                           setSelectedDetailRecord((prev) =>
                             prev ? { ...prev, is_down: !prev.is_down } : null
                           );
-                        })
-                      }
-                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
-                      title="Toggle line status (requires TRACKER_PASS)"
+                        });
+                      }}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
+                      title="Toggle line active / out of service (requires TRACKER_PASS)"
                     >
-                      Toggle Status
+                      <span className={`w-2 h-2 rounded-full ${selectedDetailRecord.is_down ? 'bg-slate-500' : 'bg-emerald-400'}`} />
+                      <span>Toggle Status ({selectedDetailRecord.is_down ? 'Mark Active' : 'Mark Out of Service'})</span>
                     </button>
                   </div>
                 </div>
-
-                {/* Scam Category */}
-                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Scam Category
+              </div>
+            ) : (
+              /* If EDITING: Interactive form directly on the popup box */
+              <div className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Phone Number */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.phone_number}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, phone_number: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="+1 (800) 000-0000"
+                    />
                   </div>
-                  <div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                      {selectedDetailRecord.category}
-                    </span>
+
+                  {/* Company / Target */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Company / Target *
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.impersonated_company}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, impersonated_company: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. Geek Squad, PayPal, Amazon"
+                    />
+                  </div>
+
+                  {/* Scam Category */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Scam Category *
+                    </label>
+                    <select
+                      value={popupEditForm.category}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, category: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    >
+                      <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
+                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                      <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
+                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
+                      <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                    </select>
+                  </div>
+
+                  {/* Date Detected */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Date Detected (YYYY-MM-DD or MM/DD/YYYY)
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.report_date}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, report_date: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </div>
+
+                  {/* Source Platform */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Source Platform
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.source_name}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, source_name: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. Tech Support United, Scammer.info"
+                    />
+                  </div>
+
+                  {/* Operational Status */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Line Status
+                    </label>
+                    <select
+                      value={popupEditForm.is_down ? 'down' : 'active'}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, is_down: e.target.value === 'down' }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    >
+                      <option value="active">Active Line (Operational)</option>
+                      <option value="down">Out of Service / Inactive</option>
+                    </select>
+                  </div>
+
+                  {/* Source URL */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Source URL
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.source_url}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, source_url: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  {/* Claimed Amount */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Claimed Amount
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.amount_charged}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, amount_charged: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. $499.99"
+                    />
+                  </div>
+
+                  {/* Invoice ID */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Invoice ID
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.invoice_number}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, invoice_number: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. INV-98234"
+                    />
+                  </div>
+
+                  {/* Threat Intel & Snippet */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Threat Intel & Snippet *
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={popupEditForm.description}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-none leading-relaxed"
+                      placeholder="Enter detailed intelligence and post context..."
+                    />
                   </div>
                 </div>
 
-                {/* Source Platform */}
-                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
-                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-                    <Globe className="w-3 h-3 text-blue-400" />
-                    <span>Source Platform</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {selectedDetailRecord.source_url && selectedDetailRecord.source_url.startsWith('http') ? (
-                      <a
-                        href={selectedDetailRecord.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center space-x-1 text-slate-200 hover:text-amber-400 font-semibold underline decoration-slate-600 underline-offset-2 transition"
-                        title="Open external verified report"
-                      >
-                        <span>{selectedDetailRecord.source_name}</span>
-                        <ExternalLink className="w-3 h-3 text-slate-400" />
-                      </a>
-                    ) : (
-                      <span className="text-slate-200 font-semibold">{selectedDetailRecord.source_name}</span>
-                    )}
-                  </div>
+                {/* Edit Form Action Buttons */}
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingInPopup(false);
+                      setPopupEditError(null);
+                    }}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSavePopupEdit}
+                    className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Save Changes</span>
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Financial / Invoice details if available */}
-              {((selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A') ||
-                (selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A')) && (
-                <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/20 flex items-center space-x-6">
-                  {selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' && (
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase block font-medium">Claimed Amount:</span>
-                      <span className="text-amber-400 font-mono font-bold text-sm">
-                        {selectedDetailRecord.amount_charged}
-                      </span>
-                    </div>
-                  )}
-                  {selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A' && (
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase block font-medium">Invoice ID:</span>
-                      <span className="text-slate-200 font-mono font-semibold text-sm">
-                        {selectedDetailRecord.invoice_number}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Threat Intel & Snippet */}
-              <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2">
-                <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-                  <Info className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Threat Intel & Snippet</span>
-                </div>
-                <div className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap bg-slate-900/60 p-3 rounded-lg border border-slate-800/80 text-xs selection:bg-amber-500/30">
-                  {selectedDetailRecord.description || 'No detailed snippet provided for this threat entry.'}
-                </div>
+            {/* Modal Bottom Footer (when not editing) */}
+            {!isEditingInPopup && (
+              <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailRecord(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Close Details
+                </button>
               </div>
-            </div>
-
-            {/* Modal Footer with Actions (Edit Post requires TRACKER_PASS) */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setSelectedDetailRecord(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-              >
-                Close Details
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const targetRecord = selectedDetailRecord;
-                  requireTrackerPass('Edit Monitored Number', () => {
-                    setSelectedDetailRecord(null);
-                    handleOpenEditModal(targetRecord);
-                  });
-                }}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
-                title="Edit threat post details (requires TRACKER_PASS)"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit Threat Post (Actions)</span>
-                {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}
