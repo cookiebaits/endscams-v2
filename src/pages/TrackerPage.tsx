@@ -1290,7 +1290,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1298,6 +1298,41 @@ const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
+
+/**
+ * Helper to match records against a target phone number string/digits.
+ */
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const target = target10Digits.replace(/\D/g, '');
+  if (!target) return false;
+
+  const candidateFields = [
+    record.phone_digits,
+    record.cleanPhone,
+    record.clean_phone,
+    record.phone,
+    record.phone_number,
+  ];
+
+  for (const field of candidateFields) {
+    if (typeof field === 'string' && field) {
+      const digits = field.replace(/\D/g, '');
+      if (digits.includes(target) || target.includes(digits)) return true;
+    }
+  }
+
+  const alts = record.alt_numbers || record.altNumbers;
+  if (Array.isArray(alts)) {
+    for (const alt of alts) {
+      const altStr = typeof alt === 'string' ? alt : (alt?.digits || alt?.phone || '');
+      const altDigits = altStr.replace(/\D/g, '');
+      if (altDigits && (altDigits.includes(target) || target.includes(altDigits))) return true;
+    }
+  }
+
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
