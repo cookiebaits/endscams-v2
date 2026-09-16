@@ -49,6 +49,11 @@ import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
+import {
+  verifyEncryptedBypass,
+  isBypassAllowedForAction,
+  checkClientGeoPermission,
+} from '../utils/security';
 
 export interface AltNumberEntry {
   phone: string;
@@ -1447,10 +1452,16 @@ export function TrackerPage() {
   });
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
-  // Administrative TRACKER_PASS Authentication
+  // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('tracker_pass_verified') === 'true';
+    }
+    return false;
+  });
+  const [isBypassSession, setIsBypassSession] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('tracker_pass_is_bypass') === 'true';
     }
     return false;
   });
@@ -1461,6 +1472,10 @@ export function TrackerPage() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+
+  // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
+  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1699,16 +1714,34 @@ export function TrackerPage() {
     };
 
     loadDokployConfig();
+
+    // Check Geo-IP permission: US, Canada, Australia, and all EU countries
+    checkClientGeoPermission().then((res) => {
+      if (isMounted) {
+        setIsGeoAllowed(res.allowed);
+        setClientCountryCode(res.country);
+      }
+    });
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Require Administrative TRACKER_PASS for protected actions
+  // Require Administrative TRACKER_PASS or Encrypted Bypass for protected actions
   const requireTrackerPass = (actionName: string, onVerified: () => void) => {
-    if (isPasswordVerified) {
+    // If full admin verified, allow immediately
+    if (isPasswordVerified && !isBypassSession) {
       onVerified();
       return;
+    }
+    // If verified via bypass, verify that this specific action is permitted under bypass scope (editing & status changing)
+    if (isPasswordVerified && isBypassSession) {
+      if (isBypassAllowedForAction(actionName)) {
+        onVerified();
+        return;
+      }
+      // If action is outside bypass scope (e.g. scanner), prompt for full TRACKER_PASS
     }
     setPasswordActionName(actionName);
     setPendingAction(() => onVerified);
@@ -1717,26 +1750,63 @@ export function TrackerPage() {
     setIsPasswordModalOpen(true);
   };
 
-  // Verify password via backend endpoint
+  // Verify password via backend endpoint or encrypted bypass
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!passwordInput.trim()) {
-      setPasswordError('Please enter your Tracker Password.');
+    const entered = passwordInput.trim();
+    if (!entered) {
+      setPasswordError('Please enter your Tracker Password or encrypted bypass key.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
+
+    // 1. One-way encrypted bypass verification (password is NEVER stored in plain-text)
+    const isBypassMatch = await verifyEncryptedBypass(entered);
+    if (isBypassMatch) {
+      // Limit bypass password strictly to Editing and changing status
+      if (!isBypassAllowedForAction(passwordActionName)) {
+        setIsVerifyingPassword(false);
+        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status.');
+        return;
+      }
+
+      setIsPasswordVerified(true);
+      setIsBypassSession(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authorized via encrypted bypass: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    // 2. Standard TRACKER_PASS verification via backend API
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: passwordInput.trim() }),
+        body: JSON.stringify({ password: entered, action: passwordActionName }),
       });
       const data = await res.json();
       if (data.verified || data.success) {
         setIsPasswordVerified(true);
+        setIsBypassSession(Boolean(data.isBypass));
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('tracker_pass_verified', 'true');
+          if (data.isBypass) {
+            sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+          } else {
+            sessionStorage.removeItem('tracker_pass_is_bypass');
+          }
         }
         setIsPasswordModalOpen(false);
         setPasswordInput('');
@@ -1758,8 +1828,10 @@ export function TrackerPage() {
 
   const handleLockSession = () => {
     setIsPasswordVerified(false);
+    setIsBypassSession(false);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('tracker_pass_verified');
+      sessionStorage.removeItem('tracker_pass_is_bypass');
     }
     setStatusNotification('Admin session locked.');
   };
@@ -3017,8 +3089,21 @@ export function TrackerPage() {
   // ============================================================================
   // 10. MANUAL REPORT ADD (SUPPORTS UP TO 4 NUMBERS PER ENTRY & WHATSAPP)
   // ============================================================================
+  const handleOpenAddNumberModal = () => {
+    if (!isGeoAllowed) {
+      // Silently deny if outside US, Canada, Australia, and EU: when clicked, nothing appears
+      return;
+    }
+    setIsReportModalOpen(true);
+  };
+
   const handleManualAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isGeoAllowed) {
+      // Silently deny non-allowed IPs: close modal, do nothing
+      setIsReportModalOpen(false);
+      return;
+    }
     setManualFormError(null);
 
     const digits = newPhone.replace(/\D/g, '');
@@ -3298,7 +3383,7 @@ export function TrackerPage() {
 
             {/* Manual Add */}
             <button
-              onClick={() => setIsReportModalOpen(true)}
+              onClick={handleOpenAddNumberModal}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-red-400" />
@@ -4347,7 +4432,7 @@ export function TrackerPage() {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              This administrative action is secured by the <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> Dokploy environment setting.
+              Secured by <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> or encrypted bypass key (bypass access is strictly limited to editing and changing status).
             </p>
 
             {passwordError && (
@@ -4360,7 +4445,7 @@ export function TrackerPage() {
             <form onSubmit={handleVerifyPassword} className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 text-xs">
-                  Enter Tracker Password (TRACKER_PASS)
+                  Enter Password or Encrypted Bypass Key
                 </label>
                 <div className="relative">
                   <input
