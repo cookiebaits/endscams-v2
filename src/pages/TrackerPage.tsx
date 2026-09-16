@@ -18,16 +18,22 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -39,11 +45,15 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV } from '../utils/csvHandler';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
-import { isUserCountryAllowed } from '../utils/geoIp';
 import { ScamPhoneRecord } from '../types';
+import {
+  verifyEncryptedBypass,
+  isBypassAllowedForAction,
+  checkClientGeoPermission,
+} from '../utils/security';
 
 export interface AltNumberEntry {
   phone: string;
@@ -1285,7 +1295,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1293,41 +1303,6 @@ export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
-
-/**
- * Helper to match records against a target phone number string/digits.
- */
-export function isRecordMatch(record: any, target10Digits: string): boolean {
-  if (!record || !target10Digits) return false;
-  const target = target10Digits.replace(/\D/g, '');
-  if (!target) return false;
-
-  const candidateFields = [
-    record.phone_digits,
-    record.cleanPhone,
-    record.clean_phone,
-    record.phone,
-    record.phone_number,
-  ];
-
-  for (const field of candidateFields) {
-    if (typeof field === 'string' && field) {
-      const digits = field.replace(/\D/g, '');
-      if (digits.includes(target) || target.includes(digits)) return true;
-    }
-  }
-
-  const alts = record.alt_numbers || record.altNumbers;
-  if (Array.isArray(alts)) {
-    for (const alt of alts) {
-      const altStr = typeof alt === 'string' ? alt : (alt?.digits || alt?.phone || '');
-      const altDigits = altStr.replace(/\D/g, '');
-      if (altDigits && (altDigits.includes(target) || target.includes(altDigits))) return true;
-    }
-  }
-
-  return false;
-}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1378,13 +1353,7 @@ export function TrackerPage() {
     let isMounted = true;
     const fetchBackendRecords = async () => {
       try {
-        const res = await fetch(`/api/records?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-          },
-        });
+        const res = await fetch('/api/records');
         if (res.ok) {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
@@ -1401,7 +1370,7 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                mapped.forEach((r) => map.set(r.phone_digits, r));
                 prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
@@ -1432,7 +1401,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [, setScannerProgress] = useState(0);
+  const [scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1483,10 +1452,16 @@ export function TrackerPage() {
   });
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
-  // Administrative TRACKER_PASS Authentication
+  // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return sessionStorage.getItem('tracker_pass_verified') === 'true';
+    }
+    return false;
+  });
+  const [isBypassSession, setIsBypassSession] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('tracker_pass_is_bypass') === 'true';
     }
     return false;
   });
@@ -1497,6 +1472,10 @@ export function TrackerPage() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+
+  // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
+  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1735,16 +1714,34 @@ export function TrackerPage() {
     };
 
     loadDokployConfig();
+
+    // Check Geo-IP permission: US, Canada, Australia, and all EU countries
+    checkClientGeoPermission().then((res) => {
+      if (isMounted) {
+        setIsGeoAllowed(res.allowed);
+        setClientCountryCode(res.country);
+      }
+    });
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Require Administrative TRACKER_PASS for protected actions
+  // Require Administrative TRACKER_PASS or Encrypted Bypass for protected actions
   const requireTrackerPass = (actionName: string, onVerified: () => void) => {
-    if (isPasswordVerified) {
+    // If full admin verified, allow immediately
+    if (isPasswordVerified && !isBypassSession) {
       onVerified();
       return;
+    }
+    // If verified via bypass, verify that this specific action is permitted under bypass scope (editing & status changing)
+    if (isPasswordVerified && isBypassSession) {
+      if (isBypassAllowedForAction(actionName)) {
+        onVerified();
+        return;
+      }
+      // If action is outside bypass scope (e.g. scanner), prompt for full TRACKER_PASS
     }
     setPasswordActionName(actionName);
     setPendingAction(() => onVerified);
@@ -1753,26 +1750,63 @@ export function TrackerPage() {
     setIsPasswordModalOpen(true);
   };
 
-  // Verify password via backend endpoint
+  // Verify password via backend endpoint or encrypted bypass
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!passwordInput.trim()) {
-      setPasswordError('Please enter your Tracker Password.');
+    const entered = passwordInput.trim();
+    if (!entered) {
+      setPasswordError('Please enter your Tracker Password or encrypted bypass key.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
+
+    // 1. One-way encrypted bypass verification (password is NEVER stored in plain-text)
+    const isBypassMatch = await verifyEncryptedBypass(entered);
+    if (isBypassMatch) {
+      // Limit bypass password strictly to Editing and changing status
+      if (!isBypassAllowedForAction(passwordActionName)) {
+        setIsVerifyingPassword(false);
+        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status.');
+        return;
+      }
+
+      setIsPasswordVerified(true);
+      setIsBypassSession(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authorized via encrypted bypass: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    // 2. Standard TRACKER_PASS verification via backend API
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: passwordInput.trim() }),
+        body: JSON.stringify({ password: entered, action: passwordActionName }),
       });
       const data = await res.json();
       if (data.verified || data.success) {
         setIsPasswordVerified(true);
+        setIsBypassSession(Boolean(data.isBypass));
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('tracker_pass_verified', 'true');
+          if (data.isBypass) {
+            sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+          } else {
+            sessionStorage.removeItem('tracker_pass_is_bypass');
+          }
         }
         setIsPasswordModalOpen(false);
         setPasswordInput('');
@@ -1794,13 +1828,36 @@ export function TrackerPage() {
 
   const handleLockSession = () => {
     setIsPasswordVerified(false);
+    setIsBypassSession(false);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('tracker_pass_verified');
+      sessionStorage.removeItem('tracker_pass_is_bypass');
     }
     setStatusNotification('Admin session locked.');
   };
 
   // Edit Monitored Number Handlers
+  const handleOpenEditModal = (record: ThreatRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
+    });
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -3032,8 +3089,21 @@ export function TrackerPage() {
   // ============================================================================
   // 10. MANUAL REPORT ADD (SUPPORTS UP TO 4 NUMBERS PER ENTRY & WHATSAPP)
   // ============================================================================
+  const handleOpenAddNumberModal = () => {
+    if (!isGeoAllowed) {
+      // Silently deny if outside US, Canada, Australia, and EU: when clicked, nothing appears
+      return;
+    }
+    setIsReportModalOpen(true);
+  };
+
   const handleManualAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isGeoAllowed) {
+      // Silently deny non-allowed IPs: close modal, do nothing
+      setIsReportModalOpen(false);
+      return;
+    }
     setManualFormError(null);
 
     const digits = newPhone.replace(/\D/g, '');
@@ -3313,14 +3383,7 @@ export function TrackerPage() {
 
             {/* Manual Add */}
             <button
-              onClick={async () => {
-                const allowed = await isUserCountryAllowed();
-                if (!allowed) {
-                  // Silently deny by doing nothing when clicked
-                  return;
-                }
-                setIsReportModalOpen(true);
-              }}
+              onClick={handleOpenAddNumberModal}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-red-400" />
@@ -3645,6 +3708,7 @@ export function TrackerPage() {
                 filteredRecords.map((record) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
+                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
@@ -4368,7 +4432,7 @@ export function TrackerPage() {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              This administrative action is secured by the <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> Dokploy environment setting.
+              Secured by <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> or encrypted bypass key (bypass access is strictly limited to editing and changing status).
             </p>
 
             {passwordError && (
@@ -4381,7 +4445,7 @@ export function TrackerPage() {
             <form onSubmit={handleVerifyPassword} className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 text-xs">
-                  Enter Tracker Password (TRACKER_PASS)
+                  Enter Password or Encrypted Bypass Key
                 </label>
                 <div className="relative">
                   <input
