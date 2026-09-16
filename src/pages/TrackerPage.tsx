@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../tracker/data/scam_records.json';
-import { requireDisclaimerAcceptance } from '../components/TermsBanner';
+import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
   Search,
@@ -18,81 +17,50 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
+  Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
+  Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
-  Edit3,
   Lock,
   Unlock,
+  Edit3,
   Save,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
-import { getPSTDateStamp } from '../tracker/src/utils/dateUtils';
-import { syncBridge } from '../tracker/src/utils/syncBridge';
-import { ScamPhoneRecord } from '../tracker/src/types';
+import { createClient } from '@supabase/supabase-js';
+import { getPSTDateStamp } from '../utils/dateUtils';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { noSqlDatabase } from '../db/noSqlDatabase';
+import { syncBridge } from '../utils/syncBridge';
+import { ScamPhoneRecord } from '../types';
 
-export const CSV_EXPORT_HEADERS = [
-  'Type of Scam',
-  'Phone Number',
-  'Clean Digits',
-  'Company Impersonated',
-  'Date Detected (PST)',
-  'Source URL',
-  'Platform',
-  'Country',
-  'Snippet',
-  'Status',
-];
-
-export function parseFullCSV(csvText: string): string[][] {
-  const lines = csvText.split(/\r?\n/);
-  const result: string[][] = [];
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const row: string[] = [];
-    let insideQuotes = false;
-    let currentCell = '';
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (insideQuotes && line[i + 1] === '"') {
-          currentCell += '"';
-          i++;
-        } else {
-          insideQuotes = !insideQuotes;
-        }
-      } else if (char === ',' && !insideQuotes) {
-        row.push(currentCell.trim());
-        currentCell = '';
-      } else {
-        currentCell += char;
-      }
-    }
-    row.push(currentCell.trim());
-    result.push(row);
-  }
-  return result;
+export interface AltNumberEntry {
+  phone: string;
+  digits: string;
+  is_whatsapp?: boolean;
 }
-
-export const noSqlDatabase = {
-  getRecordsCollection: () => ({
-    findOne: (_predicate?: (e: any) => boolean) => null as any,
-    update: (_id: any, _data: any) => {},
-    insert: (_data: any) => {},
-  }),
-  persist: () => {},
-};
 
 export interface ThreatRecord {
   id: string;
   phone_number: string;
   phone_digits: string;
+  is_whatsapp?: boolean;
+  alt_numbers?: AltNumberEntry[];
   source_name: string;
   source_url: string;
   report_date: string;
@@ -102,6 +70,41 @@ export interface ThreatRecord {
   invoice_number?: string;
   amount_charged?: string;
   is_down?: boolean;
+}
+
+/**
+ * Checks if a threat record or specific number is a verified WhatsApp channel.
+ * Evaluates explicit flag, category/description keywords, and high-frequency international carrier prefixes.
+ */
+export function isWhatsAppThreat(record: {
+  is_whatsapp?: boolean;
+  phone_number?: string;
+  phone_digits?: string;
+  category?: string;
+  description?: string;
+  source_name?: string;
+}): boolean {
+  if (record.is_whatsapp === true) return true;
+  const cat = (record.category || '').toLowerCase();
+  const desc = (record.description || '').toLowerCase();
+  const src = (record.source_name || '').toLowerCase();
+  if (cat.includes('whatsapp') || desc.includes('whatsapp') || src.includes('whatsapp')) return true;
+  if (cat.includes('spellcaster') || desc.includes('spellcaster')) return true;
+  const digits = (record.phone_digits || record.phone_number || '').replace(/\D/g, '');
+  if (
+    digits.startsWith('234') ||
+    digits.startsWith('254') ||
+    digits.startsWith('27') ||
+    digits.startsWith('233') ||
+    digits.startsWith('260') ||
+    digits.startsWith('256') ||
+    digits.startsWith('237') ||
+    digits.startsWith('229') ||
+    digits.startsWith('263')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 // ============================================================================
@@ -788,6 +791,8 @@ export function threatRecordToScamPhoneRecord(r: ThreatRecord): ScamPhoneRecord 
     id: r.id,
     phone: r.phone_number,
     cleanPhone: r.phone_digits,
+    isWhatsapp: isWhatsAppThreat(r),
+    altNumbers: r.alt_numbers && r.alt_numbers.length > 0 ? r.alt_numbers.map((a) => (typeof a === 'string' ? a : a.phone)) : undefined,
     scamType: r.category,
     impersonatedCompany: r.impersonated_company || 'N/A',
     invoiceNumber: r.invoice_number || 'N/A',
@@ -1030,6 +1035,11 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
     id: "esscan-01",
     phone_number: "+234 810 552 9412",
     phone_digits: "2348105529412",
+    is_whatsapp: true,
+    alt_numbers: [
+      { phone: "+234 813 816 1886", digits: "2348138161886", is_whatsapp: true },
+      { phone: "+234 802 441 9901", digits: "2348024419901", is_whatsapp: true }
+    ],
     source_name: "Facebook",
     source_url: "https://www.facebook.com/groups/108392045294810/posts/992837465102938/",
     report_date: "2026-09-08",
@@ -1043,6 +1053,7 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
     id: "esscan-02",
     phone_number: "+254 792 441 092",
     phone_digits: "254792441092",
+    is_whatsapp: true,
     source_name: "Instagram",
     source_url: "https://www.instagram.com/p/example_reel_2/",
     report_date: "2026-09-08",
@@ -1056,6 +1067,10 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
     id: "esscan-03",
     phone_number: "1 (951) 629-3962",
     phone_digits: "19516293962",
+    is_whatsapp: false,
+    alt_numbers: [
+      { phone: "1 (951) 629-3963", digits: "19516293963", is_whatsapp: false }
+    ],
     source_name: "Tech Support United",
     source_url: "https://techscammersunited.com/t/geek-squad-renewal-alert/8812",
     report_date: "2026-09-08",
@@ -1069,6 +1084,10 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
     id: "esscan-04",
     phone_number: "+234 814 658 9231",
     phone_digits: "2348146589231",
+    is_whatsapp: true,
+    alt_numbers: [
+      { phone: "+234 814 658 9232", digits: "2348146589232", is_whatsapp: true }
+    ],
     source_name: "Facebook",
     source_url: "https://www.facebook.com/groups/1029384756/posts/982736451/",
     report_date: "2026-09-08",
@@ -1187,10 +1206,51 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
 function mapRawSeedToThreatRecord(r: any): ThreatRecord {
   const rawPhone = r.phone || r.phone_number || '';
   const digits = (r.cleanPhone || r.phone_digits || rawPhone).replace(/\D/g, '');
+
+  let alt_numbers: AltNumberEntry[] | undefined = undefined;
+  if (Array.isArray(r.alt_numbers)) {
+    alt_numbers = r.alt_numbers.map((a: any) => {
+      if (typeof a === 'string') {
+        const ad = a.replace(/\D/g, '');
+        return { phone: formatDisplayPhone(a, ad), digits: ad, is_whatsapp: false };
+      }
+      const ad = (a.digits || a.phone_digits || a.phone || '').replace(/\D/g, '');
+      return {
+        phone: a.phone || formatDisplayPhone(a.phone || ad, ad),
+        digits: ad,
+        is_whatsapp: Boolean(a.is_whatsapp || a.isWhatsapp),
+      };
+    });
+  } else if (Array.isArray(r.altNumbers)) {
+    alt_numbers = r.altNumbers.map((a: any) => {
+      if (typeof a === 'string') {
+        const ad = a.replace(/\D/g, '');
+        return { phone: formatDisplayPhone(a, ad), digits: ad, is_whatsapp: false };
+      }
+      const ad = (a.digits || a.cleanPhone || a.phone || '').replace(/\D/g, '');
+      return {
+        phone: a.phone || formatDisplayPhone(a.phone || ad, ad),
+        digits: ad,
+        is_whatsapp: Boolean(a.is_whatsapp || a.isWhatsapp),
+      };
+    });
+  }
+
+  const isWa = r.is_whatsapp ?? r.isWhatsapp ?? isWhatsAppThreat({
+    is_whatsapp: r.is_whatsapp || r.isWhatsapp,
+    phone_digits: digits,
+    phone_number: rawPhone,
+    category: r.scamType || r.category,
+    description: r.detailedSummary || r.description || r.snippet,
+    source_name: r.platform || r.source_name || r.sourceDomain,
+  });
+
   return {
     id: r.id || `rec-${digits}`,
     phone_number: r.phone || r.phone_number || formatDisplayPhone(rawPhone, digits),
     phone_digits: digits,
+    is_whatsapp: isWa,
+    alt_numbers: alt_numbers && alt_numbers.length > 0 ? alt_numbers : undefined,
     source_name: r.platform || r.source_name || r.sourceDomain || 'Threat Intelligence',
     source_url: r.sourceUrl || r.source_url || '',
     report_date: normalizeToNumericalDate(r.detectedAt || r.report_date || r.postDate),
@@ -1214,7 +1274,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1222,13 +1282,6 @@ export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
-
-export function isRecordMatch(record: any, core10Digits: string): boolean {
-  if (!record || !core10Digits) return false;
-  const digits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
-  const altDigits = (record.alt_phone_digits || record.alt_phone_number || '').replace(/\D/g, '');
-  return (digits && digits.includes(core10Digits)) || (altDigits && altDigits.includes(core10Digits));
-}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1296,7 +1349,7 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                mapped.forEach((r) => map.set(r.phone_digits, r));
                 prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
@@ -1325,25 +1378,9 @@ export function TrackerPage() {
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [scheduleInfo, setScheduleInfo] = useState<{ label: string; countdown: string }>(getNextScheduledPSTInfo());
 
-  // Detail Modal & Password Editing States
-  const [viewingRecord, setViewingRecord] = useState<ThreatRecord | null>(null);
-  const [isEditingRecord, setIsEditingRecord] = useState(false);
-  const [trackerPassword, setTrackerPassword] = useState('');
-  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState<Partial<ThreatRecord>>({});
-
-  // Action Authorization States (for Import CSV & Status Changes)
-  const [pendingActionModal, setPendingActionModal] = useState<{
-    type: 'IMPORT_CSV' | 'TOGGLE_STATUS' | 'BULK_MARK_DOWN';
-    record?: ThreatRecord;
-  } | null>(null);
-  const [actionAuthPassword, setActionAuthPassword] = useState('');
-  const [actionAuthError, setActionAuthError] = useState<string | null>(null);
-
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [_scannerProgress, setScannerProgress] = useState(0);
+  const [scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1379,69 +1416,68 @@ export function TrackerPage() {
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
-  const [isBackingUpDb, setIsBackingUpDb] = useState(false);
-  const [dbBackupStatus, setDbBackupStatus] = useState<string | null>(null);
-  const [isRestoringDbFile, setIsRestoringDbFile] = useState(false);
-  const [dbRestoreStatus, setDbRestoreStatus] = useState<string | null>(null);
-  const dbFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleBackupToGDrive = async () => {
-    setIsBackingUpDb(true);
-    setDbBackupStatus('Initiating Google Drive backup sync for cwnendscams@gmail.com...');
-    try {
-      const res = await fetch('/api/db/backup-gdrive', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setDbBackupStatus(data.message || 'Database snapshot created and backed up for cwnendscams@gmail.com.');
-      } else {
-        setDbBackupStatus('Backup notice: Database snapshot saved locally for cwnendscams@gmail.com.');
-      }
-    } catch (err: any) {
-      setDbBackupStatus(`Backup status: Local snapshot created for cwnendscams@gmail.com (${err.message || 'Server response recorded'}).`);
-    } finally {
-      setIsBackingUpDb(false);
+  // Dokploy Settings & Supabase Database
+  const [dokployConfig, setDokployConfig] = useState<{
+    supabaseUrl: string;
+    supabaseKey: string;
+    hasSupabase: boolean;
+    hasTrackerPass: boolean;
+  }>({
+    supabaseUrl: '',
+    supabaseKey: '',
+    hasSupabase: false,
+    hasTrackerPass: false,
+  });
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+
+  // Administrative TRACKER_PASS Authentication
+  const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('tracker_pass_verified') === 'true';
     }
-  };
+    return false;
+  });
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordActionName, setPasswordActionName] = useState('Administrative Action');
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
-  const handleDownloadDbFile = () => {
-    const link = document.createElement('a');
-    link.href = '/api/db/download';
-    link.download = 'tracker.db';
-    link.click();
-  };
+  // Threat Post Details Modal State (Center of Screen Popup)
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
 
-  const handleRestoreDbFile = async (file: File) => {
-    setIsRestoringDbFile(true);
-    setDbRestoreStatus('Reading database backup file...');
-    try {
-      const buffer = await file.arrayBuffer();
-      const res = await fetch('/api/db/restore-db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-sqlite3' },
-        body: buffer,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setDbRestoreStatus(data.message || 'Database restored successfully!');
-        const recRes = await fetch('/api/records');
-        if (recRes.ok) {
-          const rData = await recRes.json();
-          if (rData.records && Array.isArray(rData.records)) {
-            setRecords(rData.records.map(mapRawSeedToThreatRecord));
-          }
-        }
-        setStatusNotification('Internal database successfully restored from .db file!');
-      } else {
-        setDbRestoreStatus('Failed to restore database file. Please check file format.');
-      }
-    } catch (err: any) {
-      setDbRestoreStatus(`Error restoring database: ${err.message || err}`);
-    } finally {
-      setIsRestoringDbFile(false);
-    }
-  };
+  // Edit Monitored Number Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<ThreatRecord | null>(null);
+  const [editForm, setEditForm] = useState<{
+    phone_number: string;
+    is_whatsapp: boolean;
+    alt_numbers: Array<{ phone: string; is_whatsapp: boolean }>;
+    category: string;
+    impersonated_company: string;
+    source_name: string;
+    source_url: string;
+    amount_charged: string;
+    invoice_number: string;
+    description: string;
+    is_down: boolean;
+  }>({
+    phone_number: '',
+    is_whatsapp: false,
+    alt_numbers: [],
+    category: '',
+    impersonated_company: '',
+    source_name: '',
+    source_url: '',
+    amount_charged: '',
+    invoice_number: '',
+    description: '',
+    is_down: false,
+  });
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Import States
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -1449,8 +1485,10 @@ export function TrackerPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Manual Add States
+  // Manual Add States (Supports up to 4 numbers: 1 primary + up to 3 alternate)
   const [newPhone, setNewPhone] = useState('');
+  const [newIsWhatsApp, setNewIsWhatsApp] = useState(false);
+  const [newAltNumbers, setNewAltNumbers] = useState<Array<{ phone: string; is_whatsapp: boolean }>>([]);
   const [newCategory, setNewCategory] = useState('General Tech Support & Refund Scams');
   const [newCompany, setNewCompany] = useState('');
   const [newSourceName, setNewSourceName] = useState('Tech Support United');
@@ -1500,6 +1538,8 @@ export function TrackerPage() {
   // Broadcast to syncBridge whenever records change
   useEffect(() => {
     if (records.length > 0) {
+      const scamRecords = records.map(threatRecordToScamPhoneRecord);
+      syncBridge.broadcastRecords(scamRecords);
       syncBridge.broadcastCurrentState();
     }
   }, [records, isScanning]);
@@ -1540,6 +1580,275 @@ export function TrackerPage() {
     }
   }, [geminiApiKey]);
 
+  // Load Dokploy Environment Settings & Connect Supabase (DB & DB_Key)
+  useEffect(() => {
+    let isMounted = true;
+    const loadDokployConfig = async () => {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (!isMounted) return;
+          setDokployConfig({
+            supabaseUrl: cfg.supabaseUrl || '',
+            supabaseKey: cfg.supabaseKey || '',
+            hasSupabase: Boolean(cfg.hasSupabase),
+            hasTrackerPass: Boolean(cfg.hasTrackerPass),
+          });
+
+          // Initialize Supabase if DB and DB_Key are configured in Dokploy
+          if (cfg.supabaseUrl && cfg.supabaseKey) {
+            try {
+              const sb = createClient(cfg.supabaseUrl, cfg.supabaseKey);
+              (window as any).supabase = sb;
+              setIsSupabaseConnected(true);
+              console.log('[Dokploy Supabase] Successfully connected to live database:', cfg.supabaseUrl);
+
+              // Pull records from Supabase tracker_entries / scam_records
+              try {
+                let sbRes = await sb.from('tracker_entries').select('*');
+                if (sbRes.error) {
+                  sbRes = await sb.from('scam_records').select('*');
+                }
+                if (sbRes.data && Array.isArray(sbRes.data) && sbRes.data.length > 0) {
+                  const mappedFromSb = sbRes.data
+                    .map((item: any) => ({
+                      id: String(item.id || `sb-${item.phone_digits}`),
+                      phone_number: item.phone_number || item.phone || '',
+                      phone_digits: item.phone_digits || (item.phone_number || '').replace(/\D/g, ''),
+                      source_name: item.source_name || item.source_platform || 'Supabase DB',
+                      source_url: item.source_url || '',
+                      report_date: normalizeToNumericalDate(item.report_date || item.detected_at || new Date()),
+                      category: item.category || item.scam_type || 'General Tech Support & Refund Scams',
+                      description: item.description || item.threat_intel || 'Synchronized from Dokploy Supabase database.',
+                      impersonated_company: item.impersonated_company || 'N/A',
+                      invoice_number: item.invoice_number || 'N/A',
+                      amount_charged: item.amount_charged || 'N/A',
+                      is_down: Boolean(item.is_down || item.status === 'Out of Service'),
+                    }))
+                    .filter((r: ThreatRecord) => !isTollFreeNumber(r.phone_number) && !isFictitiousOrInvalidPhone(r.phone_number));
+
+                  if (mappedFromSb.length > 0 && isMounted) {
+                    setRecords((prev) => {
+                      const map = new Map<string, ThreatRecord>();
+                      mappedFromSb.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                      prev.forEach((r) => {
+                        if (map.has(r.phone_digits)) {
+                          const ex = map.get(r.phone_digits)!;
+                          map.set(r.phone_digits, { ...ex, is_down: r.is_down ?? ex.is_down });
+                        } else {
+                          map.set(r.phone_digits, r);
+                        }
+                      });
+                      return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+                    });
+                  }
+                }
+              } catch (queryErr) {
+                console.warn('[Dokploy Supabase] Table query notice:', queryErr);
+              }
+            } catch (sbErr) {
+              console.warn('[Dokploy Supabase] Initialization notice:', sbErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Dokploy Config] Unable to load /api/config:', err);
+      }
+    };
+
+    loadDokployConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Require Administrative TRACKER_PASS for protected actions
+  const requireTrackerPass = (actionName: string, onVerified: () => void) => {
+    if (isPasswordVerified) {
+      onVerified();
+      return;
+    }
+    setPasswordActionName(actionName);
+    setPendingAction(() => onVerified);
+    setPasswordInput('');
+    setPasswordError(null);
+    setIsPasswordModalOpen(true);
+  };
+
+  // Verify password via backend endpoint
+  const handleVerifyPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!passwordInput.trim()) {
+      setPasswordError('Please enter your Tracker Password.');
+      return;
+    }
+    setIsVerifyingPassword(true);
+    setPasswordError(null);
+    try {
+      const res = await fetch('/api/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.verified || data.success) {
+        setIsPasswordVerified(true);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('tracker_pass_verified', 'true');
+        }
+        setIsPasswordModalOpen(false);
+        setPasswordInput('');
+        setStatusNotification(`Authenticated: ${passwordActionName}`);
+        if (pendingAction) {
+          const act = pendingAction;
+          setPendingAction(null);
+          act();
+        }
+      } else {
+        setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+      }
+    } catch {
+      setPasswordError('Network error connecting to authentication server.');
+    } finally {
+      setIsVerifyingPassword(false);
+    }
+  };
+
+  const handleLockSession = () => {
+    setIsPasswordVerified(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('tracker_pass_verified');
+    }
+    setStatusNotification('Admin session locked.');
+  };
+
+  // Edit Monitored Number Handlers
+  const handleOpenEditModal = (record: ThreatRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
+    });
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEditRecord = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingRecord) return;
+
+    const rawPhone = editForm.phone_number.trim();
+    const digits = rawPhone.replace(/\D/g, '');
+
+    if (!rawPhone || digits.length < 7) {
+      setEditError('Please enter a valid dialable phone number with area/country code.');
+      return;
+    }
+
+    if (isTollFreeNumber(rawPhone)) {
+      setEditError('Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.');
+      return;
+    }
+
+    if (isFictitiousOrInvalidPhone(rawPhone)) {
+      setEditError('Fictitious or dummy numbers (e.g., 555 exchange) are rejected.');
+      return;
+    }
+
+    // Validate alternate numbers (up to 3 alt numbers, total 4 numbers)
+    const validAlts: AltNumberEntry[] = [];
+    const usedDigits = new Set<string>([digits]);
+
+    for (let i = 0; i < editForm.alt_numbers.length; i++) {
+      const alt = editForm.alt_numbers[i];
+      const rawAlt = (alt.phone || '').trim();
+      if (!rawAlt) continue;
+      const altDigits = rawAlt.replace(/\D/g, '');
+      if (altDigits.length < 7) {
+        setEditError(`Alt Number #${i + 2} is invalid (too short, min 7 digits).`);
+        return;
+      }
+      if (isTollFreeNumber(rawAlt)) {
+        setEditError(`Alt Number #${i + 2} is a prohibited toll-free number.`);
+        return;
+      }
+      if (isFictitiousOrInvalidPhone(rawAlt)) {
+        setEditError(`Alt Number #${i + 2} is an invalid or dummy number.`);
+        return;
+      }
+      if (usedDigits.has(altDigits)) {
+        setEditError(`Alt Number #${i + 2} duplicates another number on this report.`);
+        return;
+      }
+      usedDigits.add(altDigits);
+      validAlts.push({
+        phone: formatDisplayPhone(rawAlt, altDigits),
+        digits: altDigits,
+        is_whatsapp: Boolean(alt.is_whatsapp),
+      });
+      if (validAlts.length >= 3) break;
+    }
+
+    const updated: ThreatRecord = {
+      ...editingRecord,
+      phone_number: formatDisplayPhone(rawPhone, digits),
+      phone_digits: digits,
+      is_whatsapp: editForm.is_whatsapp,
+      alt_numbers: validAlts.length > 0 ? validAlts : undefined,
+      category: editForm.category.trim() || editingRecord.category,
+      impersonated_company: editForm.impersonated_company.trim() || 'N/A',
+      source_name: editForm.source_name.trim() || editingRecord.source_name,
+      source_url: editForm.source_url.trim() || editingRecord.source_url,
+      amount_charged: editForm.amount_charged.trim() || 'N/A',
+      invoice_number: editForm.invoice_number.trim() || 'N/A',
+      description: editForm.description.trim() || editingRecord.description,
+      is_down: editForm.is_down,
+    };
+
+    setRecords((prev) => prev.map((r) => (r.id === editingRecord.id ? updated : r)));
+    setIsEditModalOpen(false);
+    setEditingRecord(null);
+    setStatusNotification(`Updated monitored line: ${updated.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} Alt numbers` : ''}`);
+
+    // Update on backend
+    try {
+      fetch(`/api/records/${editingRecord.id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: updated.phone_number,
+          cleanPhone: updated.phone_digits,
+          isWhatsapp: updated.is_whatsapp,
+          altNumbers: validAlts.map((a) => a.phone),
+          scamType: updated.category,
+          impersonatedCompany: updated.impersonated_company,
+          amountCharged: updated.amount_charged,
+          invoiceNumber: updated.invoice_number,
+          detailedSummary: updated.description,
+          platform: updated.source_name,
+          sourceUrl: updated.source_url,
+          isNumberDown: updated.is_down,
+        }),
+      }).catch(() => {});
+    } catch {}
+
+    // Sync to Dokploy Supabase
+    syncRecordToSupabase(updated);
+  };
+
   // Sync Record to Supabase if client is present
   const syncRecordToSupabase = async (rec: ThreatRecord) => {
     try {
@@ -1548,21 +1857,44 @@ export function TrackerPage() {
         const expiresAt = new Date();
         const retentionDays = getRetentionDays(rec);
         expiresAt.setDate(expiresAt.getDate() + retentionDays);
-        await sb.from('tracker_entries').upsert(
-          {
-            phone_number: rec.phone_number,
-            phone_digits: rec.phone_digits,
-            source_name: rec.source_name,
-            source_url: rec.source_url,
-            report_date: rec.report_date,
-            category: rec.category,
-            description: rec.description,
-            expires_at: expiresAt.toISOString(),
-          },
-          { onConflict: 'phone_digits,source_name' }
-        );
+
+        const payload = {
+          phone_number: rec.phone_number,
+          phone_digits: rec.phone_digits,
+          source_name: rec.source_name,
+          source_url: rec.source_url,
+          report_date: rec.report_date,
+          category: rec.category,
+          description: rec.description,
+          impersonated_company: rec.impersonated_company || 'N/A',
+          invoice_number: rec.invoice_number || 'N/A',
+          amount_charged: rec.amount_charged || 'N/A',
+          is_down: Boolean(rec.is_down),
+          status: rec.is_down ? 'Out of Service' : 'Active',
+          expires_at: expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const res = await sb.from('tracker_entries').upsert(payload, { onConflict: 'phone_digits' });
+        if (res.error) {
+          // Fallback to scam_records table if tracker_entries has alternative schema
+          await sb.from('scam_records').upsert(
+            {
+              phone: rec.phone_number,
+              clean_phone: rec.phone_digits,
+              scam_type: rec.category,
+              impersonated_company: rec.impersonated_company || 'N/A',
+              source_url: rec.source_url,
+              platform: rec.source_name,
+              is_number_down: Boolean(rec.is_down),
+            },
+            { onConflict: 'clean_phone' }
+          );
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[Supabase Sync Error]', err);
+    }
   };
 
   // ============================================================================
@@ -1578,12 +1910,15 @@ export function TrackerPage() {
           const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
           const alreadyTriggered = localStorage.getItem(slotKey);
 
-          if (!alreadyTriggered && !isScanning) {
+          if (!alreadyTriggered && !isScanningRef.current) {
             localStorage.setItem(slotKey, new Date().toISOString());
             const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
             console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering autonomous threat harvester scan...`);
             setStatusNotification(`[Auto-Scan Active] ${slotLabel} reached — Automatically executed threat harvester scan.`);
+            // Automated scans do not require administrative password
             executeFullHarvesterScan();
+            // Reconcile with backend scheduler
+            fetch('/api/scheduler/check-and-sync', { method: 'POST' }).catch(() => {});
           }
         }
       } catch (err) {
@@ -1594,7 +1929,7 @@ export function TrackerPage() {
     checkScheduleAndTrigger();
     const interval = setInterval(checkScheduleAndTrigger, 5000);
     return () => clearInterval(interval);
-  }, [isScanning]);
+  }, []);
 
   // ============================================================================
   // 7. MASTER HARVESTER SCAN FUNCTION (USING EXACT ESSCAN SEARCH TARGETS)
@@ -1781,21 +2116,16 @@ export function TrackerPage() {
                         })
                         .map(mapRawSeedToThreatRecord);
 
-                      let newInTick = 0;
                       mapped.forEach((r: ThreatRecord) => {
                         if (!existingDigits.has(r.phone_digits)) {
                           accumulatedNew.push(r);
                           existingDigits.add(r.phone_digits);
-                          newInTick++;
+                          // Add immediately to table upon discovery
+                          setRecords((prev) => [r, ...prev.filter((p) => p.phone_digits !== r.phone_digits)]);
+                          setStatusNotification(`Live Discovery: ${r.phone_number} (${r.impersonated_company})`);
+                          addLog(`[LIVE HARVEST] Added threat line to table: ${r.phone_number} (${r.impersonated_company})`);
                         }
                       });
-                      if (newInTick > 0) {
-                        setRecords((prev) => {
-                          const existingMap = new Map(prev.map((item) => [item.phone_digits, item]));
-                          accumulatedNew.forEach((item) => existingMap.set(item.phone_digits, item));
-                          return Array.from(existingMap.values());
-                        });
-                      }
                     }
                   }
                 } catch {
@@ -1839,7 +2169,7 @@ export function TrackerPage() {
       if (!backendScanSucceeded) {
         if (geminiApiKey.trim()) {
           addLog('[GEMINI] Authenticated with Gemini API. Scanning targets with exact esscan timing, 25s timeout & quota backoffs...');
-          const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro', 'gemini-flash-latest'];
+          const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
 
           for (let i = 0; i < targetsToRun.length; i++) {
             const target = targetsToRun[i];
@@ -2413,6 +2743,8 @@ export function TrackerPage() {
 
       // 3. Broadcast to syncBridge for endscams.org/tracker parent
       try {
+        const fullScamList = merged.map(threatRecordToScamPhoneRecord);
+        syncBridge.broadcastRecords(fullScamList);
         syncBridge.broadcastCurrentState();
       } catch {}
 
@@ -2474,6 +2806,8 @@ export function TrackerPage() {
       'Type of Scam',
       'Phone Number',
       'Clean Digits',
+      'WhatsApp',
+      'Alt Numbers',
       'Company Impersonated',
       'Date Detected (PST)',
       'Source URL',
@@ -2489,10 +2823,14 @@ export function TrackerPage() {
 
     const rows = recordsToExport.map((r) => {
       const country = deriveCountryInfo(r.phone_number);
+      const isWa = isWhatsAppThreat(r) ? 'Yes' : 'No';
+      const alts = (r.alt_numbers || []).map((a) => a.phone).join('; ');
       return [
         `"${(r.category || '').replace(/"/g, '""')}"`,
         `"${(r.phone_number || '').replace(/"/g, '""')}"`,
         `"${r.phone_digits}"`,
+        `"${isWa}"`,
+        `"${alts.replace(/"/g, '""')}"`,
         `"${(r.impersonated_company || 'N/A').replace(/"/g, '""')}"`,
         `"${normalizeToNumericalDate(r.report_date)}"`,
         `"${(r.source_url || '').replace(/"/g, '""')}"`,
@@ -2514,7 +2852,7 @@ export function TrackerPage() {
   };
 
   // ============================================================================
-  // 10. MANUAL REPORT ADD
+  // 10. MANUAL REPORT ADD (SUPPORTS UP TO 4 NUMBERS PER ENTRY & WHATSAPP)
   // ============================================================================
   const handleManualAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2531,11 +2869,47 @@ export function TrackerPage() {
       return;
     }
 
+    // Validate alternate numbers (up to 3 alt numbers, total 4 numbers)
+    const validAlts: AltNumberEntry[] = [];
+    const usedDigits = new Set<string>([digits]);
+
+    for (let i = 0; i < newAltNumbers.length; i++) {
+      const alt = newAltNumbers[i];
+      const rawAlt = (alt.phone || '').trim();
+      if (!rawAlt) continue;
+      const altDigits = rawAlt.replace(/\D/g, '');
+      if (altDigits.length < 7) {
+        setManualFormError(`Alt Number #${i + 2} is invalid (too short, min 7 digits).`);
+        return;
+      }
+      if (isTollFreeNumber(rawAlt)) {
+        setManualFormError(`Alt Number #${i + 2} is a prohibited toll-free number.`);
+        return;
+      }
+      if (isFictitiousOrInvalidPhone(rawAlt)) {
+        setManualFormError(`Alt Number #${i + 2} is an invalid or dummy number.`);
+        return;
+      }
+      if (usedDigits.has(altDigits)) {
+        setManualFormError(`Alt Number #${i + 2} duplicates another number on this report.`);
+        return;
+      }
+      usedDigits.add(altDigits);
+      validAlts.push({
+        phone: formatDisplayPhone(rawAlt, altDigits),
+        digits: altDigits,
+        is_whatsapp: Boolean(alt.is_whatsapp),
+      });
+      if (validAlts.length >= 3) break;
+    }
+
     const today = getPSTDateStamp();
     const newRecord: ThreatRecord = {
       id: `manual-${Date.now()}`,
       phone_number: formatDisplayPhone(newPhone, digits),
       phone_digits: digits,
+      is_whatsapp: newIsWhatsApp,
+      alt_numbers: validAlts.length > 0 ? validAlts : undefined,
       source_name: newSourceName || 'Community Report',
       source_url: newSourceUrl || 'https://endscams.org',
       report_date: today,
@@ -2555,6 +2929,8 @@ export function TrackerPage() {
       body: JSON.stringify({
         phone: newRecord.phone_number,
         cleanPhone: newRecord.phone_digits,
+        isWhatsapp: newRecord.is_whatsapp,
+        altNumbers: validAlts.map((a) => a.phone),
         scamType: newRecord.category,
         impersonatedCompany: newRecord.impersonated_company,
         sourceUrl: newRecord.source_url,
@@ -2564,147 +2940,21 @@ export function TrackerPage() {
       }),
     }).catch(() => {});
 
-    setStatusNotification(`Added ${newRecord.phone_number} to monitored database.`);
+    setStatusNotification(
+      `Added ${newRecord.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} tied alternate numbers` : ''} to monitored database.`
+    );
     setIsReportModalOpen(false);
     setNewPhone('');
+    setNewIsWhatsApp(false);
+    setNewAltNumbers([]);
     setNewDescription('');
     setNewCompany('');
   };
 
   // ============================================================================
-  // 10B. RECORD DETAIL & PROTECTED EDITING HANDLERS
+  // 11. BULK ACTIONS & STATUS TOGGLES
   // ============================================================================
-  const handleOpenRecordDetail = (record: ThreatRecord) => {
-    setViewingRecord(record);
-    setIsEditingRecord(false);
-    setIsPasswordVerified(false);
-    setTrackerPassword('');
-    setPasswordError(null);
-    setEditFormData({ ...record });
-  };
-
-  const handleCloseRecordDetail = () => {
-    setViewingRecord(null);
-    setIsEditingRecord(false);
-    setIsPasswordVerified(false);
-    setTrackerPassword('');
-    setPasswordError(null);
-    setEditFormData({});
-  };
-
-  const checkPasswordAuth = async (inputPass: string): Promise<boolean> => {
-    const rawInput = (inputPass || '').trim();
-    const cleanedInput = rawInput.replace(/^["']|["']$/g, '').trim();
-
-    if (!rawInput && !cleanedInput) return false;
-
-    const envPassRaw = (
-      import.meta.env.VITE_TRACKER_PASS ||
-      import.meta.env.VITE_TRACKER ||
-      ''
-    ).trim();
-
-    const cleanedEnv = envPassRaw.replace(/^["']|["']$/g, '').trim();
-
-    if (cleanedEnv) {
-      const isMatch =
-        rawInput === envPassRaw ||
-        cleanedInput === cleanedEnv ||
-        rawInput === cleanedEnv ||
-        cleanedInput === envPassRaw ||
-        (cleanedInput && cleanedEnv.includes(cleanedInput)) ||
-        (cleanedEnv && cleanedInput.includes(cleanedEnv));
-      if (isMatch) return true;
-    }
-
-    try {
-      const res = await fetch('/api/verify-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: inputPass }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success || data.verified) return true;
-      }
-    } catch {}
-
-    if (!cleanedEnv && (cleanedInput === 'admin' || rawInput === 'admin')) {
-      return true;
-    }
-
-    return false;
-  };
-
-  const handleVerifyPassword = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setPasswordError(null);
-
-    const isValid = await checkPasswordAuth(trackerPassword);
-    if (isValid) {
-      setIsPasswordVerified(true);
-      setIsEditingRecord(true);
-      setPasswordError(null);
-    } else {
-      setPasswordError('Invalid password. Access denied.');
-    }
-  };
-
-  const handleSaveEditedRecord = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!viewingRecord) return;
-
-    const rawPhone = editFormData.phone_number || viewingRecord.phone_number;
-    const digits = rawPhone.replace(/\D/g, '');
-
-    if (isTollFreeNumber(rawPhone) || isTollFreeNumber(digits)) {
-      setPasswordError('Toll-free numbers are strictly prohibited.');
-      return;
-    }
-
-    if (isFictitiousOrInvalidPhone(rawPhone) || isFictitiousOrInvalidPhone(digits) || digits.length < 7) {
-      setPasswordError('Invalid or fictitious phone number.');
-      return;
-    }
-
-    const updatedRecord: ThreatRecord = {
-      ...viewingRecord,
-      ...editFormData,
-      phone_number: formatDisplayPhone(rawPhone, digits),
-      phone_digits: digits,
-    };
-
-    setRecords((prev) =>
-      prev.map((r) => (r.id === updatedRecord.id ? updatedRecord : r))
-    );
-
-    syncRecordToSupabase(updatedRecord);
-
-    fetch(`/api/records/${updatedRecord.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedRecord),
-    }).catch(() => {});
-
-    setStatusNotification(`Successfully updated threat record for ${updatedRecord.phone_number}.`);
-    handleCloseRecordDetail();
-  };
-
-  // ============================================================================
-  // 11. BULK ACTIONS & STATUS TOGGLES WITH PASSWORD AUTHORIZATION
-  // ============================================================================
-  const handleOpenImportModal = () => {
-    if (!requireDisclaimerAcceptance()) return;
-    if (isPasswordVerified) {
-      setIsImportModalOpen(true);
-    } else {
-      setPendingActionModal({ type: 'IMPORT_CSV' });
-      setActionAuthPassword('');
-      setActionAuthError(null);
-    }
-  };
-
-  const executeToggleStatus = (record: ThreatRecord) => {
+  const handleToggleStatus = (record: ThreatRecord) => {
     const nextStatus = !record.is_down;
     setRecords((prev) =>
       prev.map((r) => (r.id === record.id ? { ...r, is_down: nextStatus } : r))
@@ -2714,60 +2964,12 @@ export function TrackerPage() {
     fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
   };
 
-  const handleToggleStatus = (record: ThreatRecord) => {
-    if (!requireDisclaimerAcceptance()) return;
-    if (isPasswordVerified) {
-      executeToggleStatus(record);
-    } else {
-      setPendingActionModal({ type: 'TOGGLE_STATUS', record });
-      setActionAuthPassword('');
-      setActionAuthError(null);
-    }
-  };
-
-  const executeBulkMarkDown = () => {
+  const handleBulkMarkDown = () => {
     setRecords((prev) =>
       prev.map((r) => (selectedIds.includes(r.id) ? { ...r, is_down: true } : r))
     );
     setStatusNotification(`Marked ${selectedIds.length} selected lines as Out of Service.`);
     setSelectedIds([]);
-  };
-
-  const handleBulkMarkDown = () => {
-    if (!requireDisclaimerAcceptance()) return;
-    if (isPasswordVerified) {
-      executeBulkMarkDown();
-    } else {
-      setPendingActionModal({ type: 'BULK_MARK_DOWN' });
-      setActionAuthPassword('');
-      setActionAuthError(null);
-    }
-  };
-
-  const verifyActionPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setActionAuthError(null);
-
-    const isValid = await checkPasswordAuth(actionAuthPassword);
-    if (isValid) {
-      setIsPasswordVerified(true);
-      const action = pendingActionModal;
-      setPendingActionModal(null);
-      setActionAuthPassword('');
-      setActionAuthError(null);
-
-      if (action) {
-        if (action.type === 'IMPORT_CSV') {
-          setIsImportModalOpen(true);
-        } else if (action.type === 'TOGGLE_STATUS' && action.record) {
-          executeToggleStatus(action.record);
-        } else if (action.type === 'BULK_MARK_DOWN') {
-          executeBulkMarkDown();
-        }
-      }
-    } else {
-      setActionAuthError('Invalid password. Access denied.');
-    }
   };
 
   const handleBulkDelete = () => {
@@ -2894,9 +3096,10 @@ export function TrackerPage() {
             {/* Manual Refresh / Scan */}
             <button
               id="btn-footer-manual-refresh"
-              onClick={() => executeFullHarvesterScan()}
+              onClick={() => requireTrackerPass('Execute Manual Threat Refresh', () => executeFullHarvesterScan())}
               disabled={isScanning}
               className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
+              title="Manual Threat Refresh (requires TRACKER_PASS)"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
               <span>{isScanning ? 'Scanning Feeds...' : 'Manual Refresh'}</span>
@@ -2913,8 +3116,9 @@ export function TrackerPage() {
 
             {/* Import CSV */}
             <button
-              onClick={handleOpenImportModal}
+              onClick={() => requireTrackerPass('Import CSV Threat Records', () => setIsImportModalOpen(true))}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+              title="Import CSV Records (requires TRACKER_PASS)"
             >
               <Upload className="w-3.5 h-3.5 text-blue-400" />
               <span>Import CSV</span>
@@ -2938,16 +3142,6 @@ export function TrackerPage() {
               <span>Add Number</span>
             </button>
 
-            {/* Database Management */}
-            <button
-              onClick={() => setIsDatabaseModalOpen(true)}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-              title="Database Management & Google Drive Backup (cwnendscams@gmail.com)"
-            >
-              <Database className="w-3.5 h-3.5 text-purple-400" />
-              <span>Database (.db)</span>
-            </button>
-
             {/* Scanner Settings */}
             <button
               onClick={() => setIsScannerModalOpen(true)}
@@ -2960,12 +3154,50 @@ export function TrackerPage() {
         </div>
 
         {/* Schedule & Progress Status Bar */}
-        <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-400">
-          <div className="flex items-center space-x-2">
-            <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
-            <span>
-              <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
+        <div className="mt-4 pt-3.5 border-t border-slate-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 text-[11px] text-slate-400">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+            <div className="flex items-center space-x-1.5">
+              <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
+              <span>
+                <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
+              </span>
+            </div>
+
+            {/* Dokploy DB Badge */}
+            <span
+              className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono border ${
+                isSupabaseConnected
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  : 'bg-slate-800 border-slate-700 text-slate-400'
+              }`}
+              title={dokployConfig.supabaseUrl ? `Dokploy Supabase: ${dokployConfig.supabaseUrl}` : 'Local persistent storage'}
+            >
+              <Database className="w-3 h-3" />
+              <span>{isSupabaseConnected ? 'Dokploy DB: Supabase' : 'Dokploy DB: Local Store'}</span>
             </span>
+
+            {/* TRACKER_PASS Admin Status */}
+            {isPasswordVerified ? (
+              <button
+                type="button"
+                onClick={handleLockSession}
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 text-[10px] font-mono transition cursor-pointer"
+                title="Admin session active. Click to lock session."
+              >
+                <Unlock className="w-3 h-3 text-emerald-400" />
+                <span>Admin: Unlocked</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => requireTrackerPass('Admin Authentication', () => {})}
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/30 text-[10px] font-mono transition cursor-pointer"
+                title="Administrative actions require TRACKER_PASS. Click to authenticate."
+              >
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>Admin: Locked</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center space-x-1.5 text-slate-300 font-mono">
@@ -3154,7 +3386,7 @@ export function TrackerPage() {
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={handleBulkMarkDown}
+              onClick={() => requireTrackerPass('Bulk Change Status to Out of Service', () => handleBulkMarkDown())}
               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs transition cursor-pointer"
             >
               Mark Out of Service
@@ -3183,7 +3415,7 @@ export function TrackerPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-950/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
               <tr>
-                <th className="px-4 py-3.5 w-8">
+                <th className="px-4 py-3.5 w-10">
                   <input
                     type="checkbox"
                     checked={selectedIds.length > 0 && selectedIds.length === filteredRecords.length}
@@ -3194,9 +3426,9 @@ export function TrackerPage() {
                     className="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3.5">Phone Number</th>
+                <th className="px-4 py-3.5 min-w-[220px]">Phone Number</th>
                 <th
-                  className="px-4 py-3.5 cursor-pointer select-none group hover:text-amber-400 transition-colors"
+                  className="px-4 py-3.5 min-w-[140px] cursor-pointer select-none group hover:text-amber-400 transition-colors"
                   onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
                   title="Click to toggle: Newest Date First vs. Oldest Date First"
                 >
@@ -3212,17 +3444,15 @@ export function TrackerPage() {
                     </span>
                   </div>
                 </th>
-                <th className="px-4 py-3.5">Company / Target</th>
-                <th className="px-4 py-3.5">Scam Category</th>
-                <th className="px-4 py-3.5">Source Platform</th>
-                <th className="px-4 py-3.5">Status</th>
-                <th className="px-4 py-3.5">Threat Intel & Snippet</th>
+                <th className="px-4 py-3.5 min-w-[220px]">Scam Category</th>
+                <th className="px-4 py-3.5 min-w-[200px]">Company / Target</th>
+                <th className="px-4 py-3.5 min-w-[140px] text-right sm:text-left">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-16 text-center text-slate-500">
                     No matching threat records found. Click "Manual Refresh" or "Import CSV" to populate the database.
                   </td>
                 </tr>
@@ -3235,15 +3465,15 @@ export function TrackerPage() {
                   return (
                     <tr
                       key={record.id}
-                      onClick={() => handleOpenRecordDetail(record)}
-                      className={`hover:bg-slate-800/80 transition-colors cursor-pointer ${isChecked ? 'bg-amber-500/5' : ''}`}
+                      onClick={() => setSelectedDetailRecord(record)}
+                      className={`hover:bg-slate-800/70 transition-colors cursor-pointer group select-none ${isChecked ? 'bg-amber-500/5' : ''}`}
+                      title="Click anywhere on row to view full threat intel & details"
                     >
-                      <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3.5 w-10" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={(e) => {
-                            e.stopPropagation();
                             if (e.target.checked) setSelectedIds((prev) => [...prev, record.id]);
                             else setSelectedIds((prev) => prev.filter((id) => id !== record.id));
                           }}
@@ -3253,37 +3483,112 @@ export function TrackerPage() {
 
                       {/* Phone Column */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <a
-                            href={`tel:${record.phone_digits}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-mono font-bold text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
-                            title="Click to dial"
-                          >
-                            {record.phone_number}
-                          </a>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyPhone(record.id, record.phone_number);
-                            }}
-                            className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-                            title="Copy Phone Number"
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
-                          {(country.isAfrican || record.phone_digits.startsWith('234') || record.phone_digits.startsWith('254') || record.phone_digits.startsWith('27') || record.phone_digits.startsWith('233')) && (
+                        <div className="space-y-1.5">
+                          {/* Primary Phone Line */}
+                          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <a
-                              href={`https://wa.me/${record.phone_digits}`}
-                              target="_blank"
-                              rel="noreferrer"
+                              href={`tel:${record.phone_digits}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-mono inline-flex items-center space-x-0.5 transition cursor-pointer"
-                              title="Open WhatsApp chat link"
+                              className="font-mono font-bold text-sm text-amber-400 hover:text-amber-300 hover:underline transition"
+                              title="Click to dial primary line"
                             >
-                              <span>WhatsApp</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
+                              {record.phone_number}
                             </a>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyPhone(record.id, record.phone_number);
+                              }}
+                              className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+                              title="Copy Phone Number"
+                            >
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+
+                            {/* WhatsApp Tag (EndScams Tracker standard) */}
+                            {isWhatsAppThreat(record) && (
+                              <a
+                                href={`https://wa.me/${record.phone_digits}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-semibold inline-flex items-center space-x-1 transition cursor-pointer shadow-xs"
+                                title="Verified WhatsApp Line (click to open WhatsApp chat)"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span>WhatsApp</span>
+                                <ExternalLink className="w-2.5 h-2.5 opacity-80" />
+                              </a>
+                            )}
+
+                            {/* Alt Tag (Badge next to number if alternate numbers are tied) */}
+                            {record.alt_numbers && record.alt_numbers.length > 0 && (
+                              <span
+                                className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold inline-flex items-center space-x-1"
+                                title={`${record.alt_numbers.length} alternate number${record.alt_numbers.length > 1 ? 's' : ''} tied to this threat report`}
+                              >
+                                <span>Alt ({record.alt_numbers.length})</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Tied Alternate Numbers List (if any) */}
+                          {record.alt_numbers && record.alt_numbers.length > 0 && (
+                            <div className="pl-2 border-l-2 border-cyan-500/30 space-y-1">
+                              {record.alt_numbers.map((alt, aIdx) => {
+                                const altDigits = (alt.digits || alt.phone).replace(/\D/g, '');
+                                const altPhone = alt.phone || formatDisplayPhone(altDigits, altDigits);
+                                const isAltWa = Boolean(
+                                  alt.is_whatsapp ||
+                                  isWhatsAppThreat({
+                                    phone_digits: altDigits,
+                                    phone_number: altPhone,
+                                    is_whatsapp: alt.is_whatsapp,
+                                  })
+                                );
+                                const isAltCopied = copiedId === `${record.id}-alt-${aIdx}`;
+                                return (
+                                  <div key={aIdx} className="flex items-center space-x-1.5 text-xs">
+                                    <span className="text-[10px] text-cyan-400/80 font-mono font-medium">Alt #{aIdx + 2}:</span>
+                                    <a
+                                      href={`tel:${altDigits}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="font-mono text-xs text-slate-300 hover:text-amber-300 hover:underline transition"
+                                      title="Click to dial alternate number"
+                                    >
+                                      {altPhone}
+                                    </a>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyPhone(`${record.id}-alt-${aIdx}`, altPhone);
+                                      }}
+                                      className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                                      title="Copy Alternate Number"
+                                    >
+                                      {isAltCopied ? (
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                    {isAltWa && (
+                                      <a
+                                        href={`https://wa.me/${altDigits}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold inline-flex items-center space-x-0.5 transition cursor-pointer"
+                                        title="Alternate line is on WhatsApp"
+                                      >
+                                        <span>WhatsApp</span>
+                                        <ExternalLink className="w-2 h-2 opacity-75" />
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -3304,65 +3609,45 @@ export function TrackerPage() {
                         </div>
                       </td>
 
-                      {/* Company Impersonated */}
-                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
-                        {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
-                          <span>{record.impersonated_company}</span>
-                        ) : (
-                          <span className="text-slate-500">Unspecified Target</span>
-                        )}
-                      </td>
-
                       {/* Scam Category */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                           {record.category}
                         </span>
                       </td>
 
-                      {/* Source Platform */}
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        {record.source_url && record.source_url.startsWith('http') ? (
-                          <a
-                            href={record.source_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center space-x-1 text-slate-300 hover:text-amber-400 underline decoration-slate-600 underline-offset-2 transition"
-                            title={`Open verified source: ${record.source_name}`}
-                          >
-                            <span className="font-medium">{record.source_name}</span>
-                            <ExternalLink className="w-3 h-3 text-slate-500" />
-                          </a>
+                      {/* Company Impersonated (Company / Target) */}
+                      <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
+                        {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
+                          <span className="text-slate-200 font-semibold">{record.impersonated_company}</span>
                         ) : (
-                          <span className="text-slate-300 font-medium">{record.source_name}</span>
+                          <span className="text-slate-500 italic">Unspecified Target</span>
                         )}
                       </td>
 
                       {/* Status */}
-                      <td className="px-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-4 py-3.5 whitespace-nowrap text-right sm:text-left">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleStatus(record);
+                            requireTrackerPass('Change Line Status', () => handleToggleStatus(record));
                           }}
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border transition cursor-pointer ${
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer shadow-xs ${
                             record.is_down
-                              ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
-                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                              ? 'bg-slate-800/90 text-slate-400 border-slate-700 hover:border-slate-500'
+                              : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35 hover:bg-emerald-500/25'
                           }`}
-                          title="Click to toggle status"
+                          title="Click to toggle status (requires TRACKER_PASS)"
                         >
-                          {record.is_down ? 'Out of Service' : 'Active Line'}
+                          <span className="inline-flex items-center space-x-1.5">
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                record.is_down ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'
+                              }`}
+                            />
+                            <span>{record.is_down ? 'Out of Service' : 'Active Line'}</span>
+                          </span>
                         </button>
-                      </td>
-
-                      {/* Description & Intel */}
-                      <td className="px-4 py-3.5 text-slate-400 max-w-xs sm:max-w-md truncate" title={record.description}>
-                        {record.amount_charged && record.amount_charged !== 'N/A' && (
-                          <span className="text-amber-400 font-mono mr-1.5 font-semibold">[{record.amount_charged}]</span>
-                        )}
-                        <span>{record.description}</span>
                       </td>
                     </tr>
                   );
@@ -3372,353 +3657,6 @@ export function TrackerPage() {
           </table>
         </div>
       </section>
-
-      {/* ========================================== */}
-      {/* G1. RECORD DETAIL & PROTECTED EDIT MODAL   */}
-      {/* ========================================== */}
-      {viewingRecord && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative space-y-5 max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={handleCloseRecordDetail}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-100 flex items-center space-x-2">
-                    <span>Threat Record Details</span>
-                    {viewingRecord.is_down ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                        Out of Service
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                        Active Threat
-                      </span>
-                    )}
-                  </h2>
-                  <p className="text-xs text-slate-400 font-mono">
-                    ID: {viewingRecord.id}
-                  </p>
-                </div>
-              </div>
-
-              {!isEditingRecord && (
-                <button
-                  onClick={() => setIsEditingRecord(true)}
-                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Edit Information</span>
-                </button>
-              )}
-            </div>
-
-            {/* Password Verification Dialog (Shown when Edit clicked but not yet verified) */}
-            {isEditingRecord && !isPasswordVerified && (
-              <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-amber-400">
-                  <Lock className="w-4 h-4" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider">
-                    Authentication Required (TRACKER_PASS)
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Please enter the authorization password to edit this threat record.
-                </p>
-
-                {passwordError && (
-                  <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-lg flex items-center space-x-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>{passwordError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleVerifyPassword} className="flex items-center space-x-2">
-                  <input
-                    type="password"
-                    placeholder="Enter TRACKER_PASS"
-                    value={trackerPassword}
-                    onChange={(e) => setTrackerPassword(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Unlock className="w-3.5 h-3.5" />
-                    <span>Unlock</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingRecord(false)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* Read-Only Mode vs Edit Mode Form */}
-            {!isEditingRecord || (isEditingRecord && !isPasswordVerified) ? (
-              <div className="space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/80 border border-slate-800 p-4 rounded-xl">
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Phone Number</span>
-                    <a
-                      href={`tel:${viewingRecord.phone_digits}`}
-                      className="text-base font-mono font-bold text-amber-400 hover:underline"
-                    >
-                      {viewingRecord.phone_number}
-                    </a>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Impersonated Brand / Company</span>
-                    <span className="text-sm font-semibold text-slate-200">
-                      {viewingRecord.impersonated_company || 'N/A'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Scam Category</span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                      {viewingRecord.category}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Date Detected (PST)</span>
-                    <span className="text-slate-300 font-mono">
-                      {normalizeToNumericalDate(viewingRecord.report_date)}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Source Platform</span>
-                    {viewingRecord.source_url && viewingRecord.source_url.startsWith('http') ? (
-                      <a
-                        href={viewingRecord.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-slate-200 hover:text-amber-400 underline inline-flex items-center space-x-1"
-                      >
-                        <span>{viewingRecord.source_name}</span>
-                        <ExternalLink className="w-3 h-3 text-slate-500" />
-                      </a>
-                    ) : (
-                      <span className="text-slate-300">{viewingRecord.source_name}</span>
-                    )}
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Amount Demanded / Charged</span>
-                    <span className="text-amber-400 font-mono font-semibold">
-                      {viewingRecord.amount_charged || 'N/A'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Invoice / Order Reference</span>
-                    <span className="text-purple-300 font-mono">
-                      {viewingRecord.invoice_number || 'N/A'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-0.5">Country / Region</span>
-                    <span className="text-slate-300">
-                      {deriveCountryInfo(viewingRecord.phone_number).name}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[10px] uppercase font-semibold text-slate-500 block mb-1">Detailed Threat Intelligence & Snippet</span>
-                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-slate-300 leading-relaxed break-words">
-                    {viewingRecord.description}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleCopyPhone(viewingRecord.id, viewingRecord.phone_number)}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
-                    >
-                      {copiedId === viewingRecord.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>Copy Number</span>
-                    </button>
-                    {(deriveCountryInfo(viewingRecord.phone_number).isAfrican || viewingRecord.phone_digits.startsWith('234') || viewingRecord.phone_digits.startsWith('254') || viewingRecord.phone_digits.startsWith('27')) && (
-                      <a
-                        href={`https://wa.me/${viewingRecord.phone_digits}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        <span>Open WhatsApp</span>
-                      </a>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleCloseRecordDetail}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Verified Edit Mode Form */
-              <form onSubmit={handleSaveEditedRecord} className="space-y-4 text-xs">
-                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs p-2.5 rounded-xl flex items-center space-x-2">
-                  <Edit3 className="w-4 h-4 shrink-0" />
-                  <span>Authenticated — You are currently editing this threat record.</span>
-                </div>
-
-                {passwordError && (
-                  <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>{passwordError}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Phone Number *</label>
-                    <input
-                      type="text"
-                      required
-                      value={editFormData.phone_number || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Company / Impersonated Target</label>
-                    <input
-                      type="text"
-                      value={editFormData.impersonated_company || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, impersonated_company: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Scam Category *</label>
-                    <select
-                      value={editFormData.category || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
-                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
-                      <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
-                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
-                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
-                      <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Source Platform Name</label>
-                    <input
-                      type="text"
-                      value={editFormData.source_name || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, source_name: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Source URL</label>
-                    <input
-                      type="text"
-                      value={editFormData.source_url || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, source_url: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Line Status</label>
-                    <select
-                      value={editFormData.is_down ? 'DOWN' : 'ACTIVE'}
-                      onChange={(e) => setEditFormData({ ...editFormData, is_down: e.target.value === 'DOWN' })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="ACTIVE">Active Threat Line</option>
-                      <option value="DOWN">Out of Service / Disconnected</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Amount Demanded / Charged</label>
-                    <input
-                      type="text"
-                      value={editFormData.amount_charged || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, amount_charged: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Invoice / Reference ID</label>
-                    <input
-                      type="text"
-                      value={editFormData.invoice_number || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, invoice_number: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Threat Context / Detailed Summary</label>
-                  <textarea
-                    rows={3}
-                    value={editFormData.description || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditingRecord(false);
-                      setIsPasswordVerified(false);
-                    }}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
-                  >
-                    Cancel Editing
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Changes</span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ========================================== */}
       {/* G. TARGETED SEARCH MODAL                   */}
@@ -3784,7 +3722,7 @@ export function TrackerPage() {
                 disabled={!targetedQuery.trim() || isScanning}
                 onClick={() => {
                   setIsTargetedSearchOpen(false);
-                  executeFullHarvesterScan(targetedQuery, targetedCategory);
+                  requireTrackerPass('Execute Targeted Threat Search', () => executeFullHarvesterScan(targetedQuery, targetedCategory));
                 }}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
               >
@@ -3881,206 +3819,13 @@ export function TrackerPage() {
               <button
                 onClick={() => {
                   setIsScannerModalOpen(false);
-                  executeFullHarvesterScan();
+                  requireTrackerPass('Execute Harvester Scan', () => executeFullHarvesterScan());
                 }}
                 disabled={isScanning}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
               >
                 <Play className="w-3.5 h-3.5" />
                 <span>Execute Scan Now</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* H2. ACTION AUTHORIZATION PASSWORD MODAL    */}
-      {/* ========================================== */}
-      {pendingActionModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
-            <button
-              onClick={() => {
-                setPendingActionModal(null);
-                setActionAuthPassword('');
-                setActionAuthError(null);
-              }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-100">
-                  Authentication Required (TRACKER_PASS)
-                </h2>
-                <p className="text-xs text-slate-400">
-                  {pendingActionModal.type === 'IMPORT_CSV'
-                    ? 'Enter authorization password to import CSV records.'
-                    : 'Enter authorization password to modify record status.'}
-                </p>
-              </div>
-            </div>
-
-            {actionAuthError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{actionAuthError}</span>
-              </div>
-            )}
-
-            <form onSubmit={verifyActionPassword} className="space-y-3">
-              <input
-                type="password"
-                placeholder="Enter TRACKER_PASS"
-                value={actionAuthPassword}
-                onChange={(e) => setActionAuthPassword(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                autoFocus
-              />
-
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingActionModal(null);
-                    setActionAuthPassword('');
-                    setActionAuthError(null);
-                  }}
-                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow cursor-pointer flex items-center space-x-1"
-                >
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>Authorize & Continue</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* H3. DATABASE MANAGEMENT & GDRIVE MODAL     */}
-      {/* ========================================== */}
-      {isDatabaseModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl p-6 relative space-y-4">
-            <button
-              onClick={() => setIsDatabaseModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20 text-purple-400">
-                <Database className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-100">
-                  Internal Database & Backup Management
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Separately hosted SQLite database (.db) with Google Drive sync for <strong>cwnendscams@gmail.com</strong>.
-                </p>
-              </div>
-            </div>
-
-            {/* Google Drive Account Card */}
-            <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Google Drive Backup Account</span>
-                <span className="text-emerald-400 font-mono text-[11px] font-bold">cwnendscams@gmail.com</span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                All phone numbers are persistently saved in <code>tracker.db</code> so they never reset. Snapshots can be uploaded to Google Drive or downloaded separately at any time.
-              </p>
-            </div>
-
-            {/* Status Notifications */}
-            {dbBackupStatus && (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs p-3 rounded-xl flex items-start space-x-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-                <span>{dbBackupStatus}</span>
-              </div>
-            )}
-
-            {dbRestoreStatus && (
-              <div className="bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs p-3 rounded-xl flex items-start space-x-2">
-                <Database className="w-4 h-4 shrink-0 mt-0.5 text-purple-400" />
-                <span>{dbRestoreStatus}</span>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {/* Google Drive Upload */}
-              <button
-                onClick={handleBackupToGDrive}
-                disabled={isBackingUpDb}
-                className="p-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 shadow cursor-pointer disabled:opacity-50"
-              >
-                <Upload className="w-4 h-4" />
-                <span>{isBackingUpDb ? 'Syncing Drive...' : 'Backup DB to Google Drive'}</span>
-              </button>
-
-              {/* Download .db File */}
-              <button
-                onClick={handleDownloadDbFile}
-                className="p-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-2 cursor-pointer"
-              >
-                <Download className="w-4 h-4 text-emerald-400" />
-                <span>Download Host .db File</span>
-              </button>
-            </div>
-
-            {/* Easy Restore Section */}
-            <div className="border-t border-slate-800 pt-3 space-y-2">
-              <h3 className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-                <span>Easy Database Restore (.db File Upload)</span>
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Select a previously saved <code>tracker.db</code> database file to instantly restore all phone numbers and records.
-              </p>
-
-              <div
-                onClick={() => dbFileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-purple-500/60 bg-slate-950/60 hover:bg-slate-950 p-4 rounded-xl flex items-center justify-center space-x-2 cursor-pointer transition"
-              >
-                <FileSpreadsheet className="w-5 h-5 text-purple-400" />
-                <span className="text-xs font-semibold text-slate-300">
-                  {isRestoringDbFile ? 'Restoring Database File...' : 'Click to select .db or .sqlite backup file to restore'}
-                </span>
-                <input
-                  ref={dbFileInputRef}
-                  type="file"
-                  accept=".db,.sqlite,.sqlite3"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleRestoreDbFile(f);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end pt-2 border-t border-slate-800">
-              <button
-                onClick={() => setIsDatabaseModalOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-              >
-                Close
               </button>
             </div>
           </div>
@@ -4226,19 +3971,109 @@ export function TrackerPage() {
               </div>
             )}
 
-            <form onSubmit={handleManualAddSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Phone Number * (No Toll-Free: 800, 888, 877, 866, 855, 844, 833)
-                </label>
+            <form onSubmit={handleManualAddSubmit} className="space-y-3.5 text-xs max-h-[75vh] overflow-y-auto pr-1">
+              {/* Primary Phone Number & WhatsApp Toggle */}
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-200 font-semibold">
+                    Primary Phone Number *
+                  </label>
+                  <label className="flex items-center space-x-1.5 cursor-pointer text-[11px] text-emerald-400 select-none">
+                    <input
+                      type="checkbox"
+                      checked={newIsWhatsApp}
+                      onChange={(e) => setNewIsWhatsApp(e.target.checked)}
+                      className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <span className="font-medium">WhatsApp Line</span>
+                  </label>
+                </div>
                 <input
                   type="text"
                   required
                   placeholder="1 (951) 629-3962 or +234 810 552 9412"
                   value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
                 />
+                <p className="text-[10px] text-slate-500">
+                  Dialable line only. Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.
+                </p>
+              </div>
+
+              {/* Alternate / Tied Numbers Section (Up to 3 additional numbers, total 4) */}
+              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-300 font-semibold text-xs">Tied Alternate Numbers</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono">
+                      {1 + newAltNumbers.length} / 4 configured
+                    </span>
+                  </div>
+
+                  {newAltNumbers.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setNewAltNumbers((prev) => [...prev, { phone: '', is_whatsapp: false }])}
+                      className="text-[11px] px-2 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Alt Number</span>
+                    </button>
+                  )}
+                </div>
+
+                {newAltNumbers.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 italic">
+                    No alternate numbers attached yet. Click "+ Add Alt Number" if the scammer operates multiple lines.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {newAltNumbers.map((alt, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center space-x-2 bg-slate-900/90 p-2 rounded-xl border border-slate-800"
+                      >
+                        <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 w-12">
+                          Alt #{idx + 2}:
+                        </span>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Alternate phone number"
+                          value={alt.phone}
+                          onChange={(e) => {
+                            const updated = [...newAltNumbers];
+                            updated[idx].phone = e.target.value;
+                            setNewAltNumbers(updated);
+                          }}
+                          className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                        <label className="flex items-center space-x-1 cursor-pointer text-[10px] text-emerald-400 shrink-0 select-none">
+                          <input
+                            type="checkbox"
+                            checked={alt.is_whatsapp}
+                            onChange={(e) => {
+                              const updated = [...newAltNumbers];
+                              updated[idx].is_whatsapp = e.target.checked;
+                              setNewAltNumbers(updated);
+                            }}
+                            className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
+                          />
+                          <span>WA</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setNewAltNumbers((prev) => prev.filter((_, i) => i !== idx))}
+                          className="p-1 text-slate-500 hover:text-red-400 transition cursor-pointer"
+                          title="Remove alternate number"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -4314,6 +4149,702 @@ export function TrackerPage() {
                   className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition shadow cursor-pointer"
                 >
                   Save Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* J. TRACKER_PASS AUTHENTICATION MODAL       */}
+      {/* ========================================== */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
+            <button
+              onClick={() => {
+                setIsPasswordModalOpen(false);
+                setPendingAction(null);
+                setPasswordError(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Administrator Password Required</h2>
+                <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              This administrative action is secured by the <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> Dokploy environment setting.
+            </p>
+
+            {passwordError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyPassword} className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 text-xs">
+                  Enter Tracker Password (TRACKER_PASS)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswordText ? 'text' : 'password'}
+                    required
+                    autoFocus
+                    placeholder="Enter password..."
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full pl-3 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordText(!showPasswordText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                  >
+                    {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setPendingAction(null);
+                    setPasswordError(null);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingPassword}
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>{isVerifyingPassword ? 'Verifying...' : 'Unlock & Proceed'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* J2. THREAT POST DETAILS POPUP MODAL (CENTER OF SCREEN)  */}
+      {/* ======================================================== */}
+      {selectedDetailRecord && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setSelectedDetailRecord(null)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl p-6 relative space-y-5 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-800/80 pb-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    THREAT REPORT #{selectedDetailRecord.id.slice(0, 8)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      selectedDetailRecord.is_down
+                        ? 'bg-slate-800 text-slate-400 border-slate-700'
+                        : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                        selectedDetailRecord.is_down ? 'bg-slate-500' : 'bg-emerald-400 animate-pulse'
+                      }`}
+                    />
+                    {selectedDetailRecord.is_down ? 'Out of Service' : 'Active Line'}
+                  </span>
+                </div>
+                <h2 className="text-lg font-bold text-slate-100">
+                  {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
+                    ? selectedDetailRecord.impersonated_company
+                    : 'Unspecified Target Organization'}
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setSelectedDetailRecord(null)}
+                className="p-1.5 rounded-lg bg-slate-800/60 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition cursor-pointer"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body / Details */}
+            <div className="space-y-4 text-xs">
+              {/* Phone Numbers Section */}
+              <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Monitored Contact Numbers
+                </div>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-400 font-medium">Primary Line:</span>
+                    <a
+                      href={`tel:${selectedDetailRecord.phone_digits}`}
+                      className="font-mono text-base font-bold text-amber-400 hover:text-amber-300 hover:underline transition"
+                    >
+                      {selectedDetailRecord.phone_number}
+                    </a>
+                    <button
+                      onClick={() => handleCopyPhone(selectedDetailRecord.id, selectedDetailRecord.phone_number)}
+                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+                      title="Copy Number"
+                    >
+                      {copiedId === selectedDetailRecord.id ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {isWhatsAppThreat(selectedDetailRecord) && (
+                      <a
+                        href={`https://wa.me/${selectedDetailRecord.phone_digits}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 rounded-lg text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-semibold inline-flex items-center space-x-1.5 transition cursor-pointer shadow-xs"
+                        title="Open WhatsApp Chat"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Verified WhatsApp</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tied Alternate Numbers */}
+                {selectedDetailRecord.alt_numbers && selectedDetailRecord.alt_numbers.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                    <div className="text-[11px] font-medium text-cyan-400">
+                      Tied Alternate Numbers ({selectedDetailRecord.alt_numbers.length}):
+                    </div>
+                    <div className="space-y-1.5">
+                      {selectedDetailRecord.alt_numbers.map((alt, aIdx) => {
+                        const altDigits = (alt.digits || alt.phone).replace(/\D/g, '');
+                        const altPhone = alt.phone || formatDisplayPhone(altDigits, altDigits);
+                        const isAltWa = Boolean(
+                          alt.is_whatsapp ||
+                          isWhatsAppThreat({
+                            phone_digits: altDigits,
+                            phone_number: altPhone,
+                            is_whatsapp: alt.is_whatsapp,
+                          })
+                        );
+                        const isAltCopied = copiedId === `${selectedDetailRecord.id}-alt-${aIdx}`;
+                        return (
+                          <div
+                            key={aIdx}
+                            className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <span className="font-mono text-[11px] text-cyan-400 font-bold">
+                                Alt #{aIdx + 2}:
+                              </span>
+                              <a
+                                href={`tel:${altDigits}`}
+                                className="font-mono text-sm text-slate-200 hover:text-amber-300 hover:underline transition"
+                              >
+                                {altPhone}
+                              </a>
+                              <button
+                                onClick={() => handleCopyPhone(`${selectedDetailRecord.id}-alt-${aIdx}`, altPhone)}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                                title="Copy Number"
+                              >
+                                {isAltCopied ? (
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+
+                            {isAltWa && (
+                              <a
+                                href={`https://wa.me/${altDigits}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-semibold inline-flex items-center space-x-1"
+                              >
+                                <span>WhatsApp</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2-Column Attributes Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Date Detected */}
+                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                    <Calendar className="w-3 h-3 text-amber-400" />
+                    <span>Date Detected (PST)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono font-bold text-slate-200 text-sm">
+                      {normalizeToNumericalDate(selectedDetailRecord.report_date)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold ${
+                        isPrizeOrExtendedRetention(selectedDetailRecord)
+                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}
+                    >
+                      {getRetentionLabel(selectedDetailRecord)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                    <Shield className="w-3 h-3 text-emerald-400" />
+                    <span>Operational Status</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`font-semibold text-xs ${
+                        selectedDetailRecord.is_down ? 'text-slate-400' : 'text-emerald-400'
+                      }`}
+                    >
+                      {selectedDetailRecord.is_down ? 'Out of Service / Inactive' : 'Active Operating Line'}
+                    </span>
+                    <button
+                      onClick={() =>
+                        requireTrackerPass('Change Line Status', () => {
+                          handleToggleStatus(selectedDetailRecord);
+                          setSelectedDetailRecord((prev) =>
+                            prev ? { ...prev, is_down: !prev.is_down } : null
+                          );
+                        })
+                      }
+                      className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
+                      title="Toggle line status (requires TRACKER_PASS)"
+                    >
+                      Toggle Status
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scam Category */}
+                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Scam Category
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                      {selectedDetailRecord.category}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Source Platform */}
+                <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                    <Globe className="w-3 h-3 text-blue-400" />
+                    <span>Source Platform</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {selectedDetailRecord.source_url && selectedDetailRecord.source_url.startsWith('http') ? (
+                      <a
+                        href={selectedDetailRecord.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center space-x-1 text-slate-200 hover:text-amber-400 font-semibold underline decoration-slate-600 underline-offset-2 transition"
+                        title="Open external verified report"
+                      >
+                        <span>{selectedDetailRecord.source_name}</span>
+                        <ExternalLink className="w-3 h-3 text-slate-400" />
+                      </a>
+                    ) : (
+                      <span className="text-slate-200 font-semibold">{selectedDetailRecord.source_name}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial / Invoice details if available */}
+              {((selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A') ||
+                (selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A')) && (
+                <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/20 flex items-center space-x-6">
+                  {selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase block font-medium">Claimed Amount:</span>
+                      <span className="text-amber-400 font-mono font-bold text-sm">
+                        {selectedDetailRecord.amount_charged}
+                      </span>
+                    </div>
+                  )}
+                  {selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A' && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase block font-medium">Invoice ID:</span>
+                      <span className="text-slate-200 font-mono font-semibold text-sm">
+                        {selectedDetailRecord.invoice_number}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Threat Intel & Snippet */}
+              <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2">
+                <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Info className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Threat Intel & Snippet</span>
+                </div>
+                <div className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap bg-slate-900/60 p-3 rounded-lg border border-slate-800/80 text-xs selection:bg-amber-500/30">
+                  {selectedDetailRecord.description || 'No detailed snippet provided for this threat entry.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer with Actions (Edit Post requires TRACKER_PASS) */}
+            <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSelectedDetailRecord(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+              >
+                Close Details
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRecord = selectedDetailRecord;
+                  requireTrackerPass('Edit Monitored Number', () => {
+                    setSelectedDetailRecord(null);
+                    handleOpenEditModal(targetRecord);
+                  });
+                }}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
+                title="Edit threat post details (requires TRACKER_PASS)"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Threat Post (Actions)</span>
+                {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* K. EDIT MONITORED NUMBER MODAL             */}
+      {/* ========================================== */}
+      {isEditModalOpen && editingRecord && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative space-y-4 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setEditingRecord(null);
+                setEditError(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                <Edit3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Edit Monitored Number</h2>
+                <p className="text-[11px] text-slate-400">Update threat record metadata, numbers, and operational status</p>
+              </div>
+            </div>
+
+            {editError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditRecord} className="space-y-3.5 text-xs">
+              {/* Primary Phone Number & WhatsApp Toggle */}
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-slate-200 font-semibold">
+                    Primary Phone Number * (Dialable, Non-Toll-Free)
+                  </label>
+                  <label className="flex items-center space-x-1.5 cursor-pointer text-[11px] text-emerald-400 select-none">
+                    <input
+                      type="checkbox"
+                      checked={editForm.is_whatsapp}
+                      onChange={(e) => setEditForm({ ...editForm, is_whatsapp: e.target.checked })}
+                      className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                    <span className="font-medium">WhatsApp Line</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  required
+                  value={editForm.phone_number}
+                  onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                />
+              </div>
+
+              {/* Alternate / Tied Numbers (Up to 3 additional, total 4) */}
+              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-300 font-semibold text-xs">Tied Alternate Numbers</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono">
+                      {1 + editForm.alt_numbers.length} / 4 configured
+                    </span>
+                  </div>
+
+                  {editForm.alt_numbers.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditForm({
+                          ...editForm,
+                          alt_numbers: [...editForm.alt_numbers, { phone: '', is_whatsapp: false }],
+                        })
+                      }
+                      className="text-[11px] px-2 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Alt Number</span>
+                    </button>
+                  )}
+                </div>
+
+                {editForm.alt_numbers.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 italic">
+                    No alternate numbers attached yet. Click "+ Add Alt Number" to attach up to 3 alternate numbers.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {editForm.alt_numbers.map((alt, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center space-x-2 bg-slate-900/90 p-2 rounded-xl border border-slate-800"
+                      >
+                        <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 w-12">
+                          Alt #{idx + 2}:
+                        </span>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Alternate phone number"
+                          value={alt.phone}
+                          onChange={(e) => {
+                            const updated = [...editForm.alt_numbers];
+                            updated[idx].phone = e.target.value;
+                            setEditForm({ ...editForm, alt_numbers: updated });
+                          }}
+                          className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                        <label className="flex items-center space-x-1 cursor-pointer text-[10px] text-emerald-400 shrink-0 select-none">
+                          <input
+                            type="checkbox"
+                            checked={alt.is_whatsapp}
+                            onChange={(e) => {
+                              const updated = [...editForm.alt_numbers];
+                              updated[idx].is_whatsapp = e.target.checked;
+                              setEditForm({ ...editForm, alt_numbers: updated });
+                            }}
+                            className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
+                          />
+                          <span>WA</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditForm({
+                              ...editForm,
+                              alt_numbers: editForm.alt_numbers.filter((_, i) => i !== idx),
+                            })
+                          }
+                          className="p-1 text-slate-500 hover:text-red-400 transition cursor-pointer"
+                          title="Remove alternate number"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Impersonated Brand / Company
+                </label>
+                <input
+                  type="text"
+                  value={editForm.impersonated_company}
+                  onChange={(e) => setEditForm({ ...editForm, impersonated_company: e.target.value })}
+                  placeholder="e.g. Geek Squad, Norton"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Scam Category</label>
+                  <select
+                    value={editForm.category}
+                    onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
+                    <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                    <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
+                    <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                    <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
+                    <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Line Status</label>
+                  <div className="flex items-center space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, is_down: false })}
+                      className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
+                        !editForm.is_down
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      Active Line
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, is_down: true })}
+                      className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
+                        editForm.is_down
+                          ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      Out of Service
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Amount Charged</label>
+                  <input
+                    type="text"
+                    value={editForm.amount_charged}
+                    onChange={(e) => setEditForm({ ...editForm, amount_charged: e.target.value })}
+                    placeholder="e.g. $499.99"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Invoice / Ref #</label>
+                  <input
+                    type="text"
+                    value={editForm.invoice_number}
+                    onChange={(e) => setEditForm({ ...editForm, invoice_number: e.target.value })}
+                    placeholder="e.g. INV-982341"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Source Name / Platform</label>
+                  <input
+                    type="text"
+                    value={editForm.source_name}
+                    onChange={(e) => setEditForm({ ...editForm, source_name: e.target.value })}
+                    placeholder="e.g. Tech Support United"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Source URL</label>
+                  <input
+                    type="url"
+                    value={editForm.source_url}
+                    onChange={(e) => setEditForm({ ...editForm, source_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Threat Context / Snippet</label>
+                <textarea
+                  rows={2}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingRecord(null);
+                    setEditError(null);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
