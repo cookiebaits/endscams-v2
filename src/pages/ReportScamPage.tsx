@@ -3,6 +3,7 @@ import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
+import { isUserCountryAllowed } from '../utils/geoIp';
 
 type FormData = {
   phoneNumber: string;
@@ -263,6 +264,13 @@ export default function ReportScamPage() {
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!requireDisclaimerAcceptance()) return;
+
+    const countryAllowed = await isUserCountryAllowed();
+    if (!countryAllowed) {
+      // Silently deny by now allowing the add/submit action to proceed
+      return;
+    }
+
     if (!validate()) return;
     setStatus('submitting');
     setErrorMsg('');

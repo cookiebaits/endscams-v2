@@ -42,6 +42,7 @@ import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
+import { isUserCountryAllowed } from '../utils/geoIp';
 import { ScamPhoneRecord } from '../types';
 
 export interface AltNumberEntry {
@@ -3306,7 +3307,14 @@ export function TrackerPage() {
 
             {/* Manual Add */}
             <button
-              onClick={() => setIsReportModalOpen(true)}
+              onClick={async () => {
+                const allowed = await isUserCountryAllowed();
+                if (!allowed) {
+                  // Silently deny by doing nothing when clicked
+                  return;
+                }
+                setIsReportModalOpen(true);
+              }}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-red-400" />
