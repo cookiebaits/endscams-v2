@@ -23,7 +23,7 @@ const CATEGORIES = [
   'Romance Scam',
   'Spiritual / Spellcaster Scam',
   'Crypto / Investment Scam',
-  'Online Shopping Scam',
+  'Money Recovery Scam',
   'Emergency Scam',
   'Employment Scam',
   'Other',
@@ -124,7 +124,24 @@ export default function ReportScamPage() {
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFile = (f: File) => {
+    if (!ACCEPTED_TYPES.includes(f.type)) {
+      setErrors((e) => ({ ...e, file: 'Invalid file type. Accepted: PDF, JPG, PNG, GIF, WEBP.' }));
+      return;
+    }
+    setErrors((e) => ({ ...e, file: undefined }));
+    setFile(f);
+    if (f.type !== 'application/pdf') {
+      const reader = new FileReader();
+      reader.onload = (ev) => setFilePreview(ev.target?.result as string);
+      reader.readAsDataURL(f);
+    } else {
+      setFilePreview(null);
+    }
+  };
 
   const update = (field: keyof FormData, value: string) => {
     setForm(f => ({ ...f, [field]: value }));
@@ -133,19 +150,44 @@ export default function ReportScamPage() {
 
   const handleFileChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
     const f = ev.target.files?.[0];
-    if (!f) return;
-    if (!ACCEPTED_TYPES.includes(f.type)) {
-      setErrors(e => ({ ...e, file: 'Invalid file type. Accepted: PDF, JPG, PNG, GIF, WEBP.' }));
-      return;
+    if (f) processFile(f);
+  };
+
+  const handleDragOver = (ev: React.DragEvent<HTMLDivElement>) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (ev: React.DragEvent<HTMLDivElement>) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (ev: React.DragEvent<HTMLDivElement>) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    setIsDragging(false);
+    const files = ev.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFile(files[0]);
     }
-    setErrors(e => ({ ...e, file: undefined }));
-    setFile(f);
-    if (f.type !== 'application/pdf') {
-      const reader = new FileReader();
-      reader.onload = (ev) => setFilePreview(ev.target?.result as string);
-      reader.readAsDataURL(f);
-    } else {
-      setFilePreview(null);
+  };
+
+  const handlePaste = (ev: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = ev.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const pastedFile = item.getAsFile();
+        if (pastedFile) {
+          processFile(pastedFile);
+          ev.preventDefault();
+          break;
+        }
+      }
     }
   };
 
@@ -342,7 +384,22 @@ export default function ReportScamPage() {
       console.warn('localStorage sync warning:', e);
     }
 
-    // 3. Save to user_reported_scams
+    // 3. Save to user_reported_scams and esscan_threat_records_v2 (direct Tracker storage key)
+    const trackerRecord = {
+      id: newRecord.id,
+      phone_number: formatPhoneDisplay(digits),
+      phone_digits: digits,
+      source_name: 'User Report',
+      source_url: '/report',
+      report_date: form.incidentDate,
+      category: form.category,
+      description: form.description.trim(),
+      impersonated_company: 'N/A',
+      invoice_number: 'N/A',
+      amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
+      is_down: false,
+    };
+
     try {
       const userReportsRaw = localStorage.getItem('user_reported_scams') || '[]';
       const userReports = JSON.parse(userReportsRaw);
@@ -350,6 +407,35 @@ export default function ReportScamPage() {
       localStorage.setItem('user_reported_scams', JSON.stringify(userReports));
     } catch (e) {
       console.warn('user_reported_scams storage warning:', e);
+    }
+
+    try {
+      const esscanRaw = localStorage.getItem('esscan_threat_records_v2') || '[]';
+      const esscanRecords = JSON.parse(esscanRaw);
+      const filtered = Array.isArray(esscanRecords) ? esscanRecords.filter((r: any) => (r.phone_digits || r.phone) !== digits) : [];
+      filtered.unshift(trackerRecord);
+      localStorage.setItem('esscan_threat_records_v2', JSON.stringify(filtered));
+    } catch (e) {
+      console.warn('esscan_threat_records_v2 storage warning:', e);
+    }
+
+    // 4. Send directly to backend endpoints
+    try {
+      fetch('/api/records/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: trackerRecord.phone_number,
+          cleanPhone: trackerRecord.phone_digits,
+          scamType: trackerRecord.category,
+          platform: 'User Report',
+          sourceUrl: '/report',
+          detailedSummary: trackerRecord.description,
+          detectedAt: trackerRecord.report_date,
+        }),
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Backend manual record endpoint notice:', e);
     }
 
     await sendEmail(fileUrl, fileName, fileType);
@@ -569,9 +655,16 @@ export default function ReportScamPage() {
 
             <Field label="Upload Evidence (Optional)" icon={Upload} error={errors.file}>
               <div
-                className={`relative border-2 border-dashed rounded-xl p-5 transition-colors ${
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onPaste={handlePaste}
+                tabIndex={0}
+                className={`relative border-2 border-dashed rounded-xl p-5 transition-colors outline-none focus:ring-2 focus:ring-brand-500/50 ${
                   errors.file
                     ? 'border-red-500/50 bg-red-500/5'
+                    : isDragging
+                    ? 'border-brand-500 bg-brand-500/10'
                     : 'border-slate-300 dark:border-slate-700 hover:border-brand-500/50 bg-slate-100 dark:bg-slate-900/50'
                 }`}
               >
@@ -603,7 +696,7 @@ export default function ReportScamPage() {
                   <label className="flex flex-col items-center gap-2 cursor-pointer">
                     <Upload className="w-8 h-8 text-slate-400" />
                     <span className="text-sm text-slate-500 dark:text-slate-400 text-center">
-                      <span className="text-brand-500 font-semibold">Click to upload</span> or drag and drop
+                      <span className="text-brand-500 font-semibold">Click to upload</span>, drag & drop, or paste (Ctrl+V / Cmd+V)
                     </span>
                     <span className="text-xs text-slate-400 dark:text-slate-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
                     <input

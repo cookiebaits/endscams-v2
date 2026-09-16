@@ -18,22 +18,16 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
-  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -45,7 +39,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
@@ -1400,7 +1394,7 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
                 prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
@@ -1431,7 +1425,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1800,27 +1794,6 @@ export function TrackerPage() {
   };
 
   // Edit Monitored Number Handlers
-  const handleOpenEditModal = (record: ThreatRecord) => {
-    setEditingRecord(record);
-    setEditForm({
-      phone_number: record.phone_number,
-      is_whatsapp: isWhatsAppThreat(record),
-      alt_numbers: (record.alt_numbers || []).map((a) => ({
-        phone: typeof a === 'string' ? a : a.phone,
-        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
-      })),
-      category: record.category,
-      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
-      source_name: record.source_name,
-      source_url: record.source_url || '',
-      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
-      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
-      description: record.description,
-      is_down: Boolean(record.is_down),
-    });
-    setEditError(null);
-    setIsEditModalOpen(true);
-  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -3658,7 +3631,6 @@ export function TrackerPage() {
                 filteredRecords.map((record) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
