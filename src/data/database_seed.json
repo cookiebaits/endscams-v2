@@ -1,0 +1,37 @@
+[
+  {
+    "id": "esscan-01",
+    "phone_number": "+234 810 552 9412",
+    "phone_digits": "2348105529412",
+    "is_whatsapp": true,
+    "alt_numbers": [
+      { "phone": "+234 813 816 1886", "digits": "2348138161886", "is_whatsapp": true },
+      { "phone": "+234 802 441 9901", "digits": "2348024419901", "is_whatsapp": true }
+    ],
+    "source_name": "Facebook",
+    "source_url": "https://www.facebook.com/groups/108392045294810/posts/992837465102938/",
+    "report_date": "2026-09-08",
+    "category": "Crypto BTC Recovery Scam",
+    "impersonated_company": "Blockchain Asset Recovery Experts Nigeria",
+    "invoice_number": "N/A",
+    "amount_charged": "Upfront processing fee",
+    "description": "Targeting previous crypto scam victims by promising to reverse fraudulent blockchain transactions through private WhatsApp channel. Solicits upfront gas fees."
+  },
+  {
+    "id": "esscan-03",
+    "phone_number": "1 (951) 629-3962",
+    "phone_digits": "19516293962",
+    "is_whatsapp": false,
+    "alt_numbers": [
+      { "phone": "1 (951) 629-3963", "digits": "19516293963", "is_whatsapp": false }
+    ],
+    "source_name": "Tech Support United",
+    "source_url": "https://techscammersunited.com/t/geek-squad-renewal-alert/8812",
+    "report_date": "2026-09-08",
+    "category": "General Tech Support & Refund Scams",
+    "impersonated_company": "Geek Squad Protection",
+    "invoice_number": "GS-90281-REF",
+    "amount_charged": "$499.99",
+    "description": "Phishing invoice alerting victim to unauthorized auto-debit. Pushes AnyDesk screen sharing under the guise of an active refund process."
+  }
+]

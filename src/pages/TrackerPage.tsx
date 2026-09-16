@@ -17,22 +17,16 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
-  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -44,7 +38,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
@@ -76,6 +70,14 @@ export interface ThreatRecord {
  * Checks if a threat record or specific number is a verified WhatsApp channel.
  * Evaluates explicit flag, category/description keywords, and high-frequency international carrier prefixes.
  */
+export function isRecordMatch(record: any, digits10: string): boolean {
+  if (!record || !digits10) return false;
+  const digits11 = `1${digits10}`;
+  const pDigits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
+  if (!pDigits) return false;
+  return pDigits.includes(digits10) || pDigits.includes(digits11) || digits10.includes(pDigits);
+}
+
 export function isWhatsAppThreat(record: {
   is_whatsapp?: boolean;
   phone_number?: string;
@@ -1264,17 +1266,17 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
 }
 
 const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
-  .filter((r) => {
+  .filter((r: any) => {
     const p = r.cleanPhone || r.phone || r.phone_number || '';
     const src = (r.platform || r.sourceUrl || r.sourceDomain || '').toLowerCase();
     if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
     if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
     return true;
   })
-  .map(mapRawSeedToThreatRecord)
-  .filter((r) => !isThreatRecordExpired(r));
+  .map((r: any) => mapRawSeedToThreatRecord(r))
+  .filter((r: ThreatRecord) => !isThreatRecordExpired(r));
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1336,7 +1338,7 @@ export function TrackerPage() {
         if (res.ok) {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-            const mapped = data.records
+            const mapped: ThreatRecord[] = data.records
               .filter((r: any) => {
                 const p = r.cleanPhone || r.phone || '';
                 const src = (r.platform || r.sourceUrl || '').toLowerCase();
@@ -1349,8 +1351,8 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
-                prev.forEach((r) => {
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                prev.forEach((r: ThreatRecord) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
                     map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
@@ -1725,25 +1727,27 @@ export function TrackerPage() {
 
   // Edit Monitored Number Handlers
   const handleOpenEditModal = (record: ThreatRecord) => {
-    setEditingRecord(record);
-    setEditForm({
-      phone_number: record.phone_number,
-      is_whatsapp: isWhatsAppThreat(record),
-      alt_numbers: (record.alt_numbers || []).map((a) => ({
-        phone: typeof a === 'string' ? a : a.phone,
-        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
-      })),
-      category: record.category,
-      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
-      source_name: record.source_name,
-      source_url: record.source_url || '',
-      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
-      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
-      description: record.description,
-      is_down: Boolean(record.is_down),
+    requireTrackerPass('Edit Monitored Number', () => {
+      setEditingRecord(record);
+      setEditForm({
+        phone_number: record.phone_number,
+        is_whatsapp: isWhatsAppThreat(record),
+        alt_numbers: (record.alt_numbers || []).map((a) => ({
+          phone: typeof a === 'string' ? a : a.phone,
+          is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+        })),
+        category: record.category,
+        impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+        source_name: record.source_name,
+        source_url: record.source_url || '',
+        amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+        invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+        description: record.description,
+        is_down: Boolean(record.is_down),
+      });
+      setEditError(null);
+      setIsEditModalOpen(true);
     });
-    setEditError(null);
-    setIsEditModalOpen(true);
   };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
@@ -3159,7 +3163,7 @@ export function TrackerPage() {
             <div className="flex items-center space-x-1.5">
               <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
               <span>
-                <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
+                <strong>Status:</strong> {isScanning ? `${scannerStatusMessage} (${scannerProgress}%)` : 'Monitoring live threat streams'}
               </span>
             </div>
 
@@ -3460,7 +3464,6 @@ export function TrackerPage() {
                 filteredRecords.map((record) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr

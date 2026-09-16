@@ -25,6 +25,8 @@ export interface ScamPhoneRecord {
   id: string;
   phone: string;              // e.g. "+1 (656) 556-3016"
   cleanPhone: string;         // Digits only for wa.me link e.g. "16565563016"
+  isWhatsapp?: boolean;
+  altNumbers?: string[];
   countryCode?: string;       // e.g. "US", "GB", "NG", "IN"
   countryName?: string;       // e.g. "United States", "United Kingdom"
   scamType: ScamCategory | string;

@@ -457,6 +457,15 @@ class SyncBridgeManager {
       triggeredAt: new Date().toISOString(),
     });
   }
+
+  // Broadcast records directly
+  public broadcastRecords(records: ScamPhoneRecord[]) {
+    this.broadcast('PUSH_RECORDS', {
+      records,
+      totalRecords: records.length,
+      timestamp: new Date().toISOString(),
+    });
+  }
 }
 
 export const syncBridge = new SyncBridgeManager();

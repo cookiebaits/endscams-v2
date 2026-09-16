@@ -667,6 +667,16 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/health") return json({ ok: true, ts: new Date().toISOString() });
 
+  if (url.pathname === "/api/config") {
+    const trackerPass = Deno.env.get("TRACKER_PASS") || Deno.env.get("VITE_TRACKER_PASS") || Deno.env.get("TRACKER");
+    return json({
+      supabaseUrl: SUPABASE_URL,
+      supabaseKey: SUPABASE_SERVICE_ROLE_KEY,
+      hasSupabase: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+      hasTrackerPass: Boolean(trackerPass),
+    });
+  }
+
   if (url.pathname === "/api/tools") {
     return await handleAbstractProxy(req);
   }
