@@ -736,7 +736,8 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
 
   if (url.pathname === "/api/verify-password" || url.pathname === "/verify-password") {
-    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+    if (req.method !== "POST" && req.method !== "GET") return cors(json({ error: "POST or GET required" }, 405));
     let body: any = {};
     try { body = await req.json(); } catch {}
 

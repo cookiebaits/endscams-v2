@@ -1678,23 +1678,51 @@ export function TrackerPage() {
     setIsPasswordModalOpen(true);
   };
 
-  // Verify password via backend endpoint
+  // Verify password via backend endpoint with fallback to env password
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!passwordInput.trim()) {
+    const candidate = passwordInput.trim();
+    if (!candidate) {
       setPasswordError('Please enter your Tracker Password.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
+
+    const clientEnvPass = (
+      (import.meta as any).env?.VITE_TRACKER_PASS ||
+      (import.meta as any).env?.VITE_TRACKER ||
+      (import.meta as any).env?.TRACKER_PASS ||
+      ''
+    ).trim();
+
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: passwordInput.trim() }),
+        body: JSON.stringify({ password: candidate }),
       });
-      const data = await res.json();
-      if (data.verified || data.success) {
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.verified || data.success) {
+          setIsPasswordVerified(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('tracker_pass_verified', 'true');
+          }
+          setIsPasswordModalOpen(false);
+          setPasswordInput('');
+          setStatusNotification(`Authenticated: ${passwordActionName}`);
+          if (pendingAction) {
+            const act = pendingAction;
+            setPendingAction(null);
+            act();
+          }
+        } else {
+          setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+        }
+      } else if (clientEnvPass && candidate === clientEnvPass) {
+        // Fallback check if proxy returns 405 or 502/504
         setIsPasswordVerified(true);
         if (typeof window !== 'undefined') {
           sessionStorage.setItem('tracker_pass_verified', 'true');
@@ -1708,10 +1736,25 @@ export function TrackerPage() {
           act();
         }
       } else {
-        setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+        setPasswordError('Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
       }
     } catch {
-      setPasswordError('Network error connecting to authentication server.');
+      if (clientEnvPass && candidate === clientEnvPass) {
+        setIsPasswordVerified(true);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('tracker_pass_verified', 'true');
+        }
+        setIsPasswordModalOpen(false);
+        setPasswordInput('');
+        setStatusNotification(`Authenticated: ${passwordActionName}`);
+        if (pendingAction) {
+          const act = pendingAction;
+          setPendingAction(null);
+          act();
+        }
+      } else {
+        setPasswordError('Network error connecting to authentication server.');
+      }
     } finally {
       setIsVerifyingPassword(false);
     }
