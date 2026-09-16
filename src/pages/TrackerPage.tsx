@@ -1378,7 +1378,13 @@ export function TrackerPage() {
     let isMounted = true;
     const fetchBackendRecords = async () => {
       try {
-        const res = await fetch('/api/records');
+        const res = await fetch(`/api/records?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {

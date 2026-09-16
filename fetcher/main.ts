@@ -692,7 +692,10 @@ Deno.serve({ port: PORT }, async (req: Request) => {
         }
       } catch {}
     }
-    return json({ success: true, count: records.length, records });
+    const res = json({ success: true, count: records.length, records });
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    res.headers.set("Pragma", "no-cache");
+    return res;
   }
 
   if (url.pathname === "/api/records/manual") {
