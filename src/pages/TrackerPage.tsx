@@ -44,6 +44,7 @@ import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
 import {
+  verifyAdminPassword,
   verifyEncryptedBypass,
   isBypassAllowedForAction,
   checkClientGeoPermission,
@@ -1767,24 +1768,45 @@ export function TrackerPage() {
     setIsPasswordModalOpen(true);
   };
 
-  // Verify password via backend endpoint or encrypted bypass
+  // Verify password via static encrypted SHA-256 hash comparison or backend API
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const entered = passwordInput.trim();
     if (!entered) {
-      setPasswordError('Please enter your Tracker Password or encrypted bypass key.');
+      setPasswordError('Please enter Admin Password or Encrypted Bypass Key.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
 
-    // 1. One-way encrypted bypass verification (password is NEVER stored in plain-text)
+    // 1. Check Full Admin Password (!8008ies via SHA-256 hash)
+    const isAdminMatch = await verifyAdminPassword(entered);
+    if (isAdminMatch) {
+      setIsPasswordVerified(true);
+      setIsBypassSession(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.removeItem('tracker_pass_is_bypass');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authenticated as Admin: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    // 2. Check Encrypted Bypass Key (@CookieReporter via SHA-256 hash)
     const isBypassMatch = await verifyEncryptedBypass(entered);
     if (isBypassMatch) {
       // Limit bypass key strictly to Editing post details and changing line status to inactive
       if (!isBypassAllowedForAction(passwordActionName)) {
         setIsVerifyingPassword(false);
-        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status. Prohibited for Import/Scans.');
+        setPasswordError('Bypass key is strictly limited to Editing post details and Changing line status. Prohibited for Import/Scans.');
         return;
       }
 
@@ -1796,7 +1818,7 @@ export function TrackerPage() {
       }
       setIsPasswordModalOpen(false);
       setPasswordInput('');
-      setStatusNotification(`Authorized via encrypted bypass: ${passwordActionName}`);
+      setStatusNotification(`Authorized via bypass key: ${passwordActionName}`);
       if (pendingAction) {
         const act = pendingAction;
         setPendingAction(null);
@@ -1806,28 +1828,7 @@ export function TrackerPage() {
       return;
     }
 
-    // 2. Client-side TRACKER_PASS environment check fallback
-    const clientTrackerPass = (import.meta.env.VITE_TRACKER_PASS || import.meta.env.VITE_TRACKER || '').trim();
-    if (clientTrackerPass && entered === clientTrackerPass) {
-      setIsPasswordVerified(true);
-      setIsBypassSession(false);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('tracker_pass_verified', 'true');
-        sessionStorage.removeItem('tracker_pass_is_bypass');
-      }
-      setIsPasswordModalOpen(false);
-      setPasswordInput('');
-      setStatusNotification(`Authenticated: ${passwordActionName}`);
-      if (pendingAction) {
-        const act = pendingAction;
-        setPendingAction(null);
-        act();
-      }
-      setIsVerifyingPassword(false);
-      return;
-    }
-
-    // 3. Standard TRACKER_PASS verification via backend API
+    // 3. Fallback: Check backend API verification endpoint if present
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
@@ -1856,15 +1857,11 @@ export function TrackerPage() {
           setPendingAction(null);
           act();
         }
-      } else if (res.status === 401 || data.error === 'Invalid password') {
-        setPasswordError(data.error || data.message || 'Incorrect Tracker Password or Encrypted Bypass Key.');
-      } else if (res.status === 502 || res.status === 503 || res.status === 504) {
-        setPasswordError('Backend authentication server unreachable (502 Bad Gateway). Please verify tracker-fetcher service status in Dokploy.');
       } else {
-        setPasswordError(data.error || data.message || `Authentication error (${res.status}). Please verify TRACKER_PASS in Dokploy.`);
+        setPasswordError('Incorrect Password. Please check Admin Password (!8008ies) or Bypass Key (@CookieReporter).');
       }
     } catch {
-      setPasswordError('Network error connecting to authentication server. Please verify TRACKER_PASS in Dokploy.');
+      setPasswordError('Incorrect Password. Please check Admin Password (!8008ies) or Bypass Key (@CookieReporter).');
     } finally {
       setIsVerifyingPassword(false);
     }

@@ -747,66 +747,31 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     const rawCandidate = (body.password || "").trim();
     const candidateClean = rawCandidate.replace(/^["']|["']$/g, "").trim();
 
-    const envPassRaw = (
-      Deno.env.get("TRACKER_PASS") ||
-      Deno.env.get("VITE_TRACKER_PASS") ||
-      Deno.env.get("TRACKER") ||
-      Deno.env.get("VITE_TRACKER") ||
-      Deno.env.get("ADMIN_PASS") ||
-      Deno.env.get("ADMIN_PASSWORD") ||
-      "admin"
-    ).trim();
+    if (!candidateClean) {
+      return cors(json({ success: false, verified: false, error: "Invalid password" }, 401));
+    }
 
-    const envBypassRaw = (
-      Deno.env.get("BYPASS_PASS") ||
-      Deno.env.get("VITE_BYPASS_PASS") ||
-      Deno.env.get("BYPASS") ||
-      Deno.env.get("VITE_BYPASS") ||
-      ""
-    ).trim();
+    // SHA-256 hash calculation for candidate string
+    const msgUint8 = new TextEncoder().encode(candidateClean);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    const envPassClean = envPassRaw.replace(/^["']|["']$/g, "").trim();
-    const envBypassClean = envBypassRaw.replace(/^["']|["']$/g, "").trim();
+    const KNOWN_ADMIN_HASHES = [
+      "97e96000beba9b14057d7c01f06833b0948ed7e776f536207058f00c15402324",
+    ];
 
-    const isTrackerMatch =
-      rawCandidate === envPassRaw ||
-      candidateClean === envPassClean ||
-      rawCandidate === envPassClean ||
-      candidateClean === envPassRaw ||
-      (candidateClean && envPassClean.includes(candidateClean)) ||
-      (envPassClean && candidateClean.includes(envPassClean));
-
-    // SHA-256 hash checks for encrypted bypass keys
     const KNOWN_BYPASS_HASHES = [
+      "dbd823ef2cafd01668dd5e20fb15cd29aec7bff94ea7d1d6f3333b28cc7272ef",
       "c91194f4db66e4ce9259fe835512984fec160e9b03470814e72678f141688725",
       "377b06432de7d12ee9816c7edf0bb0473f7762d37e8dea053ea447fd50ba9461",
     ];
 
-    const envBypassHash = (
-      Deno.env.get("BYPASS_HASH") ||
-      Deno.env.get("VITE_BYPASS_HASH") ||
-      ""
-    ).trim().toLowerCase();
+    const isAdminMatch = KNOWN_ADMIN_HASHES.includes(hashHex);
+    const isBypassMatch = KNOWN_BYPASS_HASHES.includes(hashHex);
 
-    let isBypassMatch = false;
-
-    if (envBypassRaw && (rawCandidate === envBypassRaw || candidateClean === envBypassClean)) {
-      isBypassMatch = true;
-    }
-
-    if (!isBypassMatch && candidateClean) {
-      const msgUint8 = new TextEncoder().encode(candidateClean);
-      const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      if (KNOWN_BYPASS_HASHES.includes(hashHex) || (envBypassHash && hashHex === envBypassHash)) {
-        isBypassMatch = true;
-      }
-    }
-
-    if (rawCandidate && (isTrackerMatch || isBypassMatch)) {
-      return cors(json({ success: true, verified: true, isBypass: isBypassMatch && !isTrackerMatch }));
+    if (isAdminMatch || isBypassMatch) {
+      return cors(json({ success: true, verified: true, isBypass: isBypassMatch && !isAdminMatch }));
     } else {
       return cors(json({ success: false, verified: false, error: "Invalid password" }, 401));
     }

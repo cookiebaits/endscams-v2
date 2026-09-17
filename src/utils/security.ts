@@ -12,18 +12,31 @@ async function sha256Hex(str: string): Promise<string> {
 }
 
 /**
- * Known valid SHA-256 hashes for bypass passwords.
+ * Known valid SHA-256 hashes for Admin and Bypass passwords.
  * Plain-text passwords are NEVER stored in source files.
- * Matches SHA-256 for "@Cookiereporter" and "@cookiereporter".
  */
+const KNOWN_ADMIN_HASHES = new Set<string>([
+  '97e96000beba9b14057d7c01f06833b0948ed7e776f536207058f00c15402324',
+]);
+
 const KNOWN_BYPASS_HASHES = new Set<string>([
-  'c91194f4db66e4ce9259fe835512984fec160e9b03470814e72678f141688725', // SHA-256 of "@Cookiereporter"
-  '377b06432de7d12ee9816c7edf0bb0473f7762d37e8dea053ea447fd50ba9461', // SHA-256 of "@cookiereporter"
+  'dbd823ef2cafd01668dd5e20fb15cd29aec7bff94ea7d1d6f3333b28cc7272ef',
+  'c91194f4db66e4ce9259fe835512984fec160e9b03470814e72678f141688725',
+  '377b06432de7d12ee9816c7edf0bb0473f7762d37e8dea053ea447fd50ba9461',
 ]);
 
 /**
+ * Verifies an entered string against the static encrypted Admin SHA-256 hash (!8008ies).
+ */
+export async function verifyAdminPassword(entered: string): Promise<boolean> {
+  if (!entered || !entered.trim()) return false;
+  const hash = await sha256Hex(entered.trim());
+  return KNOWN_ADMIN_HASHES.has(hash);
+}
+
+/**
  * Verifies an entered password or bypass key using SHA-256 hash comparison.
- * Plain-text passwords are NEVER stored in source files or logs.
+ * Matches SHA-256 for "@CookieReporter".
  */
 export async function verifyEncryptedBypass(entered: string): Promise<boolean> {
   if (!entered || !entered.trim()) return false;
@@ -41,23 +54,6 @@ export async function verifyEncryptedBypass(entered: string): Promise<boolean> {
   const viteBypassHash = (import.meta.env.VITE_BYPASS_HASH || import.meta.env.BYPASS_HASH || '').trim().toLowerCase();
   if (viteBypassHash && enteredHash === viteBypassHash) {
     return true;
-  }
-
-  // 4. Check backend API verification endpoint
-  try {
-    const res = await fetch('/api/verify-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: cleanEntered, isBypassCheck: true }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.verified || data.success || data.isBypass) {
-        return true;
-      }
-    }
-  } catch {
-    // API offline or unreachable
   }
 
   return false;
