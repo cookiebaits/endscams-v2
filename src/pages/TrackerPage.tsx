@@ -1834,33 +1834,34 @@ export function TrackerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: entered, action: passwordActionName }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.verified || data.success) {
-          setIsPasswordVerified(true);
-          setIsBypassSession(Boolean(data.isBypass));
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('tracker_pass_verified', 'true');
-            if (data.isBypass) {
-              sessionStorage.setItem('tracker_pass_is_bypass', 'true');
-            } else {
-              sessionStorage.removeItem('tracker_pass_is_bypass');
-            }
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && (data.verified || data.success)) {
+        setIsPasswordVerified(true);
+        setIsBypassSession(Boolean(data.isBypass));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('tracker_pass_verified', 'true');
+          if (data.isBypass) {
+            sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+          } else {
+            sessionStorage.removeItem('tracker_pass_is_bypass');
           }
-          setIsPasswordModalOpen(false);
-          setPasswordInput('');
-          setStatusNotification(`Authenticated: ${passwordActionName}`);
-          if (pendingAction) {
-            const act = pendingAction;
-            setPendingAction(null);
-            act();
-          }
-        } else {
-          setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
         }
-      } else {
-        // Backend HTTP error (e.g. 502 Bad Gateway when tracker-fetcher is starting or unreachable)
+        setIsPasswordModalOpen(false);
+        setPasswordInput('');
+        setStatusNotification(`Authenticated: ${passwordActionName}`);
+        if (pendingAction) {
+          const act = pendingAction;
+          setPendingAction(null);
+          act();
+        }
+      } else if (res.status === 401 || data.error === 'Invalid password') {
+        setPasswordError(data.error || data.message || 'Incorrect Tracker Password or Encrypted Bypass Key.');
+      } else if (res.status === 502 || res.status === 503 || res.status === 504) {
         setPasswordError('Backend authentication server unreachable (502 Bad Gateway). Please verify tracker-fetcher service status in Dokploy.');
+      } else {
+        setPasswordError(data.error || data.message || `Authentication error (${res.status}). Please verify TRACKER_PASS in Dokploy.`);
       }
     } catch {
       setPasswordError('Network error connecting to authentication server. Please verify TRACKER_PASS in Dokploy.');

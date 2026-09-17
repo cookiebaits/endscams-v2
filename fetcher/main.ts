@@ -751,6 +751,9 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       Deno.env.get("TRACKER_PASS") ||
       Deno.env.get("VITE_TRACKER_PASS") ||
       Deno.env.get("TRACKER") ||
+      Deno.env.get("VITE_TRACKER") ||
+      Deno.env.get("ADMIN_PASS") ||
+      Deno.env.get("ADMIN_PASSWORD") ||
       "admin"
     ).trim();
 
