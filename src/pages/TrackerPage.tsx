@@ -3130,14 +3130,6 @@ export function TrackerPage() {
   // ============================================================================
   // 10. MANUAL REPORT ADD (SUPPORTS UP TO 4 NUMBERS PER ENTRY & WHATSAPP)
   // ============================================================================
-  const handleOpenAddNumberModal = () => {
-    if (!isGeoAllowed) {
-      // Silently deny if outside US, Canada, Australia, and EU: when clicked, nothing appears
-      return;
-    }
-    setIsReportModalOpen(true);
-  };
-
   const handleManualAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isGeoAllowed) {
@@ -3420,15 +3412,6 @@ export function TrackerPage() {
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
               <span>Export CSV</span>
-            </button>
-
-            {/* Manual Add */}
-            <button
-              onClick={handleOpenAddNumberModal}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-red-400" />
-              <span>Add Number</span>
             </button>
 
             {/* Scanner Settings */}

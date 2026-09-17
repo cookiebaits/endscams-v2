@@ -1,14 +1,15 @@
-// US, CA, AU, and 27 EU member states
+// USA, Canada, UK, Ireland, Australia, and all NATO member states (32 members)
 export const ALLOWED_COUNTRY_CODES = new Set<string>([
   'US', // United States
   'CA', // Canada
+  'GB', // United Kingdom
+  'IE', // Ireland
   'AU', // Australia
-  // EU Member States (27)
-  'AT', // Austria
+  // NATO Member States (32)
+  'AL', // Albania
   'BE', // Belgium
   'BG', // Bulgaria
   'HR', // Croatia
-  'CY', // Cyprus
   'CZ', // Czech Republic
   'DK', // Denmark
   'EE', // Estonia
@@ -17,13 +18,15 @@ export const ALLOWED_COUNTRY_CODES = new Set<string>([
   'DE', // Germany
   'GR', // Greece
   'HU', // Hungary
-  'IE', // Ireland
+  'IS', // Iceland
   'IT', // Italy
   'LV', // Latvia
   'LT', // Lithuania
   'LU', // Luxembourg
-  'MT', // Malta
+  'ME', // Montenegro
   'NL', // Netherlands
+  'MK', // North Macedonia
+  'NO', // Norway
   'PL', // Poland
   'PT', // Portugal
   'RO', // Romania
@@ -31,6 +34,7 @@ export const ALLOWED_COUNTRY_CODES = new Set<string>([
   'SI', // Slovenia
   'ES', // Spain
   'SE', // Sweden
+  'TR', // Turkey
 ]);
 
 const GEO_CACHE_KEY = 'cwn_geo_ip_country';

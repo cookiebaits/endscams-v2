@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
+import { AlertTriangle, Phone, Calendar, FileText, Send, CheckCircle, AlertCircle, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
@@ -7,27 +7,24 @@ import { isUserCountryAllowed } from '../utils/geoIp';
 
 type FormData = {
   phoneNumber: string;
+  secondaryPhoneNumber: string;
   category: string;
-  description: string;
-  incidentDate: string;
+  companyImpersonated: string;
+  sourceOrigin: string;
+  sourceUrl: string;
   howContacted: string;
-  moneyLost: string;
-  reporterName: string;
-  reporterEmail: string;
+  incidentDate: string;
+  description: string;
 };
 
 const CATEGORIES = [
-  'Invoice / Imposter Scam',
-  'Tech Support Scam',
-  'Lottery / Prize Scam',
-  'Government Impersonation',
-  'Romance Scam',
-  'Spiritual / Spellcaster Scam',
-  'Crypto / Investment Scam',
-  'Money Recovery Scam',
-  'Emergency Scam',
-  'Employment Scam',
-  'Other',
+  'General Tech Support & Refund Scams',
+  'Spellcaster WhatsApp Extortion',
+  'Crypto BTC Recovery Scam',
+  'Publishing Chat Scam',
+  'Lottery & Sweepstakes Scams',
+  'Social Media Prize & Giveaway Scam',
+  'Others',
 ];
 
 const HOW_CONTACTED = ['Phone Call', 'Text Message', 'Email', 'Social Media', 'In Person', 'Website', 'WhatsApp', 'Other'];
@@ -111,13 +108,14 @@ async function compressImage(file: File): Promise<Blob> {
 export default function ReportScamPage() {
   const [form, setForm] = useState<FormData>({
     phoneNumber: '',
+    secondaryPhoneNumber: '',
     category: '',
-    description: '',
-    incidentDate: '',
+    companyImpersonated: '',
+    sourceOrigin: '',
+    sourceUrl: '',
     howContacted: '',
-    moneyLost: '',
-    reporterName: '',
-    reporterEmail: '',
+    incidentDate: '',
+    description: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file', string>>>({});
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
@@ -202,13 +200,22 @@ export default function ReportScamPage() {
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormData | 'file', string>> = {};
     const digits = normalizePhone(form.phoneNumber);
-    if (digits.length < 7 || digits.length > 15) e.phoneNumber = 'Please enter a valid phone number (7–15 digits, with country code for international numbers).';
+    if (digits.length < 7 || digits.length > 15) e.phoneNumber = 'Please enter a valid primary phone number (7–15 digits, with country code for international numbers).';
     else if (isTollFree(digits)) e.phoneNumber = 'Toll-free numbers (800, 833, 844, etc.) are not accepted.';
+
+    if (form.secondaryPhoneNumber.trim()) {
+      const secDigits = normalizePhone(form.secondaryPhoneNumber);
+      if (secDigits.length < 7 || secDigits.length > 15) {
+        e.secondaryPhoneNumber = 'Secondary phone number must be 7–15 digits.';
+      } else if (isTollFree(secDigits)) {
+        e.secondaryPhoneNumber = 'Toll-free numbers are not accepted.';
+      }
+    }
+
     if (!form.category) e.category = 'Please select a scam category.';
-    if (form.description.trim().length < 20) e.description = 'Please provide more detail (at least 20 characters).';
-    if (!form.incidentDate) e.incidentDate = 'Please enter the date the scam occurred.';
     if (!form.howContacted) e.howContacted = 'Please select how you were contacted.';
-    if (form.reporterEmail && !/^\S+@\S+\.\S+$/.test(form.reporterEmail)) e.reporterEmail = 'Please enter a valid email address.';
+    if (!form.incidentDate) e.incidentDate = 'Please enter the date the scam occurred.';
+    if (form.description.trim().length < 20) e.description = 'Please provide more detail (at least 20 characters).';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -248,9 +255,9 @@ export default function ReportScamPage() {
           description: form.description.trim(),
           incidentDate: form.incidentDate,
           howContacted: form.howContacted,
-          moneyLost: form.moneyLost || undefined,
-          reporterName: form.reporterName.trim() || undefined,
-          reporterEmail: form.reporterEmail.trim() || undefined,
+            companyImpersonated: form.companyImpersonated.trim() || undefined,
+            sourceOrigin: form.sourceOrigin.trim() || undefined,
+            sourceUrl: form.sourceUrl.trim() || undefined,
           fileUrl,
           fileName,
           fileType,
@@ -290,16 +297,19 @@ export default function ReportScamPage() {
       }
     }
 
+    const secDigits = form.secondaryPhoneNumber.trim() ? normalizePhone(form.secondaryPhoneNumber) : '';
+    const altNumbers = secDigits ? [{ phone: formatPhoneDisplay(secDigits), digits: secDigits, is_whatsapp: false }] : undefined;
+
     const reportPayload: Record<string, any> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
       category: form.category,
+      impersonated_company: form.companyImpersonated.trim() || 'N/A',
+      source_name: form.sourceOrigin.trim() || 'User Report',
+      source_url: form.sourceUrl.trim() || '/report',
       description: form.description.trim(),
       how_contacted: form.howContacted,
       incident_date: form.incidentDate,
-      reporter_name: form.reporterName.trim() || null,
-      reporter_email: form.reporterEmail.trim() || null,
-      money_lost: form.moneyLost ? parseFloat(form.moneyLost) : null,
       source: 'user_report',
     };
 
@@ -326,8 +336,9 @@ export default function ReportScamPage() {
       const { error: trackerError } = await supabase.from('tracker_entries').upsert({
         phone_number: formatPhoneDisplay(digits),
         phone_digits: digits,
-        source_name: 'User Report',
-        source_url: '/report',
+        impersonated_company: form.companyImpersonated.trim() || 'N/A',
+        source_name: form.sourceOrigin.trim() || 'User Report',
+        source_url: form.sourceUrl.trim() || '/report',
         report_date: form.incidentDate,
         category: form.category,
         description: form.description.trim(),
@@ -347,14 +358,16 @@ export default function ReportScamPage() {
       phone: formatPhoneDisplay(digits),
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
+      alt_numbers: altNumbers,
       category: form.category,
+      impersonated_company: form.companyImpersonated.trim() || 'N/A',
       description: form.description.trim(),
       how_contacted: form.howContacted,
       incident_date: form.incidentDate,
       report_date: form.incidentDate,
       source: 'User Report',
-      source_name: 'User Report',
-      source_url: '/report',
+      source_name: form.sourceOrigin.trim() || 'User Report',
+      source_url: form.sourceUrl.trim() || '/report',
       platform: form.howContacted,
       timestamp: new Date().toISOString(),
     };
@@ -397,14 +410,15 @@ export default function ReportScamPage() {
       id: newRecord.id,
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
-      source_name: 'User Report',
-      source_url: '/report',
+      alt_numbers: altNumbers,
+      source_name: form.sourceOrigin.trim() || 'User Report',
+      source_url: form.sourceUrl.trim() || '/report',
       report_date: form.incidentDate,
       category: form.category,
       description: form.description.trim(),
-      impersonated_company: 'N/A',
+      impersonated_company: form.companyImpersonated.trim() || 'N/A',
       invoice_number: 'N/A',
-      amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
+      amount_charged: 'N/A',
       is_down: false,
     };
 
@@ -435,9 +449,11 @@ export default function ReportScamPage() {
         body: JSON.stringify({
           phone: trackerRecord.phone_number,
           cleanPhone: trackerRecord.phone_digits,
+          altNumbers: altNumbers ? altNumbers.map(a => a.phone) : undefined,
           scamType: trackerRecord.category,
-          platform: 'User Report',
-          sourceUrl: '/report',
+          impersonatedCompany: trackerRecord.impersonated_company,
+          platform: trackerRecord.source_name,
+          sourceUrl: trackerRecord.source_url,
           detailedSummary: trackerRecord.description,
           detectedAt: trackerRecord.report_date,
         }),
@@ -451,7 +467,17 @@ export default function ReportScamPage() {
   };
 
   const handleReset = () => {
-    setForm({ phoneNumber: '', category: '', description: '', incidentDate: '', howContacted: '', moneyLost: '', reporterName: '', reporterEmail: '' });
+    setForm({
+      phoneNumber: '',
+      secondaryPhoneNumber: '',
+      category: '',
+      companyImpersonated: '',
+      sourceOrigin: '',
+      sourceUrl: '',
+      howContacted: '',
+      incidentDate: '',
+      description: '',
+    });
     setErrors({});
     setStatus('idle');
     setErrorMsg('');
@@ -603,6 +629,28 @@ export default function ReportScamPage() {
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Include country code for international numbers (e.g. +44, +234). Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888).</p>
             </Field>
 
+            <Field label="Secondary Phone Number (Optional)" icon={Phone} error={errors.secondaryPhoneNumber}>
+              <input
+                type="text"
+                value={form.secondaryPhoneNumber}
+                onChange={e => update('secondaryPhoneNumber', e.target.value)}
+                placeholder="e.g. +234 810 552 9412"
+                maxLength={20}
+                className={`input-field ${errors.secondaryPhoneNumber ? 'border-red-500 focus:ring-red-500' : ''}`}
+              />
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Optional secondary line tied to this scam report.</p>
+            </Field>
+
+            <Field label="Company / Brand Impersonated (Optional)" icon={FileText}>
+              <input
+                type="text"
+                value={form.companyImpersonated}
+                onChange={e => update('companyImpersonated', e.target.value)}
+                placeholder="e.g. Geek Squad, Microsoft Support, Norton, Dr. Love Spell"
+                className="input-field"
+              />
+            </Field>
+
             <Field label="Scam Category" icon={AlertTriangle} required error={errors.category}>
               <select
                 value={form.category}
@@ -612,6 +660,26 @@ export default function ReportScamPage() {
                 <option value="">Select a category</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+            </Field>
+
+            <Field label="Source / Origin (Optional)" icon={Phone}>
+              <input
+                type="text"
+                value={form.sourceOrigin}
+                onChange={e => update('sourceOrigin', e.target.value)}
+                placeholder="e.g. Facebook, Instagram, Tech Support United, Web Search, WhatsApp"
+                className="input-field"
+              />
+            </Field>
+
+            <Field label="Source URL (Optional)" icon={ExternalLink}>
+              <input
+                type="url"
+                value={form.sourceUrl}
+                onChange={e => update('sourceUrl', e.target.value)}
+                placeholder="https://..."
+                className="input-field font-mono text-xs"
+              />
             </Field>
 
             <Field label="How Were You Contacted?" icon={Phone} required error={errors.howContacted}>
@@ -644,21 +712,6 @@ export default function ReportScamPage() {
                 className={`input-field resize-none ${errors.description ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{form.description.length} characters (minimum 20)</p>
-            </Field>
-
-            <Field label="Amount Lost (Optional)" icon={DollarSign}>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                <input
-                  type="number"
-                  value={form.moneyLost}
-                  onChange={e => update('moneyLost', e.target.value)}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  className="input-field pl-8"
-                />
-              </div>
             </Field>
 
             <Field label="Upload Evidence (Optional)" icon={Upload} error={errors.file}>
@@ -718,19 +771,6 @@ export default function ReportScamPage() {
                 )}
               </div>
             </Field>
-
-            <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
-              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Info (Optional)</h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Provide contact info only if you'd like to be notified about follow-ups. Never shared publicly.</p>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Your Name or Initials" icon={User} error={errors.reporterName}>
-                  <input type="text" value={form.reporterName} onChange={e => update('reporterName', e.target.value)} placeholder="J.D. or Jane" className="input-field" />
-                </Field>
-                <Field label="Email Address" icon={Mail} error={errors.reporterEmail}>
-                  <input type="email" value={form.reporterEmail} onChange={e => update('reporterEmail', e.target.value)} placeholder="you@email.com" className="input-field" />
-                </Field>
-              </div>
-            </div>
 
             <div className="pt-2">
               <button
