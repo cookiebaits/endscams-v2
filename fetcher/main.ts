@@ -759,7 +759,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       Deno.env.get("VITE_BYPASS_PASS") ||
       Deno.env.get("BYPASS") ||
       Deno.env.get("VITE_BYPASS") ||
-      "@cookiereporter"
+      ""
     ).trim();
 
     const envPassClean = envPassRaw.replace(/^["']|["']$/g, "").trim();
@@ -773,13 +773,34 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       (candidateClean && envPassClean.includes(candidateClean)) ||
       (envPassClean && candidateClean.includes(envPassClean));
 
-    const isBypassMatch =
-      rawCandidate === envBypassRaw ||
-      candidateClean === envBypassClean ||
-      rawCandidate === envBypassClean ||
-      candidateClean === envBypassRaw ||
-      candidateClean === "@cookiereporter" ||
-      candidateClean === "cookiereporter";
+    // SHA-256 hash checks for encrypted bypass keys
+    const KNOWN_BYPASS_HASHES = [
+      "c91194f4db66e4ce9259fe835512984fec160e9b03470814e72678f141688725",
+      "377b06432de7d12ee9816c7edf0bb0473f7762d37e8dea053ea447fd50ba9461",
+    ];
+
+    const envBypassHash = (
+      Deno.env.get("BYPASS_HASH") ||
+      Deno.env.get("VITE_BYPASS_HASH") ||
+      ""
+    ).trim().toLowerCase();
+
+    let isBypassMatch = false;
+
+    if (envBypassRaw && (rawCandidate === envBypassRaw || candidateClean === envBypassClean)) {
+      isBypassMatch = true;
+    }
+
+    if (!isBypassMatch && candidateClean) {
+      const msgUint8 = new TextEncoder().encode(candidateClean);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (KNOWN_BYPASS_HASHES.includes(hashHex) || (envBypassHash && hashHex === envBypassHash)) {
+        isBypassMatch = true;
+      }
+    }
 
     if (rawCandidate && (isTrackerMatch || isBypassMatch)) {
       return cors(json({ success: true, verified: true, isBypass: isBypassMatch && !isTrackerMatch }));

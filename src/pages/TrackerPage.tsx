@@ -1781,6 +1781,13 @@ export function TrackerPage() {
     // 1. One-way encrypted bypass verification (password is NEVER stored in plain-text)
     const isBypassMatch = await verifyEncryptedBypass(entered);
     if (isBypassMatch) {
+      // Limit bypass key strictly to Editing post details and changing line status to inactive
+      if (!isBypassAllowedForAction(passwordActionName)) {
+        setIsVerifyingPassword(false);
+        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status. Prohibited for Import/Scans.');
+        return;
+      }
+
       setIsPasswordVerified(true);
       setIsBypassSession(true);
       if (typeof window !== 'undefined') {
