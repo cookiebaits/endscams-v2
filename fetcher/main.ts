@@ -682,16 +682,15 @@ Deno.serve({ port: PORT }, async (req: Request) => {
   }
 
   if (url.pathname === "/api/records" || url.pathname === "/records") {
-    let records = getAllRecordsFromSqlite();
-    if (records.length === 0) {
-      try {
-        const { data } = await supabase.from("tracker_entries").select("*").order("report_date", { ascending: false });
-        if (data && data.length > 0) {
-          data.forEach((r: any) => saveRecordToSqlite(r));
-          records = getAllRecordsFromSqlite();
-        }
-      } catch {}
+    try {
+      const { data, error } = await supabase.from("tracker_entries").select("*").order("report_date", { ascending: false });
+      if (data && Array.isArray(data) && data.length > 0) {
+        data.forEach((r: any) => saveRecordToSqlite(r));
+      }
+    } catch (e) {
+      console.warn("GET /api/records Supabase sync notice:", e);
     }
+    const records = getAllRecordsFromSqlite();
     const res = json({ success: true, count: records.length, records });
     res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     res.headers.set("Pragma", "no-cache");
@@ -735,7 +734,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       try {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 60);
-        await supabase.from("tracker_entries").upsert({
+        const payload = {
           phone_number: item.phone_number || item.phone || "",
           phone_digits: item.phone_digits || item.cleanPhone || (item.phone || "").replace(/\D/g, ""),
           source_name: item.source_name || item.platform || "Threat Intelligence",
@@ -750,7 +749,11 @@ Deno.serve({ port: PORT }, async (req: Request) => {
           status: (item.is_down || item.isNumberDown) ? "Out of Service" : "Active",
           expires_at: expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
-        }, { onConflict: "phone_digits" });
+        };
+        const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits" });
+        if (error) {
+          await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
+        }
       } catch {}
       count++;
     }
