@@ -18,22 +18,16 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
-  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -45,7 +39,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
@@ -1295,7 +1289,7 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const map = new Map<string, ThreatRecord>();
   DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
   CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
@@ -1303,6 +1297,31 @@ const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   });
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
+
+/**
+ * Checks if a threat record matches a targeted 10-digit clean phone string.
+ */
+export function isRecordMatch(r: any, target10Digits: string): boolean {
+  if (!r || !target10Digits) return false;
+
+  const primaryDigits = (r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '').replace(/\D/g, '');
+  if (primaryDigits.includes(target10Digits)) return true;
+
+  if (Array.isArray(r.alt_numbers)) {
+    for (const alt of r.alt_numbers) {
+      const altDigits = (typeof alt === 'string' ? alt : alt.digits || alt.phone || '').replace(/\D/g, '');
+      if (altDigits.includes(target10Digits)) return true;
+    }
+  }
+  if (Array.isArray(r.altNumbers)) {
+    for (const alt of r.altNumbers) {
+      const altDigits = (typeof alt === 'string' ? alt : alt.digits || alt.cleanPhone || alt.phone || '').replace(/\D/g, '');
+      if (altDigits.includes(target10Digits)) return true;
+    }
+  }
+
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1370,7 +1389,7 @@ export function TrackerPage() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
                 prev.forEach((r) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
@@ -1475,7 +1494,6 @@ export function TrackerPage() {
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
   const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1719,7 +1737,6 @@ export function TrackerPage() {
     checkClientGeoPermission().then((res) => {
       if (isMounted) {
         setIsGeoAllowed(res.allowed);
-        setClientCountryCode(res.country);
       }
     });
 
@@ -3407,7 +3424,7 @@ export function TrackerPage() {
             <div className="flex items-center space-x-1.5">
               <Radio className={`w-3.5 h-3.5 ${isScanning ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}`} />
               <span>
-                <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
+                <strong>Status:</strong> {isScanning ? `${scannerStatusMessage} (${scannerProgress}%)` : 'Monitoring live threat streams'}
               </span>
             </div>
 
@@ -3708,7 +3725,6 @@ export function TrackerPage() {
                 filteredRecords.map((record) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
@@ -4827,7 +4843,22 @@ export function TrackerPage() {
                       title="Edit threat post details (requires TRACKER_PASS)"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>Edit Threat Post (Actions)</span>
+                      <span>Edit Inline</span>
+                      {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        requireTrackerPass('Edit Monitored Number', () => {
+                          handleOpenEditModal(selectedDetailRecord);
+                        });
+                      }}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
+                      title="Edit in Modal (requires TRACKER_PASS)"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Edit in Modal</span>
                       {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
                     </button>
 
