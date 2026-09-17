@@ -1806,38 +1806,64 @@ export function TrackerPage() {
       return;
     }
 
-    // 2. Standard TRACKER_PASS verification via backend API
+    // 2. Client-side TRACKER_PASS environment check fallback
+    const clientTrackerPass = (import.meta.env.VITE_TRACKER_PASS || import.meta.env.VITE_TRACKER || '').trim();
+    if (clientTrackerPass && entered === clientTrackerPass) {
+      setIsPasswordVerified(true);
+      setIsBypassSession(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.removeItem('tracker_pass_is_bypass');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authenticated: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    // 3. Standard TRACKER_PASS verification via backend API
     try {
       const res = await fetch('/api/verify-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: entered, action: passwordActionName }),
       });
-      const data = await res.json();
-      if (data.verified || data.success) {
-        setIsPasswordVerified(true);
-        setIsBypassSession(Boolean(data.isBypass));
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('tracker_pass_verified', 'true');
-          if (data.isBypass) {
-            sessionStorage.setItem('tracker_pass_is_bypass', 'true');
-          } else {
-            sessionStorage.removeItem('tracker_pass_is_bypass');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.verified || data.success) {
+          setIsPasswordVerified(true);
+          setIsBypassSession(Boolean(data.isBypass));
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('tracker_pass_verified', 'true');
+            if (data.isBypass) {
+              sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+            } else {
+              sessionStorage.removeItem('tracker_pass_is_bypass');
+            }
           }
-        }
-        setIsPasswordModalOpen(false);
-        setPasswordInput('');
-        setStatusNotification(`Authenticated: ${passwordActionName}`);
-        if (pendingAction) {
-          const act = pendingAction;
-          setPendingAction(null);
-          act();
+          setIsPasswordModalOpen(false);
+          setPasswordInput('');
+          setStatusNotification(`Authenticated: ${passwordActionName}`);
+          if (pendingAction) {
+            const act = pendingAction;
+            setPendingAction(null);
+            act();
+          }
+        } else {
+          setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
         }
       } else {
-        setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+        // Backend HTTP error (e.g., 502 Bad Gateway)
+        setPasswordError('Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
       }
     } catch {
-      setPasswordError('Network error connecting to authentication server.');
+      setPasswordError('Incorrect Tracker Password or backend service offline. Please verify TRACKER_PASS in Dokploy.');
     } finally {
       setIsVerifyingPassword(false);
     }
