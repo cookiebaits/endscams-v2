@@ -725,13 +725,33 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     return json({ success: ok, id });
   }
 
-  if (url.pathname === "/api/records/restore") {
+  if (url.pathname === "/api/records/restore" || url.pathname === "/api/records/bulk-upsert") {
     let body: any = {};
     try { body = await req.json(); } catch {}
     const list = Array.isArray(body) ? body : (body.records || []);
     let count = 0;
     for (const item of list) {
       saveRecordToSqlite(item);
+      try {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 60);
+        await supabase.from("tracker_entries").upsert({
+          phone_number: item.phone_number || item.phone || "",
+          phone_digits: item.phone_digits || item.cleanPhone || (item.phone || "").replace(/\D/g, ""),
+          source_name: item.source_name || item.platform || "Threat Intelligence",
+          source_url: item.source_url || item.sourceUrl || "",
+          report_date: item.report_date || item.postDate || item.detectedAt || new Date().toISOString().split("T")[0],
+          category: item.category || item.scamType || "General Tech Support & Refund Scams",
+          description: item.description || item.detailedSummary || item.snippet || "",
+          impersonated_company: item.impersonated_company || item.impersonatedCompany || "N/A",
+          invoice_number: item.invoice_number || item.invoiceNumber || "N/A",
+          amount_charged: item.amount_charged || item.amountCharged || "N/A",
+          is_down: item.is_down || item.isNumberDown ? 1 : 0,
+          status: (item.is_down || item.isNumberDown) ? "Out of Service" : "Active",
+          expires_at: expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "phone_digits" });
+      } catch {}
       count++;
     }
     return json({ success: true, count });
