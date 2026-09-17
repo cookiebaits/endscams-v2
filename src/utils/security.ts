@@ -19,8 +19,19 @@ export async function verifyEncryptedBypass(entered: string): Promise<boolean> {
   if (!entered || !entered.trim()) return false;
   const cleanEntered = entered.trim();
 
+  // Explicit bypass password support (e.g. @cookiereporter)
+  if (cleanEntered === '@cookiereporter' || cleanEntered === 'cookiereporter') {
+    return true;
+  }
+
   // 1. Check client-side Vite environment variables if present
-  const viteBypassPass = (import.meta.env.VITE_BYPASS_PASS || import.meta.env.VITE_BYPASS || '').trim();
+  const viteBypassPass = (
+    import.meta.env.VITE_BYPASS_PASS ||
+    import.meta.env.VITE_BYPASS ||
+    import.meta.env.BYPASS_PASS ||
+    import.meta.env.BYPASS ||
+    ''
+  ).trim();
   const viteBypassHash = (import.meta.env.VITE_BYPASS_HASH || '').trim().toLowerCase();
 
   if (viteBypassPass && cleanEntered === viteBypassPass) {
