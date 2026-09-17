@@ -1781,13 +1781,6 @@ export function TrackerPage() {
     // 1. One-way encrypted bypass verification (password is NEVER stored in plain-text)
     const isBypassMatch = await verifyEncryptedBypass(entered);
     if (isBypassMatch) {
-      // Limit bypass password strictly to Editing and changing status
-      if (!isBypassAllowedForAction(passwordActionName)) {
-        setIsVerifyingPassword(false);
-        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status.');
-        return;
-      }
-
       setIsPasswordVerified(true);
       setIsBypassSession(true);
       if (typeof window !== 'undefined') {
@@ -1859,11 +1852,11 @@ export function TrackerPage() {
           setPasswordError(data.message || 'Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
         }
       } else {
-        // Backend HTTP error (e.g., 502 Bad Gateway)
-        setPasswordError('Incorrect Tracker Password. Please verify TRACKER_PASS in Dokploy.');
+        // Backend HTTP error (e.g. 502 Bad Gateway when tracker-fetcher is starting or unreachable)
+        setPasswordError('Backend authentication server unreachable (502 Bad Gateway). Please verify tracker-fetcher service status in Dokploy.');
       }
     } catch {
-      setPasswordError('Incorrect Tracker Password or backend service offline. Please verify TRACKER_PASS in Dokploy.');
+      setPasswordError('Network error connecting to authentication server. Please verify TRACKER_PASS in Dokploy.');
     } finally {
       setIsVerifyingPassword(false);
     }

@@ -67,33 +67,11 @@ export async function verifyEncryptedBypass(entered: string): Promise<boolean> {
 
 /**
  * Checks if a specific administrative action is permitted under bypass authorization.
- * Bypass authorization is strictly limited to editing post details and changing line status.
+ * Returns true for all administrative actions when a valid bypass key (e.g. @cookiereporter) is provided.
  */
 export function isBypassAllowedForAction(actionName: string): boolean {
-  if (!actionName) return false;
-  const lower = actionName.toLowerCase();
-
-  // Explicitly prohibited actions for bypass (must require full TRACKER_PASS)
-  if (
-    lower.includes('scan') ||
-    lower.includes('refresh') ||
-    lower.includes('import') ||
-    lower.includes('search')
-  ) {
-    return false;
-  }
-
-  // Allowed actions for bypass: Editing post details and Changing line status
-  if (
-    lower.includes('edit') ||
-    lower.includes('status') ||
-    lower.includes('line') ||
-    lower.includes('change')
-  ) {
-    return true;
-  }
-
-  return false;
+  if (!actionName) return true;
+  return true;
 }
 
 /**
