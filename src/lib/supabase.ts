@@ -18,16 +18,17 @@ export function normalizePhone(phone: string): string {
  */
 export function formatPhoneDisplay(phoneDigits: string): string {
   if (!phoneDigits) return '';
-  if (phoneDigits.startsWith('+')) return phoneDigits;
 
-  const digits = phoneDigits.replace(/\D/g, '');
+  let digits = phoneDigits.replace(/\D/g, '');
 
-  // Standard US / NANP (10 digits or 11 digits starting with 1)
-  if (digits.length === 10) {
-    return `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
+  // Ignore leading country code 1 for standard 10-digit North American numbers
   if (digits.length === 11 && digits.startsWith('1')) {
-    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    digits = digits.slice(1);
+  }
+
+  // Standard US / NANP (10 digits) formatted strictly as xxx-xxx-xxxx
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
 
   // Common country codes formatted explicitly

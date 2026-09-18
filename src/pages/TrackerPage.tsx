@@ -311,11 +311,12 @@ export function deriveCountryInfo(phone: string): { code: string; name: string; 
  */
 export function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
   const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
-  if (cleanDigits.length === 10) {
-    return `1 (${cleanDigits.slice(0, 3)}) ${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6)}`;
+  let digits = cleanDigits.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    digits = digits.slice(1);
   }
-  if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) {
-    return `1 (${cleanDigits.slice(1, 4)}) ${cleanDigits.slice(4, 7)}-${cleanDigits.slice(7)}`;
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
   if (cleanDigits.startsWith('234') && cleanDigits.length === 13) {
     return `+234 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
