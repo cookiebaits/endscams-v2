@@ -3,10 +3,42 @@ import { createClient } from '@supabase/supabase-js';
 const DEFAULT_SUPABASE_URL = atob('aHR0cHM6Ly9qb3hlcWxna3V2Z3Zqb3NobWpxdS5zdXBhYmFzZS5jbw==');
 const DEFAULT_SUPABASE_KEY = atob('c2JfcHVibGlzaGFibGVfdU5FSXZHX1BnNjllc25uVTIyRm1nUV8wRGMwQlJLOQ==');
 
-const supabaseUrl =
+export function resolveSupabaseUrl(rawUrl?: string): string {
+  if (!rawUrl) return DEFAULT_SUPABASE_URL;
+  const url = rawUrl.trim();
+  if (!url) return DEFAULT_SUPABASE_URL;
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  if (url.startsWith('postgresql://') || url.startsWith('postgres://')) {
+    const matchCo = url.match(/db\.([a-z0-9]+)\.supabase\.co/i);
+    if (matchCo && matchCo[1]) {
+      return `https://${matchCo[1]}.supabase.co`;
+    }
+    const matchPooler = url.match(/postgres\.([a-z0-9]+):/i);
+    if (matchPooler && matchPooler[1]) {
+      return `https://${matchPooler[1]}.supabase.co`;
+    }
+    const matchHost = url.match(/@([^:/]+)/);
+    if (matchHost && matchHost[1] && matchHost[1].includes('supabase')) {
+      const parts = matchHost[1].split('.');
+      if (parts.length >= 3) {
+        return `https://${parts[1]}.supabase.co`;
+      }
+    }
+  }
+
+  return DEFAULT_SUPABASE_URL;
+}
+
+const rawSupabaseUrl =
   import.meta.env.VITE_DB ||
   import.meta.env.VITE_SUPABASE_URL ||
   DEFAULT_SUPABASE_URL;
+
+const supabaseUrl = resolveSupabaseUrl(rawSupabaseUrl);
 
 const supabaseAnonKey =
   import.meta.env.VITE_DB_KEY ||
