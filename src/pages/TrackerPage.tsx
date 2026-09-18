@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../data/database_seed.json';
+import databaseSeed from '../tracker/src/data/database_seed.json';
 import {
   Shield,
   Search,
@@ -17,21 +17,13 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
-  Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
-  Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
-  Key,
-  Trash2,
-  Share2
+  Key
 } from 'lucide-react';
 
 export interface ThreatRecord {
@@ -581,7 +573,7 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
 }
 
 const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
-  .filter((r) => {
+  .filter((r: any) => {
     const p = r.cleanPhone || r.phone || r.phone_number || '';
     const src = (r.platform || r.sourceUrl || r.sourceDomain || '').toLowerCase();
     return !isTollFreeNumber(p) && !isFictitiousOrInvalidPhone(p) && !src.includes('reddit');
@@ -653,8 +645,8 @@ export function EmbeddableTracker() {
             if (isMounted && mapped.length > 0) {
               setRecords((prev) => {
                 const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r) => map.set(r.phone_digits, r));
-                prev.forEach((r) => {
+                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+                prev.forEach((r: ThreatRecord) => {
                   if (map.has(r.phone_digits)) {
                     const existing = map.get(r.phone_digits)!;
                     map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
@@ -684,7 +676,7 @@ export function EmbeddableTracker() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [_scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
