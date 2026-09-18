@@ -1,7 +1,3 @@
-
-
-
-
 // deno-lint-ignore-file no-explicit-any
 /*
   tracker-fetcher – standalone Deno service that owns the /tracker data
@@ -12,23 +8,19 @@
   Endpoints
     GET  /health         → { ok: true }
     POST /refresh        → runs the full pipeline once, returns stats
+    GET  /api/records    → returns all persisted threat entries
+    GET  /api/feed/tech-scammers-united → returns live Discourse topics from TSU
     (CORS restricted to ALLOWED_ORIGIN)
 
   Scheduler
-    Internal loop that fires the pipeline at 14:00 UTC (6 AM PST) and
-    21:00 UTC (1 PM PST) every day, plus a purge sweep every hour.
-
-  Required env vars (set in Dokploy → Environment):
-    GOOGLE_API_KEY            – Google Cloud API key with Custom Search enabled
-    GOOGLE_CX                 – Programmable Search Engine ID
-    SUPABASE_URL              – https://<project>.supabase.co
-    SUPABASE_SERVICE_ROLE_KEY – service-role JWT (server side only)
-    ALLOWED_ORIGIN            – e.g. https://endscams.org
-    PORT                      – optional, defaults to 8000
+    Internal loop that fires the pipeline at 15:05 UTC (7 AM PST) and
+    21:05 UTC (1 PM PST) every day, plus a purge sweep every hour.
 */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
+
+const env = (k: string) => Deno.env.get(k);
 
 /* ================================================================ */
 /*  Persistent SQLite Local Database                                 */
@@ -59,6 +51,46 @@ db.execute(`
   CREATE INDEX IF NOT EXISTS idx_phone_digits ON tracker_entries(phone_digits);
 `);
 
+function inferImpersonatedCompany(text: string, category?: string, sourceName?: string): string {
+  if (!text) return "N/A";
+  const lower = text.toLowerCase();
+
+  if (lower.includes("geek squad") || lower.includes("geeksquad")) return "Geek Squad Protection";
+  if (lower.includes("paypal") || lower.includes("pay pal")) return "PayPal";
+  if (lower.includes("mcafee")) return "McAfee AntiVirus";
+  if (lower.includes("norton") || lower.includes("lifelock")) return "Norton LifeLock";
+  if (lower.includes("amazon") || lower.includes("prime")) return "Amazon Support";
+  if (lower.includes("microsoft") || lower.includes("windows support") || lower.includes("windows defender")) return "Microsoft Support";
+  if (lower.includes("apple") || lower.includes("icloud") || lower.includes("mac support")) return "Apple Support";
+  if (lower.includes("pch") || lower.includes("publishers clearing") || lower.includes("mega million") || lower.includes("sweepstakes") || lower.includes("readers digest")) return "Publishers Clearing House";
+  if (lower.includes("quickbooks") || lower.includes("intuit")) return "Intuit Quickbooks";
+  if (lower.includes("spectrum")) return "Spectrum Support";
+  if (lower.includes("xfinity") || lower.includes("comcast")) return "Xfinity Support";
+  if (lower.includes("spellcaster") || lower.includes("love spell") || lower.includes("healer") || lower.includes("temple") || lower.includes("spiritualist") || lower.includes("native doctor") || lower.includes("mama") || lower.includes("baba")) return "Spiritual & Traditional Healer";
+  if (lower.includes("btc") || lower.includes("crypto") || lower.includes("blockchain") || lower.includes("trust wallet") || lower.includes("coinbase") || lower.includes("recovery")) return "Crypto & BTC Recovery Agent";
+  if (lower.includes("stake.us") || lower.includes("stake")) return "Stake.us Prize Claim";
+  if (lower.includes("ebay")) return "eBay Support";
+  if (lower.includes("walmart")) return "Walmart Support";
+  if (lower.includes("fcc") || lower.includes("ftc")) return "US Gov FCC/FTC Consumer Feed";
+  if (lower.includes("bank of america") || lower.includes("chase") || lower.includes("wells fargo") || lower.includes("citi")) return "Banking Fraud Dept";
+
+  if (category) {
+    const catLower = category.toLowerCase();
+    if (catLower.includes("spell")) return "Spiritual & Traditional Healer";
+    if (catLower.includes("crypto") || catLower.includes("btc")) return "Crypto & BTC Recovery Agent";
+    if (catLower.includes("lottery") || catLower.includes("prize")) return "Prize & Sweepstakes Department";
+    if (catLower.includes("tech") || catLower.includes("refund")) return "Tech & Refund Support";
+  }
+
+  if (sourceName) {
+    const srcLower = sourceName.toLowerCase();
+    if (srcLower.includes("tech support united") || srcLower.includes("techscammersunited")) return "Tech & Refund Support";
+    if (srcLower.includes("scammer.info")) return "Tech & Refund Support";
+  }
+
+  return "N/A";
+}
+
 function saveRecordToSqlite(r: any) {
   try {
     const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
@@ -69,7 +101,12 @@ function saveRecordToSqlite(r: any) {
     const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
     const category = r.category || r.scamType || "General Tech Support & Refund Scams";
     const description = r.description || r.detailedSummary || r.snippet || "";
-    const impersonated_company = r.impersonated_company || r.impersonatedCompany || "N/A";
+
+    let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
+    if (!impersonated_company || impersonated_company === "N/A" || impersonated_company === "Unspecified Target") {
+      impersonated_company = inferImpersonatedCompany(`${description} ${source_name}`, category, source_name);
+    }
+
     const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
     const amount_charged = r.amount_charged || r.amountCharged || "N/A";
     const is_down = r.is_down || r.isNumberDown ? 1 : 0;
@@ -143,7 +180,12 @@ async function saveRecordToSupabase(r: any) {
     const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
     const category = r.category || r.scamType || "General Tech Support & Refund Scams";
     const description = r.description || r.detailedSummary || r.snippet || "";
-    const impersonated_company = r.impersonated_company || r.impersonatedCompany || "N/A";
+
+    let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
+    if (!impersonated_company || impersonated_company === "N/A" || impersonated_company === "Unspecified Target") {
+      impersonated_company = inferImpersonatedCompany(`${description} ${source_name}`, category, source_name);
+    }
+
     const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
     const amount_charged = r.amount_charged || r.amountCharged || "N/A";
     const is_down = Boolean(r.is_down || r.isNumberDown);
@@ -229,9 +271,7 @@ const SUPABASE_SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_ANON_KEY") ||
   Deno.env.get("VITE_DB_KEY") ||
   DEFAULT_SUPABASE_KEY;
-// const ALLOWED_ORIGIN = env("ALLOWED_ORIGIN") || "*";
-// const ALLOWED_ORIGIN2 = "http://localhost:5173";
-// const ALLOWED_ORIGIN3 = "http://localhost:5174";
+
 const PORT = parseInt(env("PORT") || "8000", 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -265,6 +305,13 @@ function isValidPhoneNumber(d: string): boolean {
   return true;
 }
 
+function isTollFreeNumber(d: string): boolean {
+  const core = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+  if (core.length !== 10) return false;
+  const areaCode = core.slice(0, 3);
+  return ["800", "833", "844", "855", "866", "877", "888"].includes(areaCode);
+}
+
 function extractPhoneNumbers(text: string): string[] {
   if (!text) return [];
   const rx = /(?:\+?\d{1,3}[\s\-.]*)?\(?\d{3}\)?[\s\-.]*\d{3}[\s\-.]*\d{3,4}/g;
@@ -273,7 +320,7 @@ function extractPhoneNumbers(text: string): string[] {
   const out: string[] = [];
   for (const m of raw) {
     const digits = m.replace(/\D/g, "");
-    if (!isValidPhoneNumber(digits) || seen.has(digits)) continue;
+    if (!isValidPhoneNumber(digits) || isTollFreeNumber(digits) || seen.has(digits)) continue;
     seen.add(digits);
     out.push(digits);
   }
@@ -344,15 +391,14 @@ function withinLastNDays(d: Date, days: number, now = new Date()): boolean {
 }
 
 const toIsoDate = (d: Date) => d.toISOString().split("T")[0];
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /* ================================================================ */
-
 /*  DuckDuckGo Scraper (No API Key Required)                         */
 /* ================================================================ */
 interface CseItem { title?: string; snippet?: string; link?: string; }
 
 async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promise<CseItem[]> {
-  // dateRestrict: DDG uses "d" (day), "w" (week), "m" (month). Defaulting to week if "w2".
   const df = dateRestrict.startsWith("m") ? "m" : "w";
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&df=${df}`;
 
@@ -377,10 +423,7 @@ async function duckDuckGoSearch(q: string, dateRestrict = "w2", num = 5): Promis
         try {
           const uddg = link.split('uddg=')[1].split('&')[0];
           link = decodeURIComponent(uddg);
-
-        } catch {
-          // Ignore decode error and use raw link
-        }
+        } catch {}
       }
       items.push({
         link: link,
@@ -439,6 +482,182 @@ async function fetchBBB(url: string): Promise<{ digits: string; snippet: string 
 }
 
 /* ================================================================ */
+/*  Discourse Forum Scrapers (TechScammersUnited & Scammer.info)   */
+/* ================================================================ */
+interface ScamEntry {
+  phone_number: string;
+  phone_digits: string;
+  source_name: string;
+  source_url: string;
+  report_date: string;
+  category: string;
+  impersonated_company?: string;
+  description: string;
+}
+
+async function fetchTechScammersUnited(): Promise<ScamEntry[]> {
+  const url = "https://techscammersunited.com/latest.json";
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+      }
+    });
+    if (!res.ok) {
+      console.warn(`TSU fetch failed with status ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    const topics = data?.topic_list?.topics || [];
+    const entries: ScamEntry[] = [];
+    const todayIso = toIsoDate(new Date());
+
+    for (const t of topics) {
+      const title = t.title || "";
+      const excerpt = t.excerpt || "";
+      const text = `${title} ${excerpt}`;
+      const nums = extractPhoneNumbers(text);
+      if (nums.length === 0) continue;
+
+      const slug = t.slug || "topic";
+      const topicUrl = `https://techscammersunited.com/t/${slug}/${t.id}`;
+      const createdDate = t.created_at ? toIsoDate(new Date(t.created_at)) : todayIso;
+      const comp = inferImpersonatedCompany(text, "General Tech Support & Refund Scams", "Tech Support United");
+
+      for (const digits of nums) {
+        entries.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: "Tech Support United",
+          source_url: topicUrl,
+          report_date: createdDate,
+          category: "General Tech Support & Refund Scams",
+          impersonated_company: comp !== "N/A" ? comp : "Tech Support & Refund Scams",
+          description: `Discourse Post: ${title}${excerpt ? ` | ${excerpt}` : ""}`.slice(0, 900),
+        });
+      }
+    }
+    return entries;
+  } catch (e) {
+    console.warn("TSU fetch err:", e);
+    return [];
+  }
+}
+
+async function fetchScammerInfo(): Promise<ScamEntry[]> {
+  const url = "https://scammer.info/latest.json";
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+      }
+    });
+    if (!res.ok) {
+      console.warn(`Scammer.info fetch failed with status ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    const topics = data?.topic_list?.topics || [];
+    const entries: ScamEntry[] = [];
+    const todayIso = toIsoDate(new Date());
+
+    for (const t of topics) {
+      const title = t.title || "";
+      const excerpt = t.excerpt || "";
+      const text = `${title} ${excerpt}`;
+      const nums = extractPhoneNumbers(text);
+      if (nums.length === 0) continue;
+
+      const slug = t.slug || "topic";
+      const topicUrl = `https://scammer.info/t/${slug}/${t.id}`;
+      const createdDate = t.created_at ? toIsoDate(new Date(t.created_at)) : todayIso;
+      const comp = inferImpersonatedCompany(text, "General Tech Support & Refund Scams", "Scammer.info");
+
+      for (const digits of nums) {
+        entries.push({
+          phone_number: formatPhoneDisplay(digits),
+          phone_digits: digits,
+          source_name: "Scammer.info",
+          source_url: topicUrl,
+          report_date: createdDate,
+          category: "General Tech Support & Refund Scams",
+          impersonated_company: comp !== "N/A" ? comp : "Tech Support & Refund Scams",
+          description: `Scammer.info Post: ${title}${excerpt ? ` | ${excerpt}` : ""}`.slice(0, 900),
+        });
+      }
+    }
+    return entries;
+  } catch (e) {
+    console.warn("Scammer.info fetch err:", e);
+    return [];
+  }
+}
+
+/* ================================================================ */
+/*  Gemini Model Integration & Rotation                             */
+/* ================================================================ */
+const GEMINI_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-2.0-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-flash-latest",
+];
+
+async function queryGeminiWithRotation(prompt: string, apiKey: string): Promise<string> {
+  for (const model of GEMINI_MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            tools: [{ googleSearch: {} }],
+            generationConfig: { temperature: 0.1 },
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && text.trim()) return text;
+      } else {
+        const errText = await res.text();
+        console.warn(`Gemini model ${model} status ${res.status}: ${errText.slice(0, 150)}`);
+        // Fallback without search tool
+        const directRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.1 },
+            }),
+          }
+        );
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          const text = directData.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text && text.trim()) return text;
+        }
+      }
+    } catch (e) {
+      console.warn(`Gemini ${model} fetch exception:`, e);
+    }
+    await delay(1500); // Pacing delay before trying next model
+  }
+  return "";
+}
+
+/* ================================================================ */
 /*  Pipeline                                                         */
 /* ================================================================ */
 const CSV_URL = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
@@ -473,16 +692,6 @@ function normalizeCategory(raw: string): string {
   return raw?.trim() || "Unknown Scam";
 }
 
-interface ScamEntry {
-  phone_number: string;
-  phone_digits: string;
-  source_name: string;
-  source_url: string;
-  report_date: string;
-  category: string;
-  description: string;
-}
-
 async function runPipeline(): Promise<Record<string, unknown>> {
   const started = Date.now();
 
@@ -492,10 +701,39 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   if (purgeErr) console.warn("purge:", purgeErr.message);
 
   const collected: ScamEntry[] = [];
+  let tsuFound = 0;
+  let scammerInfoFound = 0;
   let csvRows = 0;
   let csvGoogle = 0;
 
-  /* 2. Google Sheet CSV → newest 25 */
+  /* 2. TechScammersUnited Discourse Live Feed */
+  try {
+    const tsuEntries = await fetchTechScammersUnited();
+    for (const entry of tsuEntries) {
+      collected.push(entry);
+      tsuFound++;
+    }
+  } catch (e) {
+    console.warn("TSU scraper err", e);
+  }
+
+  await delay(2000); // 2s pacing delay between sources
+
+  /* 3. Scammer.info Discourse Live Feed */
+  try {
+    const siEntries = await fetchScammerInfo();
+    for (const entry of siEntries) {
+      if (collected.some(c => c.phone_digits === entry.phone_digits)) continue;
+      collected.push(entry);
+      scammerInfoFound++;
+    }
+  } catch (e) {
+    console.warn("Scammer.info scraper err", e);
+  }
+
+  await delay(2000); // 2s pacing delay
+
+  /* 4. Google Sheet CSV → newest 25 */
   try {
     const csvRes = await fetch(CSV_URL);
     if (csvRes.ok) {
@@ -506,7 +744,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         const digits = (r[0] || "").replace(/\D/g, "");
         const date = parseSheetDate(r[1] || "");
         return { digits, date, subject: (r[2] || "").trim(), notes: (r[3] || "").trim() };
-      }).filter(r => r.date && withinLastNDays(r.date, 31) && isValidPhoneNumber(r.digits));
+      }).filter(r => r.date && withinLastNDays(r.date, 31) && isValidPhoneNumber(r.digits) && !isTollFreeNumber(r.digits));
 
       parsed.sort((a, b) => b.date!.getTime() - a.date!.getTime());
 
@@ -531,6 +769,8 @@ async function runPipeline(): Promise<Record<string, unknown>> {
           metaSnippet = summarizeSnippets(items);
         }
 
+        const comp = inferImpersonatedCompany(`${row.subject} ${row.notes} ${metaSnippet}`, category, "US Gov Data");
+
         const parts: string[] = [`FCC/FTC report ${toIsoDate(row.date!)}`];
         if (row.subject) parts.push(`Subject: ${row.subject}`);
         if (row.notes)   parts.push(`Notes: ${row.notes}`);
@@ -543,15 +783,17 @@ async function runPipeline(): Promise<Record<string, unknown>> {
           source_url: foundUrl,
           report_date: toIsoDate(row.date!),
           category,
+          impersonated_company: comp !== "N/A" ? comp : "US Gov FCC/FTC Consumer Feed",
           description: parts.join(" | ").slice(0, 900),
         });
+        await delay(1500); // 1.5s delay
       }
     } else {
       console.warn("csv fetch:", csvRes.status);
     }
   } catch (e) { console.warn("csv err", e); }
 
-  /* 3. WhatsApp / Spellcaster / Crypto DDG queries */
+  /* 5. WhatsApp / Spellcaster / Crypto DDG queries */
   let cseUsed = 0;
   const todayIso = toIsoDate(new Date());
   for (const q of WHATSAPP_QUERIES) {
@@ -562,6 +804,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
       const nums = extractPhoneNumbers(text);
       for (const digits of nums) {
         if (collected.some(c => c.phone_digits === digits)) continue;
+        const comp = inferImpersonatedCompany(text, q.category, q.label);
         collected.push({
           phone_number: formatPhoneDisplay(digits),
           phone_digits: digits,
@@ -569,18 +812,21 @@ async function runPipeline(): Promise<Record<string, unknown>> {
           source_url: item.link || "https://duckduckgo.com",
           report_date: todayIso,
           category: q.category,
+          impersonated_company: comp !== "N/A" ? comp : "Spiritual & Recovery Scam Target",
           description: `${q.label} (14d) | ${summarizeSnippets([item])}`.slice(0, 900),
         });
       }
     }
+    await delay(2000); // 2s pacing delay
   }
 
-  /* 4. BBB direct HTML */
+  /* 6. BBB direct HTML */
   let bbbFound = 0;
   for (const b of BBB_QUERIES) {
     const items = await fetchBBB(b.url);
     for (const f of items) {
       if (collected.some(c => c.phone_digits === f.digits)) continue;
+      const comp = inferImpersonatedCompany(f.snippet, b.category, b.label);
       collected.push({
         phone_number: formatPhoneDisplay(f.digits),
         phone_digits: f.digits,
@@ -588,13 +834,56 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         source_url: b.url,
         report_date: todayIso,
         category: b.category,
+        impersonated_company: comp !== "N/A" ? comp : "BBB Impersonated Brand",
         description: (f.snippet ? `BBB Scam Tracker: ${f.snippet}` : `BBB Scam Tracker (${b.label})`).slice(0, 900),
       });
       bbbFound++;
     }
+    await delay(2000); // 2s pacing delay
   }
 
-  /* 5. Dedupe by digits, keep newest */
+  /* 7. Optional Gemini Grounded Search Scan if GEMINI_API_KEY is available */
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
+  if (geminiApiKey) {
+    try {
+      const geminiPrompt = `You are an expert anti-fraud threat intelligence analyst.
+CURRENT DATE: ${todayIso}.
+TASK: Search TechScammersUnited (https://techscammersunited.com/latest) and Scammer.info for active tech support, refund scams, Geek Squad, PayPal, McAfee, Norton, Amazon, Microsoft, and PCH scams reported in the past 24-48 hours.
+RULES:
+- ONLY extract real, genuine phone numbers present in post titles or summaries.
+- DO NOT return toll-free numbers (800, 888, 877, 866, 855, 844, 833).
+- Return ONLY a valid JSON array of objects with keys: phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, postDate.`;
+
+      const geminiResult = await queryGeminiWithRotation(geminiPrompt, geminiApiKey);
+      if (geminiResult) {
+        const itemMatches = geminiResult.match(/\{[\s\S]*?\}/g) || [];
+        for (const m of itemMatches) {
+          try {
+            const parsed = JSON.parse(m);
+            const rawPhone = parsed.phone || parsed.phoneNumber || "";
+            const cleanDigits = (parsed.cleanPhone || rawPhone).replace(/\D/g, "");
+            if (isValidPhoneNumber(cleanDigits) && !isTollFreeNumber(cleanDigits) && !collected.some(c => c.phone_digits === cleanDigits)) {
+              const comp = parsed.impersonatedCompany || inferImpersonatedCompany(`${parsed.detailedSummary || ""} ${parsed.scamType || ""}`);
+              collected.push({
+                phone_number: formatPhoneDisplay(cleanDigits),
+                phone_digits: cleanDigits,
+                source_name: "Gemini Threat Scanner",
+                source_url: parsed.sourceUrl || "https://techscammersunited.com/latest",
+                report_date: parsed.postDate || todayIso,
+                category: parsed.scamType || "General Tech Support & Refund Scams",
+                impersonated_company: comp !== "N/A" ? comp : "Tech Support & Refund Scams",
+                description: parsed.detailedSummary || "Extracted via Gemini Threat Harvester",
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.warn("Gemini harvester run note:", e);
+    }
+  }
+
+  /* 8. Dedupe by digits, keep newest */
   const byDigits = new Map<string, ScamEntry>();
   for (const e of collected) {
     const prev = byDigits.get(e.phone_digits);
@@ -602,7 +891,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   }
   const finalEntries = Array.from(byDigits.values());
 
-  /* 6. Upsert */
+  /* 9. Upsert to SQLite and Supabase */
   let inserted = 0;
   const errors: string[] = [];
   for (const entry of finalEntries) {
@@ -617,6 +906,7 @@ async function runPipeline(): Promise<Record<string, unknown>> {
         source_url:   entry.source_url,
         report_date:  entry.report_date,
         category:     entry.category,
+        impersonated_company: entry.impersonated_company || "N/A",
         description:  entry.description,
         expires_at:   expiresAt.toISOString(),
       },
@@ -629,6 +919,8 @@ async function runPipeline(): Promise<Record<string, unknown>> {
   return {
     success: true,
     elapsed_ms: Date.now() - started,
+    tsu_found: tsuFound,
+    scammer_info_found: scammerInfoFound,
     csv_rows_total: csvRows,
     csv_google_queries: csvGoogle,
     cse_queries: cseUsed,
@@ -645,8 +937,6 @@ async function runPipeline(): Promise<Record<string, unknown>> {
 /*  Scheduler                                                        */
 /* ================================================================ */
 
-// Runs every 60s; if UTC hour is 14 or 21 and we haven't run this hour yet,
-// trigger the pipeline. Every 60 minutes also purges old rows.
 let lastRunHour = -1;
 let running = false;
 
@@ -655,7 +945,6 @@ async function scheduler() {
   const hour = now.getUTCHours();
   const minute = now.getUTCMinutes();
 
-  // Cron trigger — top of the hour, 15:05 UTC (7:05 AM PST) or 21:05 UTC (1:05 PM PST)
   if (!running && (hour === 15 || hour === 21) && minute === 5 && lastRunHour !== hour) {
     lastRunHour = hour;
     running = true;
@@ -668,10 +957,8 @@ async function scheduler() {
     } finally { running = false; }
   }
 
-  // Reset hour marker at minute 55 so tomorrow's 14:00/21:00 fire again
   if (minute >= 55) lastRunHour = -1;
 
-  // Hourly purge belt-and-suspenders
   if (minute === 30) {
     const nowIso = new Date().toISOString();
     const { error } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
@@ -688,10 +975,6 @@ runPipeline()
 
 /* ================================================================ */
 /*  HTTP server                                                      */
-/* ================================================================ */
-
-/* ================================================================ */
-/*  Abstract Tools Proxy Endpoints                                   */
 /* ================================================================ */
 
 const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
@@ -741,7 +1024,6 @@ async function handleAbstractProxy(req: Request): Promise<Response> {
 }
 
 Deno.serve({ port: PORT }, async (req: Request) => {
-
   const url = new URL(req.url);
 
   if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
@@ -756,6 +1038,15 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       hasSupabase: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
       hasTrackerPass: Boolean(trackerPass),
     });
+  }
+
+  if (url.pathname === "/api/feed/tech-scammers-united") {
+    try {
+      const items = await fetchTechScammersUnited();
+      return json({ success: true, count: items.length, items });
+    } catch (err) {
+      return json({ success: false, error: String(err) }, 500);
+    }
   }
 
   if (url.pathname === "/api/tools") {
@@ -821,7 +1112,6 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     return json({ success: true, count });
   }
 
-
   if (url.pathname === "/api/verify-password" || url.pathname === "/verify-password") {
     if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
     if (req.method !== "POST" && req.method !== "GET") return cors(json({ error: "POST or GET required" }, 405));
@@ -868,10 +1158,9 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     }
   }
 
-
-  if (url.pathname === "/refresh") {
+  if (url.pathname === "/refresh" || url.pathname === "/api/scan-now") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
-    if (running) return json({ error: "already running" }, 429);
+    if (running) return json({ error: "already running", isScanningInProgress: true }, 429);
     running = true;
     try {
       const stats = await runPipeline();

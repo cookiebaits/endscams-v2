@@ -38,6 +38,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
@@ -106,19 +107,54 @@ export function isWhatsAppThreat(record: {
 // 1. EXACT SEARCH PARAMETERS & SCAN TARGETS FROM ESSCAN.AI.STUDIO
 // ============================================================================
 export const GEMINI_SEARCH_MODEL_VARIATIONS: string[] = [
-  'gemini-3.8-flash',
-  'gemini-3.7-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-3.1-flash-lite',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3.1-pro-preview',
-  'gemini-3-flash-preview',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-lite',
+  'gemini-2.5-pro',
   'gemini-flash-latest',
-  'gemini-flash-lite-latest',
-  'gemini-pro-latest',
 ];
+
+export function inferImpersonatedCompany(text?: string, category?: string, sourceName?: string): string {
+  const combined = `${text || ''} ${category || ''} ${sourceName || ''}`.toLowerCase();
+  if (!combined.trim()) return 'N/A';
+
+  if (combined.includes('geek squad') || combined.includes('geeksquad')) return 'Geek Squad Protection';
+  if (combined.includes('paypal') || combined.includes('pay pal')) return 'PayPal';
+  if (combined.includes('mcafee')) return 'McAfee AntiVirus';
+  if (combined.includes('norton') || combined.includes('lifelock')) return 'Norton LifeLock';
+  if (combined.includes('amazon') || combined.includes('prime')) return 'Amazon Support';
+  if (combined.includes('microsoft') || combined.includes('windows support') || combined.includes('windows defender')) return 'Microsoft Support';
+  if (combined.includes('apple') || combined.includes('icloud') || combined.includes('mac support')) return 'Apple Support';
+  if (combined.includes('pch') || combined.includes('publishers clearing') || combined.includes('mega million') || combined.includes('sweepstakes') || combined.includes('readers digest')) return 'Publishers Clearing House';
+  if (combined.includes('quickbooks') || combined.includes('intuit')) return 'Intuit Quickbooks';
+  if (combined.includes('spectrum')) return 'Spectrum Support';
+  if (combined.includes('xfinity') || combined.includes('comcast')) return 'Xfinity Support';
+  if (combined.includes('spellcaster') || combined.includes('love spell') || combined.includes('healer') || combined.includes('temple') || combined.includes('spiritualist') || combined.includes('native doctor') || combined.includes('mama') || combined.includes('baba')) return 'Spiritual & Traditional Healer';
+  if (combined.includes('btc') || combined.includes('crypto') || combined.includes('blockchain') || combined.includes('trust wallet') || combined.includes('coinbase') || combined.includes('recovery')) return 'Crypto & BTC Recovery Agent';
+  if (combined.includes('stake.us') || combined.includes('stake')) return 'Stake.us Prize Claim';
+  if (combined.includes('ebay')) return 'eBay Support';
+  if (combined.includes('walmart')) return 'Walmart Support';
+  if (combined.includes('fcc') || combined.includes('ftc')) return 'US Gov FCC/FTC Consumer Feed';
+  if (combined.includes('bank of america') || combined.includes('chase') || combined.includes('wells fargo') || combined.includes('citi')) return 'Banking Fraud Dept';
+
+  if (category) {
+    const catLower = category.toLowerCase();
+    if (catLower.includes('spell')) return 'Spiritual & Traditional Healer';
+    if (catLower.includes('crypto') || catLower.includes('btc')) return 'Crypto & BTC Recovery Agent';
+    if (catLower.includes('lottery') || catLower.includes('prize')) return 'Prize & Sweepstakes Department';
+    if (catLower.includes('tech') || catLower.includes('refund')) return 'Tech & Refund Support';
+  }
+
+  if (sourceName) {
+    const srcLower = sourceName.toLowerCase();
+    if (srcLower.includes('tech support united') || srcLower.includes('techscammersunited')) return 'Tech & Refund Support';
+    if (srcLower.includes('scammer.info')) return 'Tech & Refund Support';
+  }
+
+  return 'N/A';
+}
 
 export interface ScanTargetConfig {
   id: string;
@@ -1265,7 +1301,13 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
     source_url: r.sourceUrl || r.source_url || '',
     report_date: normalizeToNumericalDate(r.detectedAt || r.report_date || r.postDate),
     category: r.scamType || r.category || 'General Tech Support & Refund Scams',
-    impersonated_company: r.impersonatedCompany || r.impersonated_company || 'N/A',
+    impersonated_company: (() => {
+      let comp = r.impersonatedCompany || r.impersonated_company || '';
+      if (!comp || comp === 'N/A' || comp === 'Unspecified Target' || comp === 'Unknown') {
+        comp = inferImpersonatedCompany(`${r.detailedSummary || r.description || r.snippet || ''} ${comp}`, r.scamType || r.category, r.platform || r.source_name || r.sourceDomain);
+      }
+      return comp && comp !== 'N/A' ? comp : 'Tech & Refund Support';
+    })(),
     invoice_number: r.invoiceNumber || r.invoice_number || 'N/A',
     amount_charged: r.amountCharged || r.amount_charged || 'N/A',
     description: r.detailedSummary || r.description || r.snippet || 'Verified scam threat intelligence report.',
@@ -1934,7 +1976,7 @@ export function TrackerPage() {
     if (!recs || recs.length === 0) return;
     try {
       // 1. Supabase Client Upsert
-      const sb = (window as any).supabase;
+      const sb = (window as any).supabase || supabase;
       if (sb && typeof sb.from === 'function') {
         const payloads = recs.map((rec) => {
           const expiresAt = new Date();
@@ -2531,7 +2573,13 @@ export function TrackerPage() {
                   // Trickle update state so new lines appear progressively in real time
                   setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                   addLog(`[DISCOVERY] Cataloged threat: ${rec.phone_number} (${rec.impersonated_company})`);
-                  await delay(2000); // 2000ms trickle delay matching esscan.ai.studio!
+                  syncRecordToSupabase(rec);
+                  fetch('/api/records/manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(threatRecordToScamPhoneRecord(rec)),
+                  }).catch(() => {});
+                  await delay(2000);
                 }
               }
             }
@@ -2578,7 +2626,13 @@ export function TrackerPage() {
                       existingDigits.add(digits);
                       setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                       addLog(`[TSU DISCOVERY] Dialable line captured: ${rec.phone_number} (${rec.impersonated_company})`);
-                      await delay(2000); // 2000ms trickle delay
+                      syncRecordToSupabase(rec);
+                      fetch('/api/records/manual', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(threatRecordToScamPhoneRecord(rec)),
+                      }).catch(() => {});
+                      await delay(2000);
                     }
                   }
                 }
@@ -3806,7 +3860,7 @@ export function TrackerPage() {
                         {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
                           <span className="text-slate-200 font-semibold">{record.impersonated_company}</span>
                         ) : (
-                          <span className="text-slate-500 italic">Unspecified Target</span>
+                          <span className="text-slate-400 font-medium">{inferImpersonatedCompany(`${record.description || ''} ${record.source_name || ''}`, record.category, record.source_name) !== 'N/A' ? inferImpersonatedCompany(`${record.description || ''} ${record.source_name || ''}`, record.category, record.source_name) : 'Tech & Refund Support'}</span>
                         )}
                       </td>
 
@@ -4481,7 +4535,7 @@ export function TrackerPage() {
                 <h2 className="text-lg font-bold text-slate-100">
                   {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
                     ? selectedDetailRecord.impersonated_company
-                    : 'Unspecified Target Organization'}
+                    : 'Tech & Refund Support Organization'}
                 </h2>
               </div>
 
@@ -4650,7 +4704,7 @@ export function TrackerPage() {
                     <div className="text-slate-200 font-semibold text-sm">
                       {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
                         ? selectedDetailRecord.impersonated_company
-                        : 'Unspecified Target'}
+                        : 'Tech & Refund Support'}
                     </div>
                   </div>
 
