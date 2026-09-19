@@ -11,6 +11,7 @@ import ShutdownPage from './pages/ShutdownPage';
 import DisclaimerPage from './pages/DisclaimerPage';
 import TriagePage from './pages/TriagePage';
 import LivestreamSafetyPage from './pages/LivestreamSafetyPage';
+import WorkshopPage from './pages/WorkshopPage';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="/stream-safety" element={<LivestreamSafetyPage />} />
             <Route path="/triage" element={<TriagePage />} />
             <Route path="/disclaimer" element={<DisclaimerPage />} />
+            <Route path="/workshop" element={<WorkshopPage />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </div>

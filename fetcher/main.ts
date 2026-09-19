@@ -99,8 +99,7 @@ async function saveRecordToSupabase(r: any) {
       impersonated_company,
       invoice_number,
       amount_charged,
-      is_down,
-      status: is_down ? "Out of Service" : "Active",
+      reported_down: is_down,
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -117,13 +116,10 @@ async function saveRecordToSupabase(r: any) {
 /* ================================================================ */
 /*  ENV                                                              */
 /* ================================================================ */
-const DEFAULT_SUPABASE_URL = atob("aHR0cHM6Ly9qb3hlcWxna3V2Z3Zqb3NobWpxdS5zdXBhYmFzZS5jbw==");
-const DEFAULT_SUPABASE_KEY = atob("c2JfcHVibGlzaGFibGVfdU5FSXZHX1BnNjllc25uVTIyRm1nUV8wRGMwQlJLOQ==");
-
 function resolveSupabaseUrl(rawUrl?: string | null): string {
-  if (!rawUrl) return DEFAULT_SUPABASE_URL;
+  if (!rawUrl) return "";
   const url = rawUrl.trim();
-  if (!url) return DEFAULT_SUPABASE_URL;
+  if (!url) return "";
 
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
@@ -147,7 +143,7 @@ function resolveSupabaseUrl(rawUrl?: string | null): string {
     }
   }
 
-  return DEFAULT_SUPABASE_URL;
+  return "";
 }
 
 const rawDbUrl =
@@ -167,7 +163,7 @@ const SUPABASE_SERVICE_ROLE_KEY =
   Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ||
   Deno.env.get("SUPABASE_ANON_KEY") ||
   Deno.env.get("VITE_DB_KEY") ||
-  DEFAULT_SUPABASE_KEY;
+  "";
 
 const PORT = parseInt(env("PORT") || "8000", 10);
 
@@ -975,17 +971,16 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     try {
       const { data } = await supabase
         .from("tracker_entries")
-        .select("is_down, phone_digits")
+        .select("reported_down, phone_digits")
         .or(`id.eq.${id},phone_digits.eq.${id}`)
         .limit(1);
 
       if (data && data.length > 0) {
-        newDown = !data[0].is_down;
+        newDown = !data[0].reported_down;
         await supabase
           .from("tracker_entries")
           .update({
-            is_down: newDown,
-            status: newDown ? "Out of Service" : "Active",
+            reported_down: newDown,
             updated_at: new Date().toISOString(),
           })
           .or(`id.eq.${id},phone_digits.eq.${id}`);
@@ -1084,6 +1079,74 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       const stats = await runPipeline();
       return json(stats);
     } catch (e) { return json({ success: false, error: String(e) }, 500); } finally { running = false; }
+  }
+
+  if (url.pathname === "/api/workshop-request") {
+    if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+
+    let body: any = {};
+    try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
+
+    const {
+      name, company, contactNumber, email,
+      organizationType, audienceSize, preferredDate, location,
+      workshopType, budget, additionalInfo,
+    } = body;
+
+    if (!name || !email || !contactNumber) {
+      return cors(json({ error: "Name, email, and contact number are required." }, 400));
+    }
+
+    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+    if (!resendApiKey) {
+      return cors(json({ error: "Email service not configured." }, 500 }));
+    }
+
+    const emailHtml = `
+      <h2>New Security Workshop Request</h2>
+      <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px;">
+        <tr><td style="padding:4px 12px;font-weight:bold;">Name:</td><td style="padding:4px 12px;">${name}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Company/Organization:</td><td style="padding:4px 12px;">${company || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Contact Number:</td><td style="padding:4px 12px;">${contactNumber}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Email:</td><td style="padding:4px 12px;">${email}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Organization Type:</td><td style="padding:4px 12px;">${organizationType || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Audience Size:</td><td style="padding:4px 12px;">${audienceSize || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Preferred Date:</td><td style="padding:4px 12px;">${preferredDate || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Location:</td><td style="padding:4px 12px;">${location || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Workshop Type:</td><td style="padding:4px 12px;">${workshopType || "General Security Awareness"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Budget:</td><td style="padding:4px 12px;">${budget || "N/A"}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;">Additional Info:</td><td style="padding:4px 12px;">${additionalInfo || "N/A"}</td></tr>
+      </table>
+    `;
+
+    try {
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "workshop@endscams.org",
+          to: ["outreach@endscams.org"],
+          reply_to: email,
+          subject: `New Workshop Request from ${name}${company ? ` (${company})` : ""}`,
+          html: emailHtml,
+        }),
+      });
+
+      if (!resendRes.ok) {
+        const errText = await resendRes.text();
+        console.warn("Resend API error:", resendRes.status, errText);
+        return cors(json({ error: "Failed to send workshop request email." }, 500 }));
+      }
+
+      return cors(json({ success: true, message: "Workshop request sent successfully." }));
+    } catch (err) {
+      console.warn("Workshop request email error:", err);
+      return cors(json({ error: "Failed to send workshop request." }, 500 }));
+    }
   }
 
   return json({ error: "not found" }, 404);

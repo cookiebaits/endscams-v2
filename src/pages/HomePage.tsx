@@ -381,33 +381,7 @@ export default function HomePage() {
         }
       });
 
-      // 4. Check /api/records backend proxy
-      try {
-        const apiRes = await fetch('/api/records').catch(() => null);
-        if (apiRes && apiRes.ok) {
-          const apiData = await apiRes.json().catch(() => null);
-          if (apiData && Array.isArray(apiData.records)) {
-            apiData.records.forEach((rec: any) => {
-              if (isRecordMatch(rec, core10Digits)) {
-                const recId = rec.id || `api-${rec.cleanPhone || rec.phone || Math.random()}`;
-                if (!seenIds.has(recId)) {
-                  seenIds.add(recId);
-                  trackerEntries.push({
-                    id: recId,
-                    source_name: rec.platform || rec.source_name || 'Live Harvester',
-                    source_url: rec.sourceUrl || rec.source_url || '',
-                    report_date: rec.date || rec.report_date || new Date().toISOString().split('T')[0],
-                    category: rec.category || rec.scamType || 'Scam',
-                    description: rec.description || rec.detailedSummary || ''
-                  });
-                }
-              }
-            });
-          }
-        }
-      } catch {
-        /* silent fallback */
-      }
+      // 4. Supabase is the sole source of truth — no /api/records fallback needed
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
       setResult({ found: totalFound, reports, trackerEntries });
@@ -465,9 +439,9 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col items-center justify-center mb-12">
-            <a href="mailto:outreach@endscams.org" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30 mb-4">
+            <Link to="/workshop" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30 mb-4">
               Work With Us
-            </a>
+            </Link>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               You can also email us directly at <a href="mailto:outreach@endscams.org" className="text-brand-500 hover:underline">outreach@endscams.org</a>
             </p>
