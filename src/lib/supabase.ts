@@ -1,9 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  import.meta.env.VITE_DB ||
-  '';
+function resolveSupabaseApiUrl(rawValue: string): string {
+  const value = rawValue.trim();
+  if (value.startsWith('http://') || value.startsWith('https://')) return value;
+
+  const directHost = value.match(/(?:@|db\.)([a-z0-9]+)\.supabase\.co/i);
+  if (directHost?.[1]) return `https://${directHost[1]}.supabase.co`;
+
+  const poolerHost = value.match(/postgres\.([a-z0-9]+):/i);
+  if (poolerHost?.[1]) return `https://${poolerHost[1]}.supabase.co`;
+
+  return '';
+}
+
+const supabaseUrl = resolveSupabaseApiUrl(
+  import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || ''
+);
 
 const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
@@ -13,10 +25,13 @@ const supabaseAnonKey =
   '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('[Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Database features will not work.');
+  console.error('[Supabase] Missing a valid Supabase URL or publishable key. Database features will not work.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  supabaseUrl || 'https://invalid.supabase.co',
+  supabaseAnonKey || 'missing-publishable-key'
+);
 
 export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');

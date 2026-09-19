@@ -6,13 +6,13 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_DB: ${DB:-${VITE_DB}}
-        VITE_DB_KEY: ${DB_Key:-${DB_KEY:-${VITE_DB_KEY}}}
-        VITE_SUPABASE_URL: ${SUPABASE_URL:-${DB:-${VITE_DB}}
-        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${DB_Key:-${DB_KEY}}}
-        VITE_FETCHER_URL: ${VITE_FETCHER_URL:-https://fetcher.endscams.org}
-        VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
-        TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
+        VITE_DB: "${DB}"
+        VITE_DB_KEY: "${DB_Key}"
+        VITE_SUPABASE_URL: "${SUPABASE_URL}"
+        VITE_SUPABASE_ANON_KEY: "${SUPABASE_PUBLISHABLE_KEY:-${SUPABASE_ANON_KEY}}"
+        VITE_FETCHER_URL: "${VITE_FETCHER_URL:-https://fetcher.endscams.org}"
+        VITE_TRACKER_PASS: "${VITE_TRACKER_PASS:-${TRACKER_PASS}}"
+        TRACKER_PASS: "${TRACKER_PASS:-${VITE_TRACKER_PASS}}"
     restart: always
     expose:
       - "80"
@@ -27,35 +27,28 @@ services:
       - "traefik.http.routers.endscams.tls.certResolver=letsencrypt"
       - "traefik.http.services.endscams.loadbalancer.server.port=80"
 
-  # ----------------------------------------------------------------
-  # tracker-fetcher: owns the /tracker data pipeline.
-  # All secrets come from Dokploy → Environment tab (see .env.example).
-  # Exposes:
-  #   GET  /health
-  #   POST /refresh
-  # Runs internal cron @ 14:00 UTC (6am PST) & 21:00 UTC (1pm PST).
-  # ----------------------------------------------------------------
   tracker-fetcher:
     build:
       context: ./fetcher
       dockerfile: Dockerfile
     restart: always
     environment:
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-      GOOGLE_CX: ${GOOGLE_CX}
-      DB: ${DB:-${SUPABASE_URL:-${VITE_DB}}
-      DB_Key: ${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}
-      SUPABASE_URL: ${SUPABASE_URL:-${DB:-${VITE_DB}}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${DB_Key:-${DB_KEY}}}
-      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://endscams.org}
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      GOOGLE_CX: "${GOOGLE_CX}"
+      DB: "${DB:-${SUPABASE_URL}}"
+      DB_Key: "${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}}"
+      SUPABASE_URL: "${SUPABASE_URL}"
+      SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:-${DB_Key:-${DB_KEY}}}"
+      ALLOWED_ORIGIN: "${ALLOWED_ORIGIN:-https://endscams.org}"
       PORT: "8000"
-      ABSTRACT_PHONE_API_KEY: ${ABSTRACT_PHONE_API_KEY}
-      ABSTRACT_EMAIL_API_KEY: ${ABSTRACT_EMAIL_API_KEY}
-      ABSTRACT_IP_API_KEY: ${ABSTRACT_IP_API_KEY}
-      ABSTRACT_SCRAPE_API_KEY: ${ABSTRACT_SCRAPE_API_KEY}
-      RESEND_API_KEY: ${RESEND_API_KEY}
-      TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
-      VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
+      ABSTRACT_PHONE_API_KEY: "${ABSTRACT_PHONE_API_KEY}"
+      ABSTRACT_EMAIL_API_KEY: "${ABSTRACT_EMAIL_API_KEY}"
+      ABSTRACT_IP_API_KEY: "${ABSTRACT_IP_API_KEY}"
+      ABSTRACT_SCRAPE_API_KEY: "${ABSTRACT_SCRAPE_API_KEY}"
+      RESEND_API_KEY: "${RESEND_API_KEY}"
+      RESEND_FROM: "${RESEND_FROM:-outreach@endscams.org}"
+      TRACKER_PASS: "${TRACKER_PASS:-${VITE_TRACKER_PASS}}"
+      VITE_TRACKER_PASS: "${VITE_TRACKER_PASS:-${TRACKER_PASS}}"
     volumes:
       - tracker-db-data:/app/data
     expose:
