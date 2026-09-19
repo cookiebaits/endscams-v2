@@ -34,6 +34,7 @@ services:
     restart: always
     environment:
       GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-${GOOGLE_API_KEY}}"
       GOOGLE_CX: "${GOOGLE_CX}"
       DB: "${DB:-${SUPABASE_URL}}"
       DB_Key: "${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}}"

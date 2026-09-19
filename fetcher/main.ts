@@ -565,6 +565,10 @@ const WHATSAPP_QUERIES = [
   { q: '"Whatsapp" "Magic" "Magician"',                                 category: "Spiritual / Spellcaster Scam", label: "Web — Magic/Magician" },
   { q: '"Whatsapp" "Crypto Recovery"',                                  category: "Crypto Recovery Scam",         label: "Web — Crypto Recovery" },
   { q: '"guestbook" spell "WhatsApp"',                                  category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
+  { q: 'site:petscams.com scam phone',                                  category: "Pet Scam",                    label: "PetScams.com" },
+  { q: 'site:scampulse.com pet scam phone',                             category: "Pet Scam",                    label: "ScamPulse — Pet Scams" },
+  { q: 'site:scammer.info/c/scams phone',                               category: "General Tech Support & Refund Scams", label: "Scammer.info — Forum" },
+  { q: '"book publisher" "amazon" "chat" phone',                        category: "Publishing Chat Scam",         label: "Amazon Book Publisher Scams" },
 ];
 
 const BBB_QUERIES = [
@@ -813,18 +817,33 @@ RULES:
 /*  Scheduler                                                        */
 /* ================================================================ */
 
-let lastRunHour = -1;
+let lastRunSlot = '';
 let running = false;
+
+function getPacificTime(d = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(d);
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+  return { hour, minute };
+}
 
 async function scheduler() {
   const now = new Date();
-  const hour = now.getUTCHours();
-  const minute = now.getUTCMinutes();
+  const { hour, minute } = getPacificTime(now);
 
-  if (!running && (hour === 15 || hour === 21) && minute === 5 && lastRunHour !== hour) {
-    lastRunHour = hour;
+  // 7:00 AM Pacific (fires in the :00-:04 window)
+  const isMorningSlot = hour === 7 && minute < 5;
+  // 1:30 PM Pacific (fires in the :30-:34 window)
+  const isAfternoonSlot = hour === 13 && minute >= 30 && minute < 35;
+  const slotId = isMorningSlot ? 'morning' : isAfternoonSlot ? 'afternoon' : '';
+
+  if (!running && slotId && lastRunSlot !== slotId) {
+    lastRunSlot = slotId;
     running = true;
-    console.log(`[cron] pipeline start @ ${now.toISOString()}`);
+    console.log(`[cron] pipeline start @ ${now.toISOString()} (Pacific ${hour}:${String(minute).padStart(2, '0')}, slot=${slotId})`);
     try {
       const stats = await runPipeline();
       console.log("[cron] done:", stats);
@@ -833,9 +852,11 @@ async function scheduler() {
     } finally { running = false; }
   }
 
-  if (minute >= 55) lastRunHour = -1;
+  // Reset slot tracker once past the trigger windows
+  if (hour === 8 || hour === 14) lastRunSlot = '';
 
-  if (minute === 30) {
+  // Purge expired rows at :45 of every hour
+  if (minute === 45) {
     const nowIso = new Date().toISOString();
     const { error } = await supabase.from("tracker_entries").delete().lt("expires_at", nowIso);
     if (error) console.warn("[purge] err", error.message);

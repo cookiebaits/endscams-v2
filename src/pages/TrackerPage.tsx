@@ -1047,26 +1047,30 @@ export function formatPSTTimeOnly(date = new Date(), withSeconds = true): string
 export function getNextScheduledPSTInfo(): { label: string; countdown: string } {
   const { hour, minute, second } = getPacificParts();
   let targetHour = 7;
+  let targetMinute = 0;
   let isTomorrow = false;
 
   if (hour < 7) {
     targetHour = 7;
-  } else if (hour < 13) {
+    targetMinute = 0;
+  } else if (hour < 13 || (hour === 13 && minute < 30)) {
     targetHour = 13;
+    targetMinute = 30;
   } else {
     targetHour = 7;
+    targetMinute = 0;
     isTomorrow = true;
   }
 
   const currentSecondsOfDay = hour * 3600 + minute * 60 + second;
-  let targetSecondsOfDay = targetHour * 3600;
+  let targetSecondsOfDay = targetHour * 3600 + targetMinute * 60;
   if (isTomorrow) targetSecondsOfDay += 24 * 3600;
 
   const diffSec = targetSecondsOfDay - currentSecondsOfDay;
   const diffHours = Math.floor(diffSec / 3600);
   const diffMins = Math.floor((diffSec % 3600) / 60);
 
-  const label = isTomorrow ? 'Tomorrow at 7:00 AM PST' : targetHour === 7 ? 'Today at 7:00 AM PST' : 'Today at 1:00 PM PST';
+  const label = isTomorrow ? 'Tomorrow at 7:00 AM PST' : targetHour === 7 ? 'Today at 7:00 AM PST' : 'Today at 1:30 PM PST';
   const countdown = `in ${diffHours}h ${diffMins}m`;
   return { label, countdown };
 }
@@ -1378,37 +1382,6 @@ export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((r) => {
-              const p = r.phone_number || r.phone_digits || '';
-              const src = (r.source_name || r.source_url || '').toLowerCase();
-              if (
-                !isTollFreeNumber(p) &&
-                !isFictitiousOrInvalidPhone(p) &&
-                !src.includes('reddit') &&
-                !(src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) &&
-                !isThreatRecordExpired(r)
-              ) {
-                const normalizedDate = normalizeToNumericalDate(r.report_date);
-                const item: ThreatRecord = { ...r, report_date: normalizedDate };
-                if (map.has(item.phone_digits)) {
-                  const existing = map.get(item.phone_digits)!;
-                  map.set(item.phone_digits, { ...existing, is_down: item.is_down ?? existing.is_down });
-                } else {
-                  map.set(item.phone_digits, item);
-                }
-              }
-            });
-          }
-        }
-      } catch {}
-    }
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
 
@@ -1421,7 +1394,9 @@ export function TrackerPage() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('[Supabase] Failed to load tracker_entries:', error.message);
+        console.error('[Supabase] Failed to load tracker_entries:', error.message, error.code, error.details);
+        // On Supabase failure, try localStorage as offline cache fallback
+        loadLocalStorageCache();
         return;
       }
 
@@ -1432,7 +1407,6 @@ export function TrackerPage() {
             const src = (r.source_name || r.source_url || '').toLowerCase();
             if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
             if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-            // Keep rows that are not expired OR have no expires_at set
             if (r.expires_at) return !isThreatRecordExpired(r);
             return true;
           })
@@ -1451,25 +1425,46 @@ export function TrackerPage() {
             is_down: Boolean(item.reported_down),
           })) as ThreatRecord[];
 
-        if (mapped.length > 0) {
-          setRecords((prev) => {
-            const map = new Map<string, ThreatRecord>();
-            mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-            prev.forEach((r) => {
-              if (map.has(r.phone_digits)) {
-                const ex = map.get(r.phone_digits)!;
-                map.set(r.phone_digits, { ...ex, is_down: r.is_down ?? ex.is_down });
-              } else {
-                map.set(r.phone_digits, r);
-              }
-            });
-            return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
-          });
-        }
+        // Supabase is authoritative: seed records as base, Supabase overwrites
+        const map = new Map<string, ThreatRecord>();
+        MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+        mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+        setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
+      } else {
+        // Supabase returned 0 rows — use localStorage cache as fallback
+        loadLocalStorageCache();
       }
     } catch (err) {
-      console.warn('[Supabase] Tracker load error:', err);
+      console.error('[Supabase] Tracker load error:', err);
+      loadLocalStorageCache();
     }
+  };
+
+  // Offline fallback: load cached records from localStorage when Supabase is unreachable
+  const loadLocalStorageCache = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      const map = new Map<string, ThreatRecord>();
+      MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+      parsed.forEach((r: any) => {
+        const p = r.phone_number || r.phone_digits || '';
+        const src = (r.source_name || r.source_url || '').toLowerCase();
+        if (
+          !isTollFreeNumber(p) &&
+          !isFictitiousOrInvalidPhone(p) &&
+          !src.includes('reddit') &&
+          !(src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) &&
+          !isThreatRecordExpired(r)
+        ) {
+          map.set(r.phone_digits || p.replace(/\D/g, ''), { ...r, report_date: normalizeToNumericalDate(r.report_date) });
+        }
+      });
+      setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
+    } catch {}
   };
 
   // Load records from Supabase on mount (source of truth — works in incognito)
@@ -2064,14 +2059,15 @@ export function TrackerPage() {
       try {
         const { hour, dateStr } = getPacificParts(new Date());
 
-        // Target daily slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
-        if (hour === 7 || hour === 13) {
-          const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
+        // Target daily slots: 7:00 AM PST (hour 7) and 1:30 PM PST (hour 13, minute >= 30)
+        const { minute: pstMinute } = getPacificParts(new Date());
+        if (hour === 7 || (hour === 13 && pstMinute >= 30)) {
+          const slotKey = `auto_refresh_triggered_${dateStr}_${hour === 13 ? '13_30' : String(hour)}`;
           const alreadyTriggered = localStorage.getItem(slotKey);
 
           if (!alreadyTriggered && !isScanningRef.current) {
             localStorage.setItem(slotKey, new Date().toISOString());
-            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
+            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:30 PM PST';
             console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering autonomous threat harvester scan...`);
             setStatusNotification(`[Auto-Scan Active] ${slotLabel} reached — Automatically executed threat harvester scan.`);
             // Automated scans do not require administrative password
@@ -3193,7 +3189,7 @@ export function TrackerPage() {
               </span>
 
               <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-full text-[10px] font-medium text-amber-400">
-                DAILY SCHEDULE: 7:00 AM & 1:00 PM PST
+                DAILY SCHEDULE: 7:00 AM & 1:30 PM PST
               </span>
             </div>
 
@@ -3857,7 +3853,7 @@ export function TrackerPage() {
             </div>
 
             <p className="text-xs text-slate-400">
-              Monitors the 11 exact targets from esscan.ai.studio. Automated triggers fire daily at 7:00 AM PST and 1:00 PM PST.
+              Monitors the 11 exact targets from esscan.ai.studio. Automated triggers fire daily at 7:00 AM PST and 1:30 PM PST.
             </p>
 
             {/* Optional Gemini Key */}
@@ -3896,7 +3892,7 @@ export function TrackerPage() {
 
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Daily Auto-Scan Slots</span>
-                <p className="text-sm font-bold text-slate-200 font-mono">7:00 AM & 1:00 PM</p>
+                <p className="text-sm font-bold text-slate-200 font-mono">7:00 AM & 1:30 PM</p>
                 <p className="text-[10px] text-emerald-400">Next: {scheduleInfo.label}</p>
               </div>
             </div>
