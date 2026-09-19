@@ -427,24 +427,8 @@ export default function ReportScamPage() {
       console.warn('esscan_threat_records_v2 storage warning:', e);
     }
 
-    // 4. Send directly to backend endpoints
-    try {
-      fetch('/api/records/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: trackerRecord.phone_number,
-          cleanPhone: trackerRecord.phone_digits,
-          scamType: trackerRecord.category,
-          platform: 'User Report',
-          sourceUrl: '/report',
-          detailedSummary: trackerRecord.description,
-          detectedAt: trackerRecord.report_date,
-        }),
-      }).catch(() => {});
-    } catch (e) {
-      console.warn('Backend manual record endpoint notice:', e);
-    }
+    // 4. Send directly to backend endpoints (no-op if backend unavailable)
+    // The Supabase upsert above is the source of truth.
 
     await sendEmail(fileUrl, fileName, fileType);
     setStatus('success');

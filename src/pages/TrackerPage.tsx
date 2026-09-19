@@ -37,7 +37,6 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
@@ -1413,57 +1412,67 @@ export function TrackerPage() {
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
 
-  // Automatically fetch live records from backend /api/records on mount
-  useEffect(() => {
-    let isMounted = true;
-    const fetchBackendRecords = async () => {
-      try {
-        const res = await fetch(`/api/records?t=${Date.now()}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-            const mapped = data.records
-              .filter((r: any) => {
-                const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
-                const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
-                if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-                if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-                return !isThreatRecordExpired(r);
-              })
-              .map(mapRawSeedToThreatRecord);
+  // Fetch records from Supabase tracker_entries table (source of truth)
+  const fetchSupabaseRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tracker_entries')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-            if (isMounted && mapped.length > 0) {
-              setRecords((prev) => {
-                const map = new Map<string, ThreatRecord>();
-                mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-                prev.forEach((r) => {
-                  if (map.has(r.phone_digits)) {
-                    const existing = map.get(r.phone_digits)!;
-                    map.set(r.phone_digits, { ...existing, is_down: r.is_down ?? existing.is_down });
-                  } else {
-                    map.set(r.phone_digits, r);
-                  }
-                });
-                return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[Tracker] Backend /api/records unreachable, using local store:', err);
+      if (error) {
+        console.warn('[Supabase] Failed to load tracker_entries:', error.message);
+        return;
       }
-    };
 
-    fetchBackendRecords();
-    return () => {
-      isMounted = false;
-    };
+      if (data && Array.isArray(data) && data.length > 0) {
+        const mapped = data
+          .filter((r: any) => {
+            const p = r.phone_digits || r.phone_number || '';
+            const src = (r.source_name || r.source_url || '').toLowerCase();
+            if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
+            if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+            return !isThreatRecordExpired(r);
+          })
+          .map((item: any) => ({
+            id: String(item.id || `sb-${item.phone_digits}`),
+            phone_number: item.phone_number || item.phone || '',
+            phone_digits: item.phone_digits || (item.phone_number || '').replace(/\D/g, ''),
+            source_name: item.source_name || 'Supabase DB',
+            source_url: item.source_url || '',
+            report_date: normalizeToNumericalDate(item.report_date || item.created_at || new Date()),
+            category: item.category || 'General Tech Support & Refund Scams',
+            description: item.description || 'Synchronized from Supabase database.',
+            impersonated_company: item.impersonated_company || 'N/A',
+            invoice_number: item.invoice_number || 'N/A',
+            amount_charged: item.amount_charged || 'N/A',
+            is_down: Boolean(item.reported_down),
+          })) as ThreatRecord[];
+
+        if (mapped.length > 0) {
+          setRecords((prev) => {
+            const map = new Map<string, ThreatRecord>();
+            mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
+            prev.forEach((r) => {
+              if (map.has(r.phone_digits)) {
+                const ex = map.get(r.phone_digits)!;
+                map.set(r.phone_digits, { ...ex, is_down: r.is_down ?? ex.is_down });
+              } else {
+                map.set(r.phone_digits, r);
+              }
+            });
+            return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[Supabase] Tracker load error:', err);
+    }
+  };
+
+  // Load records from Supabase on mount (source of truth — works in incognito)
+  useEffect(() => {
+    fetchSupabaseRecords();
   }, []);
 
   // Schedule & Time States
@@ -1509,19 +1518,8 @@ export function TrackerPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  // Dokploy Settings & Supabase Database
-  const [, setDokployConfig] = useState<{
-    supabaseUrl: string;
-    supabaseKey: string;
-    hasSupabase: boolean;
-    hasTrackerPass: boolean;
-  }>({
-    supabaseUrl: '',
-    supabaseKey: '',
-    hasSupabase: false,
-    hasTrackerPass: false,
-  });
-  const [, setIsSupabaseConnected] = useState(false);
+  // Dokploy Settings & Supabase Database — Supabase is initialized in lib/supabase.ts
+  // No runtime config loading needed; the shared client is the single source of truth.
 
   // Administrative & Bypass TRACKER_PASS Authentication
   type UserRole = 'admin' | 'bypass' | null;
@@ -1651,7 +1649,13 @@ export function TrackerPage() {
           const target = prev.find((r) => r.id === id || r.phone_digits === id);
           if (!target) return prev;
           const nextStatus = !target.is_down;
-          fetch(`/api/records/${target.id}/toggle-down`, { method: 'POST' }).catch(() => {});
+          supabase
+            .from('tracker_entries')
+            .update({ reported_down: nextStatus, updated_at: new Date().toISOString() })
+            .eq('phone_digits', target.phone_digits)
+            .then(({ error }) => {
+              if (error) console.warn('[Supabase] Sync toggle error:', error.message);
+            });
           return prev.map((r) => (r.id === target.id ? { ...r, is_down: nextStatus } : r));
         });
       },
@@ -1706,89 +1710,6 @@ export function TrackerPage() {
       }).catch(() => {});
     }
   }, [geminiApiKey]);
-
-  // Load Dokploy Environment Settings & Connect Supabase (DB & DB_Key)
-  useEffect(() => {
-    let isMounted = true;
-    const loadDokployConfig = async () => {
-      try {
-        const res = await fetch('/api/config');
-        if (res.ok) {
-          const cfg = await res.json();
-          if (!isMounted) return;
-          setDokployConfig({
-            supabaseUrl: cfg.supabaseUrl || '',
-            supabaseKey: cfg.supabaseKey || '',
-            hasSupabase: Boolean(cfg.hasSupabase),
-            hasTrackerPass: Boolean(cfg.hasTrackerPass),
-          });
-
-          // Initialize Supabase if DB and DB_Key are configured in Dokploy
-          if (cfg.supabaseUrl && cfg.supabaseKey) {
-            try {
-              const sb = createClient(cfg.supabaseUrl, cfg.supabaseKey);
-              (window as any).supabase = sb;
-              setIsSupabaseConnected(true);
-              console.log('[Dokploy Supabase] Successfully connected to live database:', cfg.supabaseUrl);
-
-              // Pull records from Supabase tracker_entries / scam_records
-              try {
-                let sbRes = await sb.from('tracker_entries').select('*');
-                if (sbRes.error) {
-                  sbRes = await sb.from('scam_records').select('*');
-                }
-                if (sbRes.data && Array.isArray(sbRes.data) && sbRes.data.length > 0) {
-                  const mappedFromSb = sbRes.data
-                    .map((item: any) => ({
-                      id: String(item.id || `sb-${item.phone_digits}`),
-                      phone_number: item.phone_number || item.phone || '',
-                      phone_digits: item.phone_digits || (item.phone_number || '').replace(/\D/g, ''),
-                      source_name: item.source_name || item.source_platform || 'Supabase DB',
-                      source_url: item.source_url || '',
-                      report_date: normalizeToNumericalDate(item.report_date || item.detected_at || new Date()),
-                      category: item.category || item.scam_type || 'General Tech Support & Refund Scams',
-                      description: item.description || item.threat_intel || 'Synchronized from Dokploy Supabase database.',
-                      impersonated_company: item.impersonated_company || 'N/A',
-                      invoice_number: item.invoice_number || 'N/A',
-                      amount_charged: item.amount_charged || 'N/A',
-                      is_down: Boolean(item.is_down || item.status === 'Out of Service'),
-                    }))
-                    .filter((r: ThreatRecord) => !isTollFreeNumber(r.phone_number) && !isFictitiousOrInvalidPhone(r.phone_number));
-
-                  if (mappedFromSb.length > 0 && isMounted) {
-                    setRecords((prev) => {
-                      const map = new Map<string, ThreatRecord>();
-                      mappedFromSb.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-                      prev.forEach((r) => {
-                        if (map.has(r.phone_digits)) {
-                          const ex = map.get(r.phone_digits)!;
-                          map.set(r.phone_digits, { ...ex, is_down: r.is_down ?? ex.is_down });
-                        } else {
-                          map.set(r.phone_digits, r);
-                        }
-                      });
-                      return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
-                    });
-                  }
-                }
-              } catch (queryErr) {
-                console.warn('[Dokploy Supabase] Table query notice:', queryErr);
-              }
-            } catch (sbErr) {
-              console.warn('[Dokploy Supabase] Initialization notice:', sbErr);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[Dokploy Config] Unable to load /api/config:', err);
-      }
-    };
-
-    loadDokployConfig();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Require TRACKER_PASS (Admin or Bypass) for protected actions
   const requireTrackerPass = (
@@ -1917,19 +1838,9 @@ export function TrackerPage() {
 
     // Sync deletion to Supabase
     try {
-      const sb = (window as any).supabase;
-      if (sb) {
-        await sb.from('tracker_entries').delete().or(`id.eq.${id},phone_digits.eq.${digits}`);
-      }
+      await supabase.from('tracker_entries').delete().or(`phone_digits.eq.${digits}`);
     } catch (err) {
       console.warn('Supabase delete warning:', err);
-    }
-
-    // Send DELETE request to backend endpoint
-    try {
-      await fetch(`/api/records/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      console.warn('Backend record delete notice:', err);
     }
   };
 
@@ -2012,85 +1923,48 @@ export function TrackerPage() {
     setEditingRecord(null);
     setStatusNotification(`Updated monitored line: ${updated.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} Alt numbers` : ''}`);
 
-    // Update on backend
-    try {
-      fetch(`/api/records/${editingRecord.id}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: updated.phone_number,
-          cleanPhone: updated.phone_digits,
-          isWhatsapp: updated.is_whatsapp,
-          altNumbers: validAlts.map((a) => a.phone),
-          scamType: updated.category,
-          impersonatedCompany: updated.impersonated_company,
-          amountCharged: updated.amount_charged,
-          invoiceNumber: updated.invoice_number,
-          detailedSummary: updated.description,
-          platform: updated.source_name,
-          sourceUrl: updated.source_url,
-          isNumberDown: updated.is_down,
-        }),
-      }).catch(() => {});
-    } catch {}
-
-    // Sync to Dokploy Supabase
+    // Persist to Supabase
     syncRecordToSupabase(updated);
   };
 
-  // Bulk Sync Records to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend API
+  // Bulk Sync Records to Supabase Database
   const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]) => {
     if (!recs || recs.length === 0) return;
     try {
-      // 1. Supabase Client Upsert
-      const sb = (window as any).supabase || supabase;
-      if (sb && typeof sb.from === 'function') {
-        const payloads = recs.map((rec) => {
-          const expiresAt = new Date();
-          const retentionDays = getRetentionDays(rec);
-          expiresAt.setDate(expiresAt.getDate() + retentionDays);
-          return {
-            phone_number: rec.phone_number,
-            phone_digits: rec.phone_digits,
-            source_name: rec.source_name,
-            source_url: rec.source_url,
-            report_date: rec.report_date,
-            category: rec.category,
-            description: rec.description,
-            impersonated_company: rec.impersonated_company || 'N/A',
-            invoice_number: rec.invoice_number || 'N/A',
-            amount_charged: rec.amount_charged || 'N/A',
-            is_down: Boolean(rec.is_down),
-            status: rec.is_down ? 'Out of Service' : 'Active',
-            expires_at: expiresAt.toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        });
+      const payloads = recs.map((rec) => {
+        const expiresAt = new Date();
+        const retentionDays = getRetentionDays(rec);
+        expiresAt.setDate(expiresAt.getDate() + retentionDays);
+        return {
+          phone_number: rec.phone_number,
+          phone_digits: rec.phone_digits,
+          source_name: rec.source_name,
+          source_url: rec.source_url,
+          report_date: rec.report_date,
+          category: rec.category,
+          description: rec.description,
+          impersonated_company: rec.impersonated_company || 'N/A',
+          invoice_number: rec.invoice_number || 'N/A',
+          amount_charged: rec.amount_charged || 'N/A',
+          reported_down: Boolean(rec.is_down),
+          expires_at: expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      });
 
-        const res = await sb.from('tracker_entries').upsert(payloads, { onConflict: 'phone_digits' });
-        if (res.error) {
-          const scamRecordsPayload = recs.map((rec) => ({
-            phone: rec.phone_number,
-            clean_phone: rec.phone_digits,
-            scam_type: rec.category,
-            impersonated_company: rec.impersonated_company || 'N/A',
-            source_url: rec.source_url,
-            platform: rec.source_name,
-            is_number_down: Boolean(rec.is_down),
-          }));
-          await sb.from('scam_records').upsert(scamRecordsPayload, { onConflict: 'clean_phone' });
+      // Upsert in batches of 200 to avoid payload limits
+      const BATCH_SIZE = 200;
+      for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
+        const batch = payloads.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase
+          .from('tracker_entries')
+          .upsert(batch, { onConflict: 'phone_digits,source_name' });
+        if (error) {
+          console.warn('[Supabase] Batch upsert error:', error.message);
         }
       }
-
-      // 2. Server Bulk-Upsert API for two-way sync and disk persistence
-      const scamPayload = recs.map(threatRecordToScamPhoneRecord);
-      await fetch('/api/records/bulk-upsert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records: scamPayload }),
-      }).catch(() => {});
     } catch (err) {
-      console.warn('[Supabase Batch Sync Notice]', err);
+      console.warn('[Supabase] Batch sync error:', err);
     }
   };
 
@@ -2173,33 +2047,8 @@ export function TrackerPage() {
     setPopupEditError(null);
     setStatusNotification(`Updated threat post: ${updated.phone_number}`);
 
-    // 2. Persist to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend
+    // 2. Persist to Supabase Database
     await syncThreatRecordsToSupabase([updated]);
-
-    // 3. Update backend server specifically
-    try {
-      fetch(`/api/records/${updated.id}/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          record: {
-            id: updated.id,
-            phone: updated.phone_number,
-            cleanPhone: updated.phone_digits,
-            impersonatedCompany: updated.impersonated_company,
-            scamType: updated.category,
-            platform: updated.source_name,
-            sourceUrl: updated.source_url,
-            snippet: updated.description,
-            detailedSummary: updated.description,
-            postDate: updated.report_date,
-            amountCharged: updated.amount_charged,
-            invoiceNumber: updated.invoice_number,
-            isNumberDown: updated.is_down,
-          },
-        }),
-      }).catch(() => {});
-    } catch {}
   };
 
   // ============================================================================
@@ -2641,11 +2490,6 @@ export function TrackerPage() {
                   setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                   addLog(`[DISCOVERY] Cataloged threat: ${rec.phone_number} (${rec.impersonated_company})`);
                   syncRecordToSupabase(rec);
-                  fetch('/api/records/manual', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(threatRecordToScamPhoneRecord(rec)),
-                  }).catch(() => {});
                   await delay(2000);
                 }
               }
@@ -2694,11 +2538,6 @@ export function TrackerPage() {
                       setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                       addLog(`[TSU DISCOVERY] Dialable line captured: ${rec.phone_number} (${rec.impersonated_company})`);
                       syncRecordToSupabase(rec);
-                      fetch('/api/records/manual', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(threatRecordToScamPhoneRecord(rec)),
-                      }).catch(() => {});
                       await delay(2000);
                     }
                   }
@@ -3020,7 +2859,6 @@ export function TrackerPage() {
     if (!importPreview || importPreview.valid.length === 0) return;
 
     const importedThreats = importPreview.valid;
-    const importedScamRecords = importedThreats.map(threatRecordToScamPhoneRecord);
 
     setRecords((prev) => {
       const map = new Map<string, ThreatRecord>();
@@ -3046,29 +2884,11 @@ export function TrackerPage() {
       return merged;
     });
 
-    // 4. Persist to Supabase and backend server (/api/records/restore)
-    syncThreatRecordsToSupabase(importedThreats);
-    try {
-      fetch('/api/records/restore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          records: importedScamRecords,
-          mode: 'merge',
-        }),
-      }).then((res) => {
-        if (res.status === 405) {
-          fetch('/api/records/restore', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              records: importedScamRecords,
-              mode: 'merge',
-            }),
-          }).catch(() => {});
-        }
-      }).catch(() => {});
-    } catch {}
+    // 4. Persist to Supabase (source of truth)
+    syncThreatRecordsToSupabase(importedThreats).then(() => {
+      // Reload from Supabase so the count reflects the true database state
+      fetchSupabaseRecords();
+    });
 
     setStatusNotification(
       `Successfully imported ${importedThreats.length} threat records! (${importPreview.rejectedTollFree} toll-free skipped, ${importPreview.rejectedBad} invalid skipped).`
@@ -3218,24 +3038,6 @@ export function TrackerPage() {
     setRecords((prev) => [newRecord, ...prev].sort(compareThreatDatesDesc));
     syncRecordToSupabase(newRecord);
 
-    // Sync to backend database
-    fetch('/api/records/manual', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone: newRecord.phone_number,
-        cleanPhone: newRecord.phone_digits,
-        isWhatsapp: newRecord.is_whatsapp,
-        altNumbers: validAlts.map((a) => a.phone),
-        scamType: newRecord.category,
-        impersonatedCompany: newRecord.impersonated_company,
-        sourceUrl: newRecord.source_url,
-        platform: newRecord.source_name,
-        detailedSummary: newRecord.description,
-        detectedAt: newRecord.report_date,
-      }),
-    }).catch(() => {});
-
     setStatusNotification(
       `Added ${newRecord.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} tied alternate numbers` : ''} to monitored database.`
     );
@@ -3256,8 +3058,14 @@ export function TrackerPage() {
       prev.map((r) => (r.id === record.id ? { ...r, is_down: nextStatus } : r))
     );
     setStatusNotification(`Marked ${record.phone_number} as ${nextStatus ? 'Out of Service' : 'Active Threat'}.`);
-    // Sync status with backend
-    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
+    // Sync status to Supabase
+    supabase
+      .from('tracker_entries')
+      .update({ reported_down: nextStatus, updated_at: new Date().toISOString() })
+      .eq('phone_digits', record.phone_digits)
+      .then(({ error }) => {
+        if (error) console.warn('[Supabase] Toggle status error:', error.message);
+      });
   };
 
   const handleBulkMarkDown = () => {
