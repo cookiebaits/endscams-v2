@@ -3479,19 +3479,6 @@ export function TrackerPage() {
               </span>
             </div>
 
-            {/* Dokploy DB Badge */}
-            <span
-              className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-mono border ${
-                isSupabaseConnected
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-slate-800 border-slate-700 text-slate-400'
-              }`}
-              title={dokployConfig.supabaseUrl ? `Dokploy Supabase: ${dokployConfig.supabaseUrl}` : 'Local persistent storage'}
-            >
-              <Database className="w-3 h-3" />
-              <span>{isSupabaseConnected ? 'Dokploy DB: Supabase' : 'Dokploy DB: Local Store'}</span>
-            </span>
-
             {/* TRACKER_PASS Admin / Bypass Status */}
             {unlockedRole === 'admin' ? (
               <button
