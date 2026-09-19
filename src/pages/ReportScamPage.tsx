@@ -321,18 +321,40 @@ export default function ReportScamPage() {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
 
-    // Insert into tracker_entries
+    const trackerRecord = {
+      id: `user-report-${Date.now()}-${digits}`,
+      phone_number: formatPhoneDisplay(digits),
+      phone_digits: digits,
+      source_name: 'User Report',
+      source_url: '/report',
+      report_date: form.incidentDate || new Date().toISOString().split('T')[0],
+      category: form.category || 'General Tech Support & Refund Scams',
+      description: form.description.trim() || 'User submitted scam report.',
+      impersonated_company: 'N/A',
+      invoice_number: 'N/A',
+      amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
+      reported_down: false,
+      is_down: false,
+      expires_at: expiresAt.toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Primary: Send directly to backend proxy endpoint POST /api/records/manual
     try {
-      const { error: trackerError } = await supabase.from('tracker_entries').upsert({
-        phone_number: formatPhoneDisplay(digits),
-        phone_digits: digits,
-        source_name: 'User Report',
-        source_url: '/report',
-        report_date: form.incidentDate,
-        category: form.category,
-        description: form.description.trim(),
-        expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'phone_digits,source_name' });
+      await fetch('/api/records/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(trackerRecord),
+      });
+    } catch (apiErr) {
+      console.warn('[Report Sync] Backend /api/records/manual error:', apiErr);
+    }
+
+    // 2. Secondary: Direct client Supabase upsert into tracker_entries
+    try {
+      const { error: trackerError } = await supabase
+        .from('tracker_entries')
+        .upsert(trackerRecord, { onConflict: 'phone_digits,source_name' });
 
       if (trackerError) {
         console.error('tracker_entries upsert error:', trackerError.message, trackerError.code, trackerError.details);
@@ -341,25 +363,17 @@ export default function ReportScamPage() {
       console.error('tracker_entries connection error:', e);
     }
 
-    // Sync report entry into iframe via BroadcastChannel and localStorage
+    // 3. BroadcastChannel sync bridge so open /tracker tabs update instantly
     const newRecord = {
-      id: `user-report-${Date.now()}-${digits}`,
+      ...trackerRecord,
       phone: formatPhoneDisplay(digits),
-      phone_number: formatPhoneDisplay(digits),
-      phone_digits: digits,
-      category: form.category,
-      description: form.description.trim(),
       how_contacted: form.howContacted,
       incident_date: form.incidentDate,
-      report_date: form.incidentDate,
       source: 'User Report',
-      source_name: 'User Report',
-      source_url: '/report',
       platform: form.howContacted,
       timestamp: new Date().toISOString(),
     };
 
-    // 1. BroadcastChannel sync bridge
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
@@ -373,62 +387,6 @@ export default function ReportScamPage() {
     } catch (e) {
       console.warn('BroadcastChannel sync warning:', e);
     }
-
-    // 2. localStorage shared storage for iframe sync
-    try {
-      const existingRaw = localStorage.getItem('end_scam_scan_shared_storage');
-      let storageData: Record<string, any> = {};
-      if (existingRaw) {
-        try { storageData = JSON.parse(existingRaw); } catch {}
-      }
-      const records = Array.isArray(storageData.records) ? storageData.records : [];
-      const updatedRecords = [newRecord, ...records.filter((r: any) => (r.phone_digits || r.phone) !== digits)];
-      localStorage.setItem('end_scam_scan_shared_storage', JSON.stringify({
-        ...storageData,
-        records: updatedRecords,
-        lastUpdated: new Date().toISOString(),
-      }));
-    } catch (e) {
-      console.warn('localStorage sync warning:', e);
-    }
-
-    // 3. Save to user_reported_scams and esscan_threat_records_v2 (direct Tracker storage key)
-    const trackerRecord = {
-      id: newRecord.id,
-      phone_number: formatPhoneDisplay(digits),
-      phone_digits: digits,
-      source_name: 'User Report',
-      source_url: '/report',
-      report_date: form.incidentDate,
-      category: form.category,
-      description: form.description.trim(),
-      impersonated_company: 'N/A',
-      invoice_number: 'N/A',
-      amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
-      is_down: false,
-    };
-
-    try {
-      const userReportsRaw = localStorage.getItem('user_reported_scams') || '[]';
-      const userReports = JSON.parse(userReportsRaw);
-      userReports.unshift(newRecord);
-      localStorage.setItem('user_reported_scams', JSON.stringify(userReports));
-    } catch (e) {
-      console.warn('user_reported_scams storage warning:', e);
-    }
-
-    try {
-      const esscanRaw = localStorage.getItem('esscan_threat_records_v2') || '[]';
-      const esscanRecords = JSON.parse(esscanRaw);
-      const filtered = Array.isArray(esscanRecords) ? esscanRecords.filter((r: any) => (r.phone_digits || r.phone) !== digits) : [];
-      filtered.unshift(trackerRecord);
-      localStorage.setItem('esscan_threat_records_v2', JSON.stringify(filtered));
-    } catch (e) {
-      console.warn('esscan_threat_records_v2 storage warning:', e);
-    }
-
-    // 4. Send directly to backend endpoints (no-op if backend unavailable)
-    // The Supabase upsert above is the source of truth.
 
     await sendEmail(fileUrl, fileName, fileType);
     setStatus('success');
