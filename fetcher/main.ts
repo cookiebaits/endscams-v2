@@ -107,8 +107,12 @@ async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?:
 
     const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
     if (error) {
-      console.warn("[tracker-fetcher] saveRecordToSupabase upsert error:", error.message, error.details);
-      return { success: false, error: error.message };
+      console.warn("[tracker-fetcher] saveRecordToSupabase onConflict error, trying primary key fallback:", error.message, error.details);
+      const { error: fallbackErr } = await supabase.from("tracker_entries").upsert(payload);
+      if (fallbackErr) {
+        console.warn("[tracker-fetcher] saveRecordToSupabase fallback error:", fallbackErr.message);
+        return { success: false, error: fallbackErr.message };
+      }
     }
     return { success: true };
   } catch (err) {
@@ -1107,9 +1111,15 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
       const { error } = await supabase.from("tracker_entries").upsert(payloads, { onConflict: "phone_digits,source_name" });
       if (error) {
-        console.error("[tracker-fetcher] bulk-upsert batch error:", error.message, error.details);
-        errors += payloads.length;
-        lastError = error.message;
+        console.warn("[tracker-fetcher] bulk-upsert onConflict batch error, trying primary key fallback:", error.message, error.details);
+        const { error: fallbackErr } = await supabase.from("tracker_entries").upsert(payloads);
+        if (fallbackErr) {
+          console.error("[tracker-fetcher] bulk-upsert fallback batch error:", fallbackErr.message);
+          errors += payloads.length;
+          lastError = fallbackErr.message;
+        } else {
+          count += payloads.length;
+        }
       } else {
         count += payloads.length;
       }

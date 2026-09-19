@@ -350,14 +350,41 @@ export default function ReportScamPage() {
       console.warn('[Report Sync] Backend /api/records/manual error:', apiErr);
     }
 
-    // 2. Secondary: Direct client Supabase upsert into tracker_entries
+    // 2. Save directly to LocalStorage so /tracker and /home retain user reports across page refreshes
+    const storageKeys = ['tracker_records', 'user_reported_scams', 'esscan_threat_records_v2'];
+    for (const key of storageKeys) {
+      try {
+        const raw = localStorage.getItem(key);
+        let existing: any[] = [];
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          existing = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
+        }
+        const filtered = existing.filter((r: any) => {
+          const d = r.phone_digits || r.cleanPhone || (r.phone_number || r.phone || '').replace(/\D/g, '');
+          return d !== digits;
+        });
+        filtered.unshift(trackerRecord);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch (lsErr) {
+        console.warn('[Report Sync] LocalStorage save warning:', lsErr);
+      }
+    }
+
+    // 3. Secondary: Direct client Supabase upsert into tracker_entries with fallback
     try {
       const { error: trackerError } = await supabase
         .from('tracker_entries')
         .upsert(trackerRecord, { onConflict: 'phone_digits,source_name' });
 
       if (trackerError) {
-        console.error('tracker_entries upsert error:', trackerError.message, trackerError.code, trackerError.details);
+        console.warn('tracker_entries onConflict upsert error, trying primary key fallback:', trackerError.message);
+        const { error: fallbackError } = await supabase
+          .from('tracker_entries')
+          .upsert(trackerRecord);
+        if (fallbackError) {
+          console.error('tracker_entries fallback connection error:', fallbackError.message, fallbackError.code, fallbackError.details);
+        }
       }
     } catch (e) {
       console.error('tracker_entries connection error:', e);

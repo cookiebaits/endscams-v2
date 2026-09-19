@@ -1338,6 +1338,51 @@ export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
 })();
 
 /**
+ * Retrieves stored threat records from LocalStorage keys to retain data across browser refreshes.
+ */
+export function getStoredLocalRecords(): ThreatRecord[] {
+  if (typeof window === 'undefined') return [];
+  const keys = ['tracker_records', 'user_reported_scams', 'esscan_threat_records_v2', 'end_scam_scan_shared_state'];
+  const map = new Map<string, ThreatRecord>();
+
+  for (const key of keys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
+      items.forEach((item: any) => {
+        if (!item) return;
+        const rawPhone = item.phone_number || item.phone || '';
+        const digits = item.phone_digits || item.cleanPhone || rawPhone.replace(/\D/g, '');
+        if (!digits || isTollFreeNumber(rawPhone) || isTollFreeNumber(digits) || isFictitiousOrInvalidPhone(digits)) return;
+        const rec = mapRawSeedToThreatRecord(item);
+        if (!isThreatRecordExpired(rec)) {
+          map.set(rec.phone_digits, rec);
+        }
+      });
+    } catch {}
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Persists threat records into LocalStorage keys so CSV imports, reports, and scan discoveries are retained.
+ */
+export function saveStoredLocalRecords(recordsToSave: ThreatRecord[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const valid = recordsToSave.filter((r) => !isThreatRecordExpired(r));
+    const serialized = JSON.stringify(valid);
+    localStorage.setItem('tracker_records', serialized);
+    localStorage.setItem('user_reported_scams', serialized);
+    localStorage.setItem('esscan_threat_records_v2', serialized);
+  } catch (e) {
+    console.warn('[LocalStorage] Persist error:', e);
+  }
+}
+
+/**
  * Helper to match records against a target phone number string/digits.
  */
 export function isRecordMatch(record: any, target10Digits: string): boolean {
@@ -1381,8 +1426,16 @@ export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+    getStoredLocalRecords().forEach((r) => map.set(r.phone_digits, r));
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
+
+  // Automatically persist records state to LocalStorage whenever records change
+  useEffect(() => {
+    if (records.length > 0) {
+      saveStoredLocalRecords(records);
+    }
+  }, [records]);
 
   // Fetch records from Supabase tracker_entries table (source of truth)
   const fetchSupabaseRecords = async () => {
@@ -1419,6 +1472,10 @@ export function TrackerPage() {
       }
     }
 
+    const map = new Map<string, ThreatRecord>();
+    MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+    getStoredLocalRecords().forEach((r) => map.set(r.phone_digits, r));
+
     if (rawRecords && Array.isArray(rawRecords) && rawRecords.length > 0) {
       const mapped = rawRecords
         .filter((r: any) => {
@@ -1444,15 +1501,15 @@ export function TrackerPage() {
           is_down: Boolean(item.reported_down),
         })) as ThreatRecord[];
 
-      // Supabase is authoritative: seed records as base, Supabase overwrites
-      const map = new Map<string, ThreatRecord>();
-      MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
       mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-      setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
     }
+
+    const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+    setRecords(merged);
+    saveStoredLocalRecords(merged);
   };
 
-  // Load records from Supabase on mount (source of truth — works in incognito)
+  // Load records from Supabase & LocalStorage on mount
   useEffect(() => {
     fetchSupabaseRecords();
   }, []);
@@ -1952,8 +2009,14 @@ export function TrackerPage() {
           .from('tracker_entries')
           .upsert(batch, { onConflict: 'phone_digits,source_name' });
         if (error) {
-          console.error('[Supabase] Batch upsert error:', error.message, error.code, error.details);
-          allOk = false;
+          console.warn('[Supabase] Batch upsert onConflict error, attempting primary key fallback:', error.message);
+          const { error: fallbackError } = await supabase
+            .from('tracker_entries')
+            .upsert(batch);
+          if (fallbackError) {
+            console.error('[Supabase] Batch upsert fallback error:', fallbackError.message, fallbackError.code, fallbackError.details);
+            allOk = false;
+          }
         }
       }
     } catch (err) {
