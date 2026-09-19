@@ -1,14 +1,41 @@
 import { createClient } from '@supabase/supabase-js';
 
-function resolveSupabaseApiUrl(rawValue: string): string {
+export function resolveSupabaseApiUrl(rawValue: string): string {
+  if (!rawValue) return '';
   const value = rawValue.trim();
+  if (!value) return '';
+
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
 
-  const directHost = value.match(/(?:@|db\.)([a-z0-9]+)\.supabase\.co/i);
-  if (directHost?.[1]) return `https://${directHost[1]}.supabase.co`;
+  if (value.startsWith('postgresql://') || value.startsWith('postgres://')) {
+    // 1. Match db.[ref].supabase.co or [ref].supabase.co
+    const matchDb = value.match(/(?:db\.)?([a-z0-9_-]+)\.supabase\.co/i);
+    if (matchDb?.[1] && matchDb[1] !== 'db' && matchDb[1] !== 'postgres') {
+      return `https://${matchDb[1]}.supabase.co`;
+    }
 
-  const poolerHost = value.match(/postgres\.([a-z0-9]+):/i);
-  if (poolerHost?.[1]) return `https://${poolerHost[1]}.supabase.co`;
+    // 2. Match postgres.[ref]: or postgres.[ref]@ in username
+    const matchUser = value.match(/postgres\.([a-z0-9_-]+)[:@]/i);
+    if (matchUser?.[1]) {
+      return `https://${matchUser[1]}.supabase.co`;
+    }
+
+    // 3. Match query parameter ?db=[ref] or ?project=[ref]
+    const matchParam = value.match(/[?&](?:db|project)=([a-z0-9_-]+)/i);
+    if (matchParam?.[1] && matchParam[1] !== 'postgres') {
+      return `https://${matchParam[1]}.supabase.co`;
+    }
+
+    // 4. Match hostname containing .supabase.co
+    const matchHost = value.match(/@([^:/]+)/);
+    if (matchHost?.[1] && matchHost[1].includes('supabase')) {
+      const parts = matchHost[1].split('.');
+      if (parts.length >= 3) {
+        const ref = parts[0] === 'db' ? parts[1] : parts[0];
+        if (ref && ref !== 'postgres') return `https://${ref}.supabase.co`;
+      }
+    }
+  }
 
   return '';
 }

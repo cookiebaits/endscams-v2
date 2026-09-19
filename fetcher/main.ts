@@ -64,12 +64,13 @@ function inferImpersonatedCompany(text: string, category?: string, sourceName?: 
   return "N/A";
 }
 
-async function saveRecordToSupabase(r: any) {
+async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?: string }> {
   try {
     const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
     const phone_number = r.phone_number || r.phone || "";
     const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
-    if (!phone_digits) return;
+    if (!phone_digits) return { success: false, error: "Missing phone digits" };
+
     const source_name = r.source_name || r.platform || "Threat Intelligence";
     const source_url = r.source_url || r.sourceUrl || "";
     const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
@@ -83,7 +84,7 @@ async function saveRecordToSupabase(r: any) {
 
     const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
     const amount_charged = r.amount_charged || r.amountCharged || "N/A";
-    const is_down = Boolean(r.is_down || r.isNumberDown);
+    const is_down = Boolean(r.is_down || r.isNumberDown || r.reported_down);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
 
@@ -106,10 +107,13 @@ async function saveRecordToSupabase(r: any) {
 
     const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
     if (error) {
-      console.warn("saveRecordToSupabase upsert note:", error.message);
+      console.warn("[tracker-fetcher] saveRecordToSupabase upsert error:", error.message, error.details);
+      return { success: false, error: error.message };
     }
+    return { success: true };
   } catch (err) {
-    console.warn("saveRecordToSupabase error:", err);
+    console.warn("[tracker-fetcher] saveRecordToSupabase exception:", err);
+    return { success: false, error: String(err) };
   }
 }
 
@@ -126,19 +130,27 @@ function resolveSupabaseUrl(rawUrl?: string | null): string {
   }
 
   if (url.startsWith("postgresql://") || url.startsWith("postgres://")) {
-    const matchCo = url.match(/db\.([a-z0-9]+)\.supabase\.co/i);
-    if (matchCo && matchCo[1]) {
-      return `https://${matchCo[1]}.supabase.co`;
+    const matchDb = url.match(/(?:db\.)?([a-z0-9_-]+)\.supabase\.co/i);
+    if (matchDb?.[1] && matchDb[1] !== "db" && matchDb[1] !== "postgres") {
+      return `https://${matchDb[1]}.supabase.co`;
     }
-    const matchPooler = url.match(/postgres\.([a-z0-9]+):/i);
-    if (matchPooler && matchPooler[1]) {
-      return `https://${matchPooler[1]}.supabase.co`;
+
+    const matchUser = url.match(/postgres\.([a-z0-9_-]+)[:@]/i);
+    if (matchUser?.[1]) {
+      return `https://${matchUser[1]}.supabase.co`;
     }
+
+    const matchParam = url.match(/[?&](?:db|project)=([a-z0-9_-]+)/i);
+    if (matchParam?.[1] && matchParam[1] !== "postgres") {
+      return `https://${matchParam[1]}.supabase.co`;
+    }
+
     const matchHost = url.match(/@([^:/]+)/);
-    if (matchHost && matchHost[1] && matchHost[1].includes("supabase")) {
+    if (matchHost?.[1] && matchHost[1].includes("supabase")) {
       const parts = matchHost[1].split(".");
       if (parts.length >= 3) {
-        return `https://${parts[1]}.supabase.co`;
+        const ref = parts[0] === "db" ? parts[1] : parts[0];
+        if (ref && ref !== "postgres") return `https://${ref}.supabase.co`;
       }
     }
   }
@@ -1041,12 +1053,69 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     let body: any = {};
     try { body = await req.json(); } catch {}
     const list = Array.isArray(body) ? body : (body.records || []);
-    let count = 0;
-    for (const item of list) {
-      await saveRecordToSupabase(item);
-      count++;
+    if (!Array.isArray(list) || list.length === 0) {
+      return json({ success: true, count: 0 });
     }
-    return json({ success: true, count });
+
+    let count = 0;
+    let errors = 0;
+    let lastError = "";
+
+    const BATCH_SIZE = 200;
+    for (let i = 0; i < list.length; i += BATCH_SIZE) {
+      const batch = list.slice(i, i + BATCH_SIZE);
+      const payloads = batch.map((r: any) => {
+        const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
+        const phone_number = r.phone_number || r.phone || "";
+        const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
+        const source_name = r.source_name || r.platform || "Threat Intelligence";
+        const source_url = r.source_url || r.sourceUrl || "";
+        const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
+        const category = r.category || r.scamType || "General Tech Support & Refund Scams";
+        const description = r.description || r.detailedSummary || r.snippet || "";
+
+        let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
+        if (!impersonated_company || impersonated_company === "N/A" || impersonated_company === "Unspecified Target") {
+          impersonated_company = inferImpersonatedCompany(`${description} ${source_name}`, category, source_name);
+        }
+
+        const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
+        const amount_charged = r.amount_charged || r.amountCharged || "N/A";
+        const is_down = Boolean(r.is_down || r.isNumberDown || r.reported_down);
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 60);
+
+        return {
+          id,
+          phone_number,
+          phone_digits,
+          source_name,
+          source_url,
+          report_date,
+          category,
+          description,
+          impersonated_company,
+          invoice_number,
+          amount_charged,
+          reported_down: is_down,
+          expires_at: expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }).filter((item: any) => item.phone_digits);
+
+      if (payloads.length === 0) continue;
+
+      const { error } = await supabase.from("tracker_entries").upsert(payloads, { onConflict: "phone_digits,source_name" });
+      if (error) {
+        console.error("[tracker-fetcher] bulk-upsert batch error:", error.message, error.details);
+        errors += payloads.length;
+        lastError = error.message;
+      } else {
+        count += payloads.length;
+      }
+    }
+
+    return json({ success: errors === 0, count, errors, error: lastError || undefined });
   }
 
   if (url.pathname === "/api/verify-password" || url.pathname === "/verify-password") {
