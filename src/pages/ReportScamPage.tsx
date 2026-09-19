@@ -312,10 +312,10 @@ export default function ReportScamPage() {
     try {
       const { error } = await supabase.from('scam_reports').insert(reportPayload);
       if (error) {
-        console.warn('Supabase scam_reports insert notice:', error.message);
+        console.error('Supabase scam_reports insert error:', error.message, error.code, error.details);
       }
     } catch (e) {
-      console.warn('Supabase connection note:', e);
+      console.error('Supabase connection error:', e);
     }
 
     const expiresAt = new Date();
@@ -335,10 +335,10 @@ export default function ReportScamPage() {
       }, { onConflict: 'phone_digits,source_name' });
 
       if (trackerError) {
-        console.warn('tracker_entries upsert notice:', trackerError.message);
+        console.error('tracker_entries upsert error:', trackerError.message, trackerError.code, trackerError.details);
       }
     } catch (e) {
-      console.warn('tracker_entries connection note:', e);
+      console.error('tracker_entries connection error:', e);
     }
 
     // Sync report entry into iframe via BroadcastChannel and localStorage

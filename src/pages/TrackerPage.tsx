@@ -1432,7 +1432,9 @@ export function TrackerPage() {
             const src = (r.source_name || r.source_url || '').toLowerCase();
             if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
             if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-            return !isThreatRecordExpired(r);
+            // Keep rows that are not expired OR have no expires_at set
+            if (r.expires_at) return !isThreatRecordExpired(r);
+            return true;
           })
           .map((item: any) => ({
             id: String(item.id || `sb-${item.phone_digits}`),
@@ -1927,9 +1929,10 @@ export function TrackerPage() {
     syncRecordToSupabase(updated);
   };
 
-  // Bulk Sync Records to Supabase Database
-  const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]) => {
-    if (!recs || recs.length === 0) return;
+  // Bulk Sync Records to Supabase Database — returns true on success, false on failure
+  const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]): Promise<boolean> => {
+    if (!recs || recs.length === 0) return true;
+    let allOk = true;
     try {
       const payloads = recs.map((rec) => {
         const expiresAt = new Date();
@@ -1952,7 +1955,6 @@ export function TrackerPage() {
         };
       });
 
-      // Upsert in batches of 200 to avoid payload limits
       const BATCH_SIZE = 200;
       for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
         const batch = payloads.slice(i, i + BATCH_SIZE);
@@ -1960,12 +1962,15 @@ export function TrackerPage() {
           .from('tracker_entries')
           .upsert(batch, { onConflict: 'phone_digits,source_name' });
         if (error) {
-          console.warn('[Supabase] Batch upsert error:', error.message);
+          console.error('[Supabase] Batch upsert error:', error.message, error.code, error.details);
+          allOk = false;
         }
       }
     } catch (err) {
-      console.warn('[Supabase] Batch sync error:', err);
+      console.error('[Supabase] Batch sync error:', err);
+      allOk = false;
     }
+    return allOk;
   };
 
   // Sync Single Record to Supabase
@@ -2885,7 +2890,10 @@ export function TrackerPage() {
     });
 
     // 4. Persist to Supabase (source of truth)
-    syncThreatRecordsToSupabase(importedThreats).then(() => {
+    syncThreatRecordsToSupabase(importedThreats).then((ok) => {
+      if (!ok) {
+        setStatusNotification(`Warning: ${importedThreats.length} records saved locally but Supabase sync had errors. Check browser console for details.`);
+      }
       // Reload from Supabase so the count reflects the true database state
       fetchSupabaseRecords();
     });
@@ -3036,7 +3044,11 @@ export function TrackerPage() {
     };
 
     setRecords((prev) => [newRecord, ...prev].sort(compareThreatDatesDesc));
-    syncRecordToSupabase(newRecord);
+    syncRecordToSupabase(newRecord).then((ok) => {
+      if (!ok) {
+        setStatusNotification(`Warning: ${newRecord.phone_number} saved locally but Supabase sync failed. Check browser console.`);
+      }
+    });
 
     setStatusNotification(
       `Added ${newRecord.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} tied alternate numbers` : ''} to monitored database.`
