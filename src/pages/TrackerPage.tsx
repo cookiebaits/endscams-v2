@@ -1431,8 +1431,8 @@ export function TrackerPage() {
           if (data.records && Array.isArray(data.records) && data.records.length > 0) {
             const mapped = data.records
               .filter((r: any) => {
-                const p = r.cleanPhone || r.phone || '';
-                const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
+                const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
                 if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
                 if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
                 return !isThreatRecordExpired(r);
@@ -1524,15 +1524,25 @@ export function TrackerPage() {
   });
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
-  // Administrative TRACKER_PASS Authentication
-  const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
+  // Administrative & Bypass TRACKER_PASS Authentication
+  type UserRole = 'admin' | 'bypass' | null;
+
+  const [unlockedRole, setUnlockedRole] = useState<UserRole>(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('tracker_pass_verified') === 'true';
+      const stored = sessionStorage.getItem('tracker_pass_role');
+      if (stored === 'admin' || stored === 'bypass') return stored;
+      if (sessionStorage.getItem('tracker_pass_verified') === 'true') return 'admin';
     }
-    return false;
+    return null;
   });
+
+  const isAdminUnlocked = unlockedRole === 'admin';
+  const isBypassUnlocked = unlockedRole === 'admin' || unlockedRole === 'bypass';
+  const isPasswordVerified = unlockedRole !== null;
+
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordActionName, setPasswordActionName] = useState('Administrative Action');
+  const [pendingRoleRequired, setPendingRoleRequired] = useState<'admin' | 'any'>('any');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [showPasswordText, setShowPasswordText] = useState(false);
@@ -1781,13 +1791,22 @@ export function TrackerPage() {
     };
   }, []);
 
-  // Require Administrative TRACKER_PASS for protected actions
-  const requireTrackerPass = (actionName: string, onVerified: () => void) => {
-    if (isPasswordVerified) {
+  // Require TRACKER_PASS (Admin or Bypass) for protected actions
+  const requireTrackerPass = (
+    actionName: string,
+    requiredRole: 'admin' | 'any' = 'any',
+    onVerified: () => void = () => {}
+  ) => {
+    if (requiredRole === 'admin' && isAdminUnlocked) {
+      onVerified();
+      return;
+    }
+    if (requiredRole === 'any' && isBypassUnlocked) {
       onVerified();
       return;
     }
     setPasswordActionName(actionName);
+    setPendingRoleRequired(requiredRole);
     setPendingAction(() => onVerified);
     setPasswordInput('');
     setPasswordError(null);
@@ -1812,20 +1831,22 @@ export function TrackerPage() {
     setIsVerifyingPassword(true);
     setPasswordError(null);
 
-    let verified = false;
+    let detectedRole: UserRole = null;
+    const ADMIN_HASH = '97e96000beba9b14057d7c01f06833b0948ed7e776f536207058f00c15402324';
+    const BYPASS_HASH = 'dbd823ef2cafd01668dd5e20fb15cd29aec7bff94ea7d1d6f3333b28cc7272ef';
 
     // 1. Check client SHA-256 hashes
     try {
       const hash = await calculateSha256(candidate);
-      const ADMIN_HASH = '97e96000beba9b14057d7c01f06833b0948ed7e776f536207058f00c15402324';
-      const BYPASS_HASH = 'dbd823ef2cafd01668dd5e20fb15cd29aec7bff94ea7d1d6f3333b28cc7272ef';
-      if (hash === ADMIN_HASH || hash === BYPASS_HASH) {
-        verified = true;
+      if (hash === ADMIN_HASH) {
+        detectedRole = 'admin';
+      } else if (hash === BYPASS_HASH) {
+        detectedRole = 'bypass';
       }
     } catch {}
 
     // 2. Query backend /api/verify-password
-    if (!verified) {
+    if (!detectedRole) {
       try {
         const res = await fetch('/api/verify-password', {
           method: 'POST',
@@ -1834,36 +1855,83 @@ export function TrackerPage() {
         });
         const data = await res.json();
         if (data.verified || data.success) {
-          verified = true;
+          detectedRole = data.role === 'bypass' ? 'bypass' : 'admin';
         }
       } catch {}
     }
 
-    if (verified) {
-      setIsPasswordVerified(true);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('tracker_pass_verified', 'true');
-      }
-      setIsPasswordModalOpen(false);
-      setPasswordInput('');
-      setStatusNotification(`Authenticated: ${passwordActionName}`);
-      if (pendingAction) {
-        const act = pendingAction;
-        setPendingAction(null);
-        act();
-      }
-    } else {
+    if (!detectedRole) {
       setPasswordError('Incorrect Tracker Password. Access denied.');
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    if (pendingRoleRequired === 'admin' && detectedRole === 'bypass') {
+      setPasswordError(
+        `Admin Password Required (!8008...). Bypass password (@CookieR...) is not authorized for ${passwordActionName}. Please enter Admin password (!8008...).`
+      );
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    setUnlockedRole(detectedRole);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('tracker_pass_role', detectedRole);
+      sessionStorage.setItem('tracker_pass_verified', 'true');
+    }
+    setIsPasswordModalOpen(false);
+    setPasswordInput('');
+    setStatusNotification(`Authenticated (${detectedRole.toUpperCase()}): ${passwordActionName}`);
+    if (pendingAction) {
+      const act = pendingAction;
+      setPendingAction(null);
+      act();
     }
     setIsVerifyingPassword(false);
   };
 
   const handleLockSession = () => {
-    setIsPasswordVerified(false);
+    setUnlockedRole(null);
     if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('tracker_pass_role');
       sessionStorage.removeItem('tracker_pass_verified');
     }
-    setStatusNotification('Admin session locked.');
+    setStatusNotification('Admin / Bypass Session Locked.');
+  };
+
+  // Delete Threat Post handler (Requires Admin Password)
+  const handleDeleteRecord = async (recordToDelete: ThreatRecord | null) => {
+    if (!recordToDelete) return;
+    if (!window.confirm(`Are you sure you want to delete the threat post for ${recordToDelete.phone_number}?`)) return;
+
+    const id = recordToDelete.id;
+    const digits = recordToDelete.phone_digits;
+
+    // Remove from state
+    setRecords((prev) => prev.filter((r) => r.id !== id && r.phone_digits !== digits));
+    if (selectedDetailRecord && (selectedDetailRecord.id === id || selectedDetailRecord.phone_digits === digits)) {
+      setSelectedDetailRecord(null);
+      setIsEditingInPopup(false);
+    }
+
+    setStatusNotification(`Deleted Threat Post: ${recordToDelete.phone_number}`);
+
+    // Sync deletion to Supabase
+    try {
+      const sb = (window as any).supabase;
+      if (sb) {
+        await sb.from('tracker_entries').delete().or(`id.eq.${id},phone_digits.eq.${digits}`);
+      }
+    } catch (err) {
+      console.warn('Supabase delete warning:', err);
+    }
+
+    // Send DELETE request to backend endpoint
+    try {
+      await fetch(`/api/records/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('Backend record delete notice:', err);
+    }
   };
 
   // Edit Monitored Number Handlers
@@ -2216,7 +2284,7 @@ export function TrackerPage() {
             let tsuAdded = 0;
             const tsuRecords = tsuData.items
               .filter((r: any) => {
-                const p = r.cleanPhone || r.phone || '';
+                const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
                 return !isTollFreeNumber(p) && !isFictitiousOrInvalidPhone(p);
               })
               .map(mapRawSeedToThreatRecord)
@@ -2346,8 +2414,8 @@ export function TrackerPage() {
                     if (rData.records && Array.isArray(rData.records)) {
                       const mapped = rData.records
                         .filter((r: any) => {
-                          const p = r.cleanPhone || r.phone || '';
-                          const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                          const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
+                          const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
                           if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
                           if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
                           return !isThreatRecordExpired(r);
@@ -2379,8 +2447,8 @@ export function TrackerPage() {
                   if (fData.records && Array.isArray(fData.records)) {
                     const mapped = fData.records
                       .filter((r: any) => {
-                        const p = r.cleanPhone || r.phone || '';
-                        const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                        const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
+                        const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
                         if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
                         if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
                         return !isThreatRecordExpired(r);
@@ -3372,12 +3440,13 @@ export function TrackerPage() {
 
             {/* Import CSV */}
             <button
-              onClick={() => requireTrackerPass('Import CSV Threat Records', () => setIsImportModalOpen(true))}
+              onClick={() => requireTrackerPass('Import CSV Threat Records', 'admin', () => setIsImportModalOpen(true))}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-              title="Import CSV Records (requires TRACKER_PASS)"
+              title="Import CSV Records (requires Admin TRACKER_PASS)"
             >
               <Upload className="w-3.5 h-3.5 text-blue-400" />
               <span>Import CSV</span>
+              {!isAdminUnlocked && <Lock className="w-3 h-3 text-amber-400/80 ml-0.5" />}
             </button>
 
             {/* Export CSV */}
@@ -3423,21 +3492,31 @@ export function TrackerPage() {
               <span>{isSupabaseConnected ? 'Dokploy DB: Supabase' : 'Dokploy DB: Local Store'}</span>
             </span>
 
-            {/* TRACKER_PASS Admin Status */}
-            {isPasswordVerified ? (
+            {/* TRACKER_PASS Admin / Bypass Status */}
+            {unlockedRole === 'admin' ? (
               <button
                 type="button"
                 onClick={handleLockSession}
                 className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 text-[10px] font-mono transition cursor-pointer"
-                title="Admin session active. Click to lock session."
+                title="Admin session active (All actions unlocked). Click to lock session."
               >
                 <Unlock className="w-3 h-3 text-emerald-400" />
                 <span>Admin: Unlocked</span>
               </button>
+            ) : unlockedRole === 'bypass' ? (
+              <button
+                type="button"
+                onClick={handleLockSession}
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 text-[10px] font-mono transition cursor-pointer"
+                title="Bypass session active (Edit & Status unlocked; Import/Delete require Admin). Click to lock session."
+              >
+                <Unlock className="w-3 h-3 text-amber-400" />
+                <span>Bypass: Unlocked</span>
+              </button>
             ) : (
               <button
                 type="button"
-                onClick={() => requireTrackerPass('Admin Authentication', () => {})}
+                onClick={() => requireTrackerPass('Admin Authentication', 'any', () => {})}
                 className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/30 text-[10px] font-mono transition cursor-pointer"
                 title="Administrative actions require TRACKER_PASS. Click to authenticate."
               >
@@ -4424,13 +4503,17 @@ export function TrackerPage() {
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-100">Administrator Password Required</h2>
+                <h2 className="text-base font-bold text-slate-100">
+                  {pendingRoleRequired === 'admin' ? 'Admin Password Required' : 'Tracker Password Required'}
+                </h2>
                 <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
               </div>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              This administrative action is secured by the <code className="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">TRACKER_PASS</code> Dokploy environment setting.
+              {pendingRoleRequired === 'admin'
+                ? 'This action requires the Admin password (!8008...). Bypass password (@CookieR...) is not authorized.'
+                : 'This action is secured by the TRACKER_PASS environment setting. Enter Admin or Bypass password.'}
             </p>
 
             {passwordError && (
@@ -4817,7 +4900,7 @@ export function TrackerPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        requireTrackerPass('Edit Monitored Number', () => {
+                        requireTrackerPass('Edit Monitored Number', 'any', () => {
                           handleStartEditingInPopup();
                         });
                       }}
@@ -4826,13 +4909,13 @@ export function TrackerPage() {
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Edit Threat Post (Actions)</span>
-                      {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+                      {!isBypassUnlocked && <Lock className="w-3 h-3 ml-1 opacity-70" />}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => {
-                        requireTrackerPass('Change Line Status', () => {
+                        requireTrackerPass('Change Line Status', 'any', () => {
                           handleToggleStatus(selectedDetailRecord);
                           setSelectedDetailRecord((prev) =>
                             prev ? { ...prev, is_down: !prev.is_down } : null
@@ -4844,6 +4927,22 @@ export function TrackerPage() {
                     >
                       <span className={`w-2 h-2 rounded-full ${selectedDetailRecord.is_down ? 'bg-slate-500' : 'bg-emerald-400'}`} />
                       <span>Toggle Status ({selectedDetailRecord.is_down ? 'Mark Active' : 'Mark Out of Service'})</span>
+                      {!isBypassUnlocked && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        requireTrackerPass('Delete Threat Post', 'admin', () => {
+                          handleDeleteRecord(selectedDetailRecord);
+                        });
+                      }}
+                      className="px-3.5 py-2 bg-red-600/90 hover:bg-red-500 text-white font-semibold rounded-xl text-xs transition border border-red-500/40 flex items-center space-x-1.5 cursor-pointer"
+                      title="Delete threat post permanently (requires Admin TRACKER_PASS)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-white" />
+                      <span>Delete Post</span>
+                      {!isAdminUnlocked && <Lock className="w-3 h-3 ml-1 opacity-80" />}
                     </button>
                   </div>
                 </div>

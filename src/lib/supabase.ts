@@ -34,16 +34,17 @@ export function resolveSupabaseUrl(rawUrl?: string): string {
 }
 
 const rawSupabaseUrl =
-  import.meta.env.VITE_DB ||
   import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.VITE_DB ||
   DEFAULT_SUPABASE_URL;
 
 const supabaseUrl = resolveSupabaseUrl(rawSupabaseUrl);
 
 const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_DB_KEY ||
   import.meta.env.VITE_DB_Key ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
   DEFAULT_SUPABASE_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

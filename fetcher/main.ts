@@ -8,7 +8,10 @@
   Endpoints
     GET  /health         → { ok: true }
     POST /refresh        → runs the full pipeline once, returns stats
-    GET  /api/records    → returns all persisted threat entries
+    GET  /api/records    → returns all persisted threat entries from Supabase
+    POST /api/records/manual → adds/upserts threat entry in Supabase
+    DELETE /api/records/:id  → deletes threat entry from Supabase
+    POST /api/verify-password → verifies password and returns authorized role ("admin" | "bypass")
     GET  /api/feed/tech-scammers-united → returns live Discourse topics from TSU
     (CORS restricted to ALLOWED_ORIGIN)
 
@@ -18,38 +21,8 @@
 */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
 
 const env = (k: string) => Deno.env.get(k);
-
-/* ================================================================ */
-/*  Persistent SQLite Local Database                                 */
-/* ================================================================ */
-try {
-  Deno.mkdirSync("./data", { recursive: true });
-} catch {}
-
-const db = new DB("./data/tracker.db");
-
-db.execute(`
-  CREATE TABLE IF NOT EXISTS tracker_entries (
-    id TEXT PRIMARY KEY,
-    phone_number TEXT NOT NULL,
-    phone_digits TEXT NOT NULL,
-    source_name TEXT,
-    source_url TEXT,
-    report_date TEXT,
-    category TEXT,
-    description TEXT,
-    impersonated_company TEXT,
-    invoice_number TEXT,
-    amount_charged TEXT,
-    is_down INTEGER DEFAULT 0,
-    expires_at TEXT,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE INDEX IF NOT EXISTS idx_phone_digits ON tracker_entries(phone_digits);
-`);
 
 function inferImpersonatedCompany(text: string, category?: string, sourceName?: string): string {
   if (!text) return "N/A";
@@ -89,84 +62,6 @@ function inferImpersonatedCompany(text: string, category?: string, sourceName?: 
   }
 
   return "N/A";
-}
-
-function saveRecordToSqlite(r: any) {
-  try {
-    const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
-    const phone_number = r.phone_number || r.phone || "";
-    const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
-    const source_name = r.source_name || r.platform || "Threat Intelligence";
-    const source_url = r.source_url || r.sourceUrl || "";
-    const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
-    const category = r.category || r.scamType || "General Tech Support & Refund Scams";
-    const description = r.description || r.detailedSummary || r.snippet || "";
-
-    let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
-    if (!impersonated_company || impersonated_company === "N/A" || impersonated_company === "Unspecified Target") {
-      impersonated_company = inferImpersonatedCompany(`${description} ${source_name}`, category, source_name);
-    }
-
-    const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
-    const amount_charged = r.amount_charged || r.amountCharged || "N/A";
-    const is_down = r.is_down || r.isNumberDown ? 1 : 0;
-    const expires_at = r.expires_at || new Date(Date.now() + 60 * 86400000).toISOString();
-
-    db.query(
-      `INSERT OR REPLACE INTO tracker_entries (
-        id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-      [
-        id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at
-      ]
-    );
-  } catch (err) {
-    console.warn("saveRecordToSqlite err:", err);
-  }
-}
-
-function getAllRecordsFromSqlite(): any[] {
-  try {
-    const rows = db.query(
-      `SELECT id, phone_number, phone_digits, source_name, source_url, report_date, category, description, impersonated_company, invoice_number, amount_charged, is_down, expires_at FROM tracker_entries ORDER BY report_date DESC`
-    );
-    return rows.map((row: any) => ({
-      id: row[0],
-      phone_number: row[1],
-      phone_digits: row[2],
-      source_name: row[3],
-      source_url: row[4],
-      report_date: row[5],
-      category: row[6],
-      description: row[7],
-      impersonated_company: row[8],
-      invoice_number: row[9],
-      amount_charged: row[10],
-      is_down: Boolean(row[11]),
-      expires_at: row[12],
-    }));
-  } catch (err) {
-    console.warn("getAllRecordsFromSqlite err:", err);
-    return [];
-  }
-}
-
-function toggleRecordDownInSqlite(id: string): boolean {
-  try {
-    const rows = db.query(`SELECT is_down, phone_digits FROM tracker_entries WHERE id = ? OR phone_digits = ?`, [id, id]);
-    if (rows.length === 0) return false;
-    const currentDown = rows[0][0];
-    const phoneDigits = rows[0][1];
-    const newDown = currentDown ? 0 : 1;
-    db.query(`UPDATE tracker_entries SET is_down = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? OR phone_digits = ?`, [newDown, id, id]);
-
-    // Also sync status update to Supabase
-    supabase.from("tracker_entries").update({ is_down: Boolean(newDown), status: newDown ? "Out of Service" : "Active", updated_at: new Date().toISOString() }).eq("phone_digits", phoneDigits).catch(() => {});
-    return true;
-  } catch (err) {
-    console.warn("toggleRecordDownInSqlite err:", err);
-    return false;
-  }
 }
 
 async function saveRecordToSupabase(r: any) {
@@ -265,9 +160,11 @@ const rawDbUrl =
 const SUPABASE_URL = resolveSupabaseUrl(rawDbUrl);
 
 const SUPABASE_SERVICE_ROLE_KEY =
+  Deno.env.get("SUPABASE_SECRET_KEY") ||
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
   Deno.env.get("DB_Key") ||
   Deno.env.get("DB_KEY") ||
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ||
   Deno.env.get("SUPABASE_ANON_KEY") ||
   Deno.env.get("VITE_DB_KEY") ||
   DEFAULT_SUPABASE_KEY;
@@ -281,7 +178,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 function cors(res: Response): Response {
   const h = new Headers(res.headers);
   h.set("Access-Control-Allow-Origin", "*");
-  h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  h.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   h.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   h.set("Vary", "Origin");
   return new Response(res.body, { status: res.status, headers: h });
@@ -891,29 +788,12 @@ RULES:
   }
   const finalEntries = Array.from(byDigits.values());
 
-  /* 9. Upsert to SQLite and Supabase */
+  /* 9. Upsert directly to Supabase Postgres */
   let inserted = 0;
   const errors: string[] = [];
   for (const entry of finalEntries) {
-    saveRecordToSqlite(entry);
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 31);
-    const { error } = await supabase.from("tracker_entries").upsert(
-      {
-        phone_number: entry.phone_number,
-        phone_digits: entry.phone_digits,
-        source_name:  entry.source_name,
-        source_url:   entry.source_url,
-        report_date:  entry.report_date,
-        category:     entry.category,
-        impersonated_company: entry.impersonated_company || "N/A",
-        description:  entry.description,
-        expires_at:   expiresAt.toISOString(),
-      },
-      { onConflict: "phone_digits,source_name" },
-    );
-    if (error) errors.push(`${entry.phone_digits}: ${error.message}`);
-    else inserted++;
+    await saveRecordToSupabase(entry);
+    inserted++;
   }
 
   return {
@@ -1055,27 +935,33 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/api/records" || url.pathname === "/records") {
     try {
-      const { data, error } = await supabase.from("tracker_entries").select("*").order("report_date", { ascending: false });
-      if (!error && data && Array.isArray(data) && data.length > 0) {
-        data.forEach((r: any) => saveRecordToSqlite(r));
-      }
-    } catch (sbErr) {
-      console.warn("GET /api/records Supabase fetch warning:", sbErr);
-    }
+      const { data, error } = await supabase
+        .from("tracker_entries")
+        .select("*")
+        .order("report_date", { ascending: false });
 
-    const records = getAllRecordsFromSqlite();
-    const res = json({ success: true, count: records.length, records });
-    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    res.headers.set("Pragma", "no-cache");
-    res.headers.set("Expires", "0");
-    return res;
+      if (error) {
+        console.warn("GET /api/records Supabase fetch error:", error.message);
+        const errRes = json({ success: false, count: 0, records: [], error: error.message });
+        errRes.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        return errRes;
+      }
+
+      const res = json({ success: true, count: data ? data.length : 0, records: data || [] });
+      res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      res.headers.set("Pragma", "no-cache");
+      res.headers.set("Expires", "0");
+      return res;
+    } catch (sbErr) {
+      console.warn("GET /api/records exception:", sbErr);
+      return json({ success: false, count: 0, records: [], error: String(sbErr) });
+    }
   }
 
   if (url.pathname === "/api/records/manual") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     let body: any = {};
     try { body = await req.json(); } catch {}
-    saveRecordToSqlite(body);
     await saveRecordToSupabase(body);
     return json({ success: true, record: body });
   }
@@ -1084,8 +970,30 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     const parts = url.pathname.split("/");
     const id = parts[3];
-    const ok = toggleRecordDownInSqlite(id);
-    return json({ success: ok, id });
+
+    let newDown = true;
+    try {
+      const { data } = await supabase
+        .from("tracker_entries")
+        .select("is_down, phone_digits")
+        .or(`id.eq.${id},phone_digits.eq.${id}`)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        newDown = !data[0].is_down;
+        await supabase
+          .from("tracker_entries")
+          .update({
+            is_down: newDown,
+            status: newDown ? "Out of Service" : "Active",
+            updated_at: new Date().toISOString(),
+          })
+          .or(`id.eq.${id},phone_digits.eq.${id}`);
+      }
+    } catch (err) {
+      console.warn("toggle-down error:", err);
+    }
+    return json({ success: true, id, is_down: newDown });
   }
 
   if (url.pathname.startsWith("/api/records/") && url.pathname.endsWith("/update")) {
@@ -1093,9 +1001,23 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     let body: any = {};
     try { body = await req.json(); } catch {}
     const rec = body.record || body;
-    saveRecordToSqlite(rec);
     await saveRecordToSupabase(rec);
     return json({ success: true, record: rec });
+  }
+
+  if (url.pathname.startsWith("/api/records/") && (req.method === "DELETE" || url.pathname.endsWith("/delete"))) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    try {
+      const { error } = await supabase
+        .from("tracker_entries")
+        .delete()
+        .or(`id.eq.${id},phone_digits.eq.${id}`);
+      if (error) console.warn("Delete Supabase error:", error.message);
+      return json({ success: !error, id, error: error?.message });
+    } catch (err) {
+      return json({ success: false, error: String(err) }, 500);
+    }
   }
 
   if (url.pathname === "/api/records/restore" || url.pathname === "/api/records/bulk-upsert") {
@@ -1105,7 +1027,6 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     const list = Array.isArray(body) ? body : (body.records || []);
     let count = 0;
     for (const item of list) {
-      saveRecordToSqlite(item);
       await saveRecordToSupabase(item);
       count++;
     }
@@ -1146,13 +1067,10 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       envHash = await sha256Hex(envPass);
     }
 
-    const isVerified =
-      candHash === ADMIN_HASH ||
-      candHash === BYPASS_HASH ||
-      (envHash && candHash === envHash);
-
-    if (isVerified) {
-      return cors(json({ success: true, verified: true }));
+    if (candHash === ADMIN_HASH || (envHash && candHash === envHash)) {
+      return cors(json({ success: true, verified: true, role: "admin" }));
+    } else if (candHash === BYPASS_HASH) {
+      return cors(json({ success: true, verified: true, role: "bypass" }));
     } else {
       return cors(json({ success: false, verified: false, error: "Invalid password" }, 401));
     }
