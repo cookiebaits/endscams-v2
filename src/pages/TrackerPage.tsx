@@ -41,7 +41,6 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
-import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { ScamPhoneRecord } from '../types';
 
@@ -1511,7 +1510,7 @@ export function TrackerPage() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Dokploy Settings & Supabase Database
-  const [dokployConfig, setDokployConfig] = useState<{
+  const [, setDokployConfig] = useState<{
     supabaseUrl: string;
     supabaseKey: string;
     hasSupabase: boolean;
@@ -1522,7 +1521,7 @@ export function TrackerPage() {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [, setIsSupabaseConnected] = useState(false);
 
   // Administrative & Bypass TRACKER_PASS Authentication
   type UserRole = 'admin' | 'bypass' | null;
@@ -2829,19 +2828,6 @@ export function TrackerPage() {
           });
           const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 
-          // Persist to noSqlDatabase
-          try {
-            const col = noSqlDatabase.getRecordsCollection();
-            accumulatedNew.forEach((r) => {
-              const sr = threatRecordToScamPhoneRecord(r);
-              const key = sr.cleanPhone || sr.phone;
-              const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
-              if (existing) col.update(existing.id, sr);
-              else col.insert(sr);
-            });
-            noSqlDatabase.persist();
-          } catch {}
-
           return merged;
         });
       } else {
@@ -3049,20 +3035,6 @@ export function TrackerPage() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } catch {}
-
-      // 2. Persist to built-in NoSQL Database
-      try {
-        const col = noSqlDatabase.getRecordsCollection();
-        importedScamRecords.forEach((sr) => {
-          const key = sr.cleanPhone || sr.phone;
-          const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
-          if (existing) col.update(existing.id, sr);
-          else col.insert(sr);
-        });
-        noSqlDatabase.persist();
-      } catch (dbErr) {
-        console.warn('[CSV Import] Local DB persist error:', dbErr);
-      }
 
       // 3. Broadcast to syncBridge for endscams.org/tracker parent
       try {
@@ -3420,7 +3392,7 @@ export function TrackerPage() {
             {/* Manual Refresh / Scan */}
             <button
               id="btn-footer-manual-refresh"
-              onClick={() => requireTrackerPass('Execute Manual Threat Refresh', () => executeFullHarvesterScan())}
+              onClick={() => requireTrackerPass('Execute Manual Threat Refresh', 'any', () => executeFullHarvesterScan())}
               disabled={isScanning}
               className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
               title="Manual Threat Refresh (requires TRACKER_PASS)"
@@ -3699,7 +3671,7 @@ export function TrackerPage() {
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => requireTrackerPass('Bulk Change Status to Out of Service', () => handleBulkMarkDown())}
+              onClick={() => requireTrackerPass('Bulk Change Status to Out of Service', 'any', () => handleBulkMarkDown())}
               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs transition cursor-pointer"
             >
               Mark Out of Service
@@ -3942,7 +3914,7 @@ export function TrackerPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            requireTrackerPass('Change Line Status', () => handleToggleStatus(record));
+                            requireTrackerPass('Change Line Status', 'any', () => handleToggleStatus(record));
                           }}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer shadow-xs ${
                             record.is_down
@@ -4034,7 +4006,7 @@ export function TrackerPage() {
                 disabled={!targetedQuery.trim() || isScanning}
                 onClick={() => {
                   setIsTargetedSearchOpen(false);
-                  requireTrackerPass('Execute Targeted Threat Search', () => executeFullHarvesterScan(targetedQuery, targetedCategory));
+                  requireTrackerPass('Execute Targeted Threat Search', 'any', () => executeFullHarvesterScan(targetedQuery, targetedCategory));
                 }}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
               >
@@ -4131,7 +4103,7 @@ export function TrackerPage() {
               <button
                 onClick={() => {
                   setIsScannerModalOpen(false);
-                  requireTrackerPass('Execute Harvester Scan', () => executeFullHarvesterScan());
+                  requireTrackerPass('Execute Harvester Scan', 'any', () => executeFullHarvesterScan());
                 }}
                 disabled={isScanning}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"

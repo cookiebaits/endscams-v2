@@ -7,9 +7,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_DB: ${DB:-${VITE_DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
-        VITE_DB_KEY: ${DB_Key:-${DB_KEY:-${VITE_DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+        VITE_DB_KEY: ${DB_Key:-${DB_KEY:-${VITE_DB_KEY}}}
         VITE_SUPABASE_URL: ${SUPABASE_URL:-${DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
-        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${DB_Key:-${DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-${DB_Key:-${DB_KEY}}}
         VITE_FETCHER_URL: ${VITE_FETCHER_URL:-https://fetcher.endscams.org}
         VITE_TRACKER_PASS: ${VITE_TRACKER_PASS:-${TRACKER_PASS}}
         TRACKER_PASS: ${TRACKER_PASS:-${VITE_TRACKER_PASS}}
@@ -44,9 +44,9 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       GOOGLE_CX: ${GOOGLE_CX}
       DB: ${DB:-${SUPABASE_URL:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
-      DB_Key: ${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+      DB_Key: ${DB_Key:-${DB_KEY:-${SUPABASE_SERVICE_ROLE_KEY}}}
       SUPABASE_URL: ${SUPABASE_URL:-${DB:-https://joxeqlgkuvgvjoshmjqu.supabase.co}}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${DB_Key:-${DB_KEY:-sb_publishable_uNEIvG_Pg69esnnU2rFmgQ_0Dc0BRK9}}}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${DB_Key:-${DB_KEY}}}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://endscams.org}
       PORT: "8000"
       ABSTRACT_PHONE_API_KEY: ${ABSTRACT_PHONE_API_KEY}

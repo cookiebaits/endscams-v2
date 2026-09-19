@@ -9,6 +9,8 @@ import { INITIAL_SAMPLE_RECORDS } from './src/data/presets';
 dotenv.config({ override: true });
 
 const app = express();
+const helmet = require("helmet");
+app.use(helmet());
 const PORT = 3000;
 
 process.on('uncaughtException', (err) => {
