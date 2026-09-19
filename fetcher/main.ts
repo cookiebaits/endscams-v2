@@ -1100,7 +1100,7 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
     if (!resendApiKey) {
-      return cors(json({ error: "Email service not configured." }, 500 }));
+      return cors(json({ error: "Email service not configured." }, 500));
     }
 
     const emailHtml = `
@@ -1139,13 +1139,13 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       if (!resendRes.ok) {
         const errText = await resendRes.text();
         console.warn("Resend API error:", resendRes.status, errText);
-        return cors(json({ error: "Failed to send workshop request email." }, 500 }));
+        return cors(json({ error: "Failed to send workshop request email." }, 500));
       }
 
       return cors(json({ success: true, message: "Workshop request sent successfully." }));
     } catch (err) {
       console.warn("Workshop request email error:", err);
-      return cors(json({ error: "Failed to send workshop request." }, 500 }));
+      return cors(json({ error: "Failed to send workshop request." }, 500));
     }
   }
 
