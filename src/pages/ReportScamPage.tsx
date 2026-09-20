@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
+import { inferImpersonatedCompany } from './TrackerPage';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import { isUserCountryAllowed } from '../utils/geoIp';
 
@@ -321,8 +322,9 @@ export default function ReportScamPage() {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
 
-    const trackerRecord = {
-      id: `user-report-${Date.now()}-${digits}`,
+    const compTarget = inferImpersonatedCompany(form.description.trim(), form.category, 'User Report');
+
+    const trackerRecord: Record<string, any> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
       source_name: 'User Report',
@@ -330,7 +332,7 @@ export default function ReportScamPage() {
       report_date: form.incidentDate || new Date().toISOString().split('T')[0],
       category: form.category || 'General Tech Support & Refund Scams',
       description: form.description.trim() || 'User submitted scam report.',
-      impersonated_company: 'N/A',
+      impersonated_company: compTarget !== 'N/A' ? compTarget : 'Tech & Refund Support',
       invoice_number: 'N/A',
       amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
       reported_down: false,

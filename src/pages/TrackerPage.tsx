@@ -1908,8 +1908,8 @@ export function TrackerPage() {
       const expiresAt = new Date();
       const retentionDays = getRetentionDays(rec);
       expiresAt.setDate(expiresAt.getDate() + retentionDays);
-      return {
-        id: rec.id || `rec-${rec.phone_digits || Date.now()}`,
+      const isUuid = rec.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rec.id);
+      const payloadObj: Record<string, any> = {
         phone_number: rec.phone_number,
         phone_digits: rec.phone_digits,
         source_name: rec.source_name,
@@ -1924,6 +1924,10 @@ export function TrackerPage() {
         expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString(),
       };
+      if (isUuid) {
+        payloadObj.id = rec.id;
+      }
+      return payloadObj;
     });
 
     // 1. Primary: backend API proxy endpoint /api/records/bulk-upsert

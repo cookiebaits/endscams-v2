@@ -66,7 +66,6 @@ function inferImpersonatedCompany(text: string, category?: string, sourceName?: 
 
 async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?: string }> {
   try {
-    const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
     const phone_number = r.phone_number || r.phone || "";
     const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
     if (!phone_digits) return { success: false, error: "Missing phone digits" };
@@ -88,8 +87,9 @@ async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?:
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
 
-    const payload = {
-      id,
+    const isUuid = r.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id);
+
+    const payload: Record<string, any> = {
       phone_number,
       phone_digits,
       source_name,
@@ -104,6 +104,10 @@ async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?:
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    if (isUuid) {
+      payload.id = r.id;
+    }
 
     const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
     if (error) {
@@ -1065,7 +1069,6 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     for (let i = 0; i < list.length; i += BATCH_SIZE) {
       const batch = list.slice(i, i + BATCH_SIZE);
       const payloads = batch.map((r: any) => {
-        const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
         const phone_number = r.phone_number || r.phone || "";
         const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
         const source_name = r.source_name || r.platform || "Threat Intelligence";
@@ -1085,8 +1088,9 @@ Deno.serve({ port: PORT }, async (req: Request) => {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 60);
 
-        return {
-          id,
+        const isUuid = r.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id);
+
+        const itemObj: Record<string, any> = {
           phone_number,
           phone_digits,
           source_name,
@@ -1101,6 +1105,12 @@ Deno.serve({ port: PORT }, async (req: Request) => {
           expires_at: expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
         };
+
+        if (isUuid) {
+          itemObj.id = r.id;
+        }
+
+        return itemObj;
       }).filter((item: any) => item.phone_digits);
 
       if (payloads.length === 0) continue;
