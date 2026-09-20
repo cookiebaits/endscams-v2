@@ -1337,50 +1337,6 @@ export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
 })();
 
-/**
- * Retrieves stored threat records from LocalStorage keys to retain data across browser refreshes.
- */
-export function getStoredLocalRecords(): ThreatRecord[] {
-  if (typeof window === 'undefined') return [];
-  const keys = ['tracker_records', 'user_reported_scams', 'esscan_threat_records_v2', 'end_scam_scan_shared_state'];
-  const map = new Map<string, ThreatRecord>();
-
-  for (const key of keys) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
-      items.forEach((item: any) => {
-        if (!item) return;
-        const rawPhone = item.phone_number || item.phone || '';
-        const digits = item.phone_digits || item.cleanPhone || rawPhone.replace(/\D/g, '');
-        if (!digits || isTollFreeNumber(rawPhone) || isTollFreeNumber(digits) || isFictitiousOrInvalidPhone(digits)) return;
-        const rec = mapRawSeedToThreatRecord(item);
-        if (!isThreatRecordExpired(rec)) {
-          map.set(rec.phone_digits, rec);
-        }
-      });
-    } catch {}
-  }
-  return Array.from(map.values());
-}
-
-/**
- * Persists threat records into LocalStorage keys so CSV imports, reports, and scan discoveries are retained.
- */
-export function saveStoredLocalRecords(recordsToSave: ThreatRecord[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    const valid = recordsToSave.filter((r) => !isThreatRecordExpired(r));
-    const serialized = JSON.stringify(valid);
-    localStorage.setItem('tracker_records', serialized);
-    localStorage.setItem('user_reported_scams', serialized);
-    localStorage.setItem('esscan_threat_records_v2', serialized);
-  } catch (e) {
-    console.warn('[LocalStorage] Persist error:', e);
-  }
-}
 
 /**
  * Helper to match records against a target phone number string/digits.
@@ -1426,16 +1382,8 @@ export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-    getStoredLocalRecords().forEach((r) => map.set(r.phone_digits, r));
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
-
-  // Automatically persist records state to LocalStorage whenever records change
-  useEffect(() => {
-    if (records.length > 0) {
-      saveStoredLocalRecords(records);
-    }
-  }, [records]);
 
   // Fetch records from Supabase tracker_entries table (source of truth)
   const fetchSupabaseRecords = async () => {
@@ -1474,7 +1422,6 @@ export function TrackerPage() {
 
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-    getStoredLocalRecords().forEach((r) => map.set(r.phone_digits, r));
 
     if (rawRecords && Array.isArray(rawRecords) && rawRecords.length > 0) {
       const mapped = rawRecords
@@ -1487,7 +1434,7 @@ export function TrackerPage() {
           return true;
         })
         .map((item: any) => ({
-          id: String(item.id || `sb-${item.phone_digits}`),
+          id: String(item.id || `rec-${item.phone_digits}`),
           phone_number: item.phone_number || item.phone || '',
           phone_digits: item.phone_digits || (item.phone_number || '').replace(/\D/g, ''),
           source_name: item.source_name || 'Supabase DB',
@@ -1506,10 +1453,9 @@ export function TrackerPage() {
 
     const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
     setRecords(merged);
-    saveStoredLocalRecords(merged);
   };
 
-  // Load records from Supabase & LocalStorage on mount
+  // Load records from Supabase on mount (source of truth)
   useEffect(() => {
     fetchSupabaseRecords();
   }, []);
@@ -2007,16 +1953,10 @@ export function TrackerPage() {
         const batch = payloads.slice(i, i + BATCH_SIZE);
         const { error } = await supabase
           .from('tracker_entries')
-          .upsert(batch, { onConflict: 'phone_digits,source_name' });
+          .upsert(batch);
         if (error) {
-          console.warn('[Supabase] Batch upsert onConflict error, attempting primary key fallback:', error.message);
-          const { error: fallbackError } = await supabase
-            .from('tracker_entries')
-            .upsert(batch);
-          if (fallbackError) {
-            console.error('[Supabase] Batch upsert fallback error:', fallbackError.message, fallbackError.code, fallbackError.details);
-            allOk = false;
-          }
+          console.error('[Supabase] Batch upsert error:', error.message, error.code, error.details);
+          allOk = false;
         }
       }
     } catch (err) {

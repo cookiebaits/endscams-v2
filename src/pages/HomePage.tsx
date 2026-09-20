@@ -351,35 +351,6 @@ export default function HomePage() {
         }
       });
 
-      // 3. Check LocalStorage sources (esscan_threat_records_v2, user_reported_scams, end_scam_scan_shared_state)
-      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
-      storageKeys.forEach((key) => {
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
-            items.forEach((item: any) => {
-              if (item && isRecordMatch(item, core10Digits)) {
-                const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || item.source || item.platform || 'Local Report Index',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0],
-                    category: item.category || item.type_of_scam || item.scamType || 'Reported Scam',
-                    description: item.description || item.detailedSummary || item.snippet || ''
-                  });
-                }
-              }
-            });
-          }
-        } catch {
-          /* ignore storage errors */
-        }
-      });
 
       // 4. Supabase is the sole source of truth — no /api/records fallback needed
 
