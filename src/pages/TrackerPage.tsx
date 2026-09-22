@@ -1427,14 +1427,14 @@ export function TrackerPage() {
             is_down: Boolean(item.reported_down),
           })) as ThreatRecord[];
 
-        // Supabase is authoritative: seed records as base, Supabase overwrites
-        const map = new Map<string, ThreatRecord>();
-        MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-        mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-        setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
+        // Supabase Postgres DB is the single authoritative source of truth.
+        // Direct database records override code updates or resets.
+        setRecords(purgeExpiredThreatRecords(mapped).sort(compareThreatDatesDesc));
       } else {
-        // Supabase returned 0 rows — use localStorage cache as fallback
-        loadLocalStorageCache();
+        // First boot or empty database: Seed initial records into Supabase DB
+        syncThreatRecordsToSupabase(MASTER_SEED_RECORDS).then(() => {
+          loadLocalStorageCache();
+        });
       }
     } catch (err) {
       console.error('[Supabase] Tracker load error:', err);
