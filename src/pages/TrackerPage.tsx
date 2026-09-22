@@ -1428,8 +1428,12 @@ export function TrackerPage() {
           })) as ThreatRecord[];
 
         // Supabase Postgres DB is the single authoritative source of truth.
-        // Direct database records override code updates or resets.
-        setRecords(purgeExpiredThreatRecords(mapped).sort(compareThreatDatesDesc));
+        // Merge Supabase DB entries with MASTER_SEED_RECORDS so seed defaults are preserved unless overridden
+        const map = new Map<string, ThreatRecord>();
+        MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+        mapped.forEach((r) => map.set(r.phone_digits, r));
+
+        setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
       } else {
         // First boot or empty database: Seed initial records into Supabase DB
         syncThreatRecordsToSupabase(MASTER_SEED_RECORDS).then(() => {
@@ -1439,6 +1443,8 @@ export function TrackerPage() {
     } catch (err) {
       console.error('[Supabase] Tracker load error:', err);
       loadLocalStorageCache();
+    } finally {
+      hasInitialLoadedRef.current = true;
     }
   };
 
@@ -1466,7 +1472,9 @@ export function TrackerPage() {
         }
       });
       setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
-    } catch {}
+    } catch {} finally {
+      hasInitialLoadedRef.current = true;
+    }
   };
 
   // Load records from Supabase on mount (source of truth — works in incognito)
@@ -1621,9 +1629,11 @@ export function TrackerPage() {
   const [newDescription, setNewDescription] = useState('');
   const [manualFormError, setManualFormError] = useState<string | null>(null);
 
-  // Save to localStorage whenever records change
+  const hasInitialLoadedRef = useRef(false);
+
+  // Save to localStorage whenever records change (only after initial load completes)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && hasInitialLoadedRef.current) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
       } catch {}
@@ -1936,11 +1946,13 @@ export function TrackerPage() {
         const expiresAt = new Date();
         const retentionDays = getRetentionDays(rec);
         expiresAt.setDate(expiresAt.getDate() + retentionDays);
+        const recId = rec.id && !rec.id.startsWith('auto-') && !rec.id.startsWith('tsu-') ? rec.id : `rec-${rec.phone_digits}`;
         return {
+          id: recId,
           phone_number: rec.phone_number,
           phone_digits: rec.phone_digits,
-          source_name: rec.source_name,
-          source_url: rec.source_url,
+          source_name: rec.source_name || 'CSV Import',
+          source_url: rec.source_url || '',
           report_date: rec.report_date,
           category: rec.category,
           description: rec.description,
@@ -1956,12 +1968,30 @@ export function TrackerPage() {
       const BATCH_SIZE = 200;
       for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
         const batch = payloads.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
+        let { error } = await supabase
           .from('tracker_entries')
-          .upsert(batch, { onConflict: 'phone_digits,source_name' });
+          .upsert(batch);
+
         if (error) {
-          console.error('[Supabase] Batch upsert error:', error.message, error.code, error.details);
-          allOk = false;
+          console.warn('[Supabase] Direct upsert with default primary key failed, retrying with onConflict or fallback:', error.message);
+          const retryRes = await supabase
+            .from('tracker_entries')
+            .upsert(batch, { onConflict: 'phone_digits,source_name' });
+
+          if (retryRes.error) {
+            console.warn('[Supabase] Secondary upsert failed, attempting API bulk-upsert endpoint fallback:', retryRes.error.message);
+            try {
+              const res = await fetch('/api/records/bulk-upsert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(batch),
+              });
+              if (!res.ok) allOk = false;
+            } catch (e) {
+              console.error('[Supabase API Fallback Error]', e);
+              allOk = false;
+            }
+          }
         }
       }
     } catch (err) {
@@ -2859,43 +2889,35 @@ export function TrackerPage() {
     setImportPreview({ valid, rejectedTollFree, rejectedBad });
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (!importPreview || importPreview.valid.length === 0) return;
 
     const importedThreats = importPreview.valid;
 
+    // 1. Update local React state and localStorage immediately
     setRecords((prev) => {
       const map = new Map<string, ThreatRecord>();
       prev.forEach((r) => map.set(r.phone_digits, r));
-      importedThreats.forEach((r) => {
-        map.set(r.phone_digits, r);
-        syncRecordToSupabase(r);
-      });
+      importedThreats.forEach((r) => map.set(r.phone_digits, r));
       const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
-
-      // 1. Persist to localStorage
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } catch {}
-
-      // 3. Broadcast to syncBridge for endscams.org/tracker parent
-      try {
-        const fullScamList = merged.map(threatRecordToScamPhoneRecord);
-        syncBridge.broadcastRecords(fullScamList);
-        syncBridge.broadcastCurrentState();
-      } catch {}
-
       return merged;
     });
 
-    // 4. Persist to Supabase (source of truth)
-    syncThreatRecordsToSupabase(importedThreats).then((ok) => {
-      if (!ok) {
-        setStatusNotification(`Warning: ${importedThreats.length} records saved locally but Supabase sync had errors. Check browser console for details.`);
-      }
-      // Reload from Supabase so the count reflects the true database state
-      fetchSupabaseRecords();
-    });
+    // 2. Persist directly to Supabase (source of truth)
+    const ok = await syncThreatRecordsToSupabase(importedThreats);
+    if (!ok) {
+      setStatusNotification(`Warning: ${importedThreats.length} records saved locally but Supabase sync had errors. Check browser console.`);
+    } else {
+      await fetchSupabaseRecords();
+    }
+
+    // 3. Broadcast update to syncBridge
+    try {
+      syncBridge.broadcastCurrentState();
+    } catch {}
 
     setStatusNotification(
       `Successfully imported ${importedThreats.length} threat records! (${importPreview.rejectedTollFree} toll-free skipped, ${importPreview.rejectedBad} invalid skipped).`

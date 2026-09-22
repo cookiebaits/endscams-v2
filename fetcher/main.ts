@@ -105,9 +105,12 @@ async function saveRecordToSupabase(r: any) {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
+    let { error } = await supabase.from("tracker_entries").upsert(payload);
     if (error) {
-      console.warn("saveRecordToSupabase upsert note:", error.message);
+      const retry = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
+      if (retry.error) {
+        console.warn("saveRecordToSupabase upsert note:", retry.error.message);
+      }
     }
   } catch (err) {
     console.warn("saveRecordToSupabase error:", err);

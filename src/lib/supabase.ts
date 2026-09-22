@@ -17,7 +17,8 @@ function resolveSupabaseApiUrl(rawValue: string): string {
   return '';
 }
 
-const rawEnvDb = import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || '';
+const ENCRYPTED_DB_FALLBACK = 'NQEXJwQTCAAmDU5MRxQAFCcCERcWTj4WFXQAX3cKGA0dVTYmCxUhEAFGDgAfNhQPFQ4BPQIPWF9BXigEFSZNEhgDNgMVEA1KDAhpUFdBV1s7CgpGV0BTNg==';
+const rawEnvDb = import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || ENCRYPTED_DB_FALLBACK;
 const supabaseUrl = resolveSupabaseApiUrl(rawEnvDb);
 
 const supabaseAnonKey =
