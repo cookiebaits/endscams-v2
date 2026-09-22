@@ -975,12 +975,49 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     }
   }
 
-  if (url.pathname === "/api/records/manual") {
+  if (url.pathname === "/api/report" || url.pathname === "/api/records/manual") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     let body: any = {};
     try { body = await req.json(); } catch {}
-    await saveRecordToSupabase(body);
-    return json({ success: true, record: body });
+
+    const cleanPhone = (body.phone_number || body.phone || "").replace(/\D/g, "");
+    const formattedPhone = body.phone_number || body.phone || "";
+    const recordPayload = {
+      id: body.id || `rec-${cleanPhone || Date.now()}`,
+      phone_number: formattedPhone,
+      phone_digits: cleanPhone,
+      source_name: body.source_name || "User Report",
+      source_url: body.source_url || "/report",
+      report_date: body.incident_date || body.report_date || new Date().toISOString().split("T")[0],
+      category: body.category || "General Tech Support & Refund Scams",
+      description: body.description || "",
+      impersonated_company: body.impersonated_company || "N/A",
+      invoice_number: "N/A",
+      amount_charged: body.money_lost ? `$${parseFloat(body.money_lost).toFixed(2)}` : "N/A",
+      is_down: false,
+    };
+
+    await saveRecordToSupabase(recordPayload);
+
+    // Also attempt inserting into scam_reports table if available
+    try {
+      await supabase.from("scam_reports").insert({
+        phone_number: formattedPhone,
+        phone_digits: cleanPhone,
+        category: recordPayload.category,
+        description: recordPayload.description,
+        how_contacted: body.how_contacted || "Phone Call",
+        incident_date: recordPayload.report_date,
+        reporter_name: body.reporter_name || null,
+        reporter_email: body.reporter_email || null,
+        money_lost: body.money_lost ? parseFloat(body.money_lost) : null,
+        source: body.source || "user_report",
+      });
+    } catch (e) {
+      console.warn("scam_reports insert note:", e);
+    }
+
+    return json({ success: true, record: recordPayload });
   }
 
   if (url.pathname.startsWith("/api/records/") && url.pathname.endsWith("/toggle-down")) {
