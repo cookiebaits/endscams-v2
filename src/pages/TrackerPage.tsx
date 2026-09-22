@@ -1384,6 +1384,23 @@ export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     const map = new Map<string, ThreatRecord>();
     MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((r: any) => {
+              if (r && r.phone_digits) {
+                map.set(r.phone_digits, { ...r, report_date: normalizeToNumericalDate(r.report_date) });
+              }
+            });
+          }
+        }
+      } catch {}
+    }
+
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
 
@@ -1396,7 +1413,7 @@ export function TrackerPage() {
       const { data, error } = await supabase
         .from('tracker_entries')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (!error && Array.isArray(data) && data.length > 0) {
         rawData = data;
@@ -1508,6 +1525,28 @@ export function TrackerPage() {
   // Load records from Supabase on mount (source of truth — works in incognito)
   useEffect(() => {
     fetchSupabaseRecords();
+
+    // Listen for storage events (e.g., when a report is submitted in another tab or component)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const updated = JSON.parse(e.newValue);
+          if (Array.isArray(updated)) {
+            setRecords((prev) => {
+              const map = new Map<string, ThreatRecord>();
+              prev.forEach((r) => map.set(r.phone_digits, r));
+              updated.forEach((r: any) => {
+                if (r && r.phone_digits) map.set(r.phone_digits, { ...r, report_date: normalizeToNumericalDate(r.report_date) });
+              });
+              return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+            });
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Schedule & Time States
