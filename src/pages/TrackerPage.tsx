@@ -36,8 +36,10 @@ import {
   Save,
   Eye,
   EyeOff,
+  Megaphone,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import ReportScamForm from '../components/ReportScamForm';
 import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
 import { syncBridge } from '../utils/syncBridge';
@@ -1514,6 +1516,7 @@ export function TrackerPage() {
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isReportScamModalOpen, setIsReportScamModalOpen] = useState(false);
 
   // Dokploy Settings & Supabase Database — Supabase is initialized in lib/supabase.ts
   // No runtime config loading needed; the shared client is the single source of truth.
@@ -3205,12 +3208,22 @@ export function TrackerPage() {
 
           {/* Action Button Strip */}
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+            {/* Report Scam Button */}
+            <button
+              onClick={() => setIsReportScamModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg cursor-pointer"
+              title="Submit a new scam report directly to the database"
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>Report a Scam</span>
+            </button>
+
             {/* Manual Refresh / Scan */}
             <button
               id="btn-footer-manual-refresh"
               onClick={() => requireTrackerPass('Execute Manual Threat Refresh', 'any', () => executeFullHarvesterScan())}
               disabled={isScanning}
-              className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 disabled:opacity-50 cursor-pointer"
               title="Manual Threat Refresh (requires TRACKER_PASS)"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
@@ -4042,6 +4055,41 @@ export function TrackerPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* J0. REPORT SCAM FORM MODAL                 */}
+      {/* ========================================== */}
+      {isReportScamModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl p-6 relative space-y-4 max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setIsReportScamModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2">
+              <Megaphone className="w-5 h-5 text-amber-500" />
+              <h2 className="text-base font-bold text-slate-100">Report a Scam to Database</h2>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Submit scam details to be saved directly into the Supabase database (`scam_reports` and `tracker_entries`).
+            </p>
+
+            <ReportScamForm
+              isModal
+              onCancel={() => setIsReportScamModalOpen(false)}
+              onSuccess={(rep) => {
+                setIsReportScamModalOpen(false);
+                setStatusNotification(`Report for ${rep.phone_number} submitted and saved to Supabase database!`);
+                fetchSupabaseRecords();
+              }}
+            />
           </div>
         </div>
       )}

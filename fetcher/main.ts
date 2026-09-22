@@ -21,6 +21,7 @@
 */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { decryptDbUri } from "./cryptoDb.ts";
 
 const env = (k: string) => Deno.env.get(k);
 
@@ -117,8 +118,9 @@ async function saveRecordToSupabase(r: any) {
 /*  ENV                                                              */
 /* ================================================================ */
 function resolveSupabaseUrl(rawUrl?: string | null): string {
-  if (!rawUrl) return "";
-  const url = rawUrl.trim();
+  const decrypted = decryptDbUri(rawUrl || "");
+  if (!decrypted) return "";
+  const url = decrypted.trim();
   if (!url) return "";
 
   if (url.startsWith("http://") || url.startsWith("https://")) {

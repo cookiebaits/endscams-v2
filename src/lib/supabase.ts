@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { decryptDbUri } from '../utils/cryptoDb';
 
 function resolveSupabaseApiUrl(rawValue: string): string {
-  const value = rawValue.trim();
+  const decrypted = decryptDbUri(rawValue);
+  const value = decrypted.trim();
+  if (!value) return '';
+
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
 
   const directHost = value.match(/(?:@|db\.)([a-z0-9]+)\.supabase\.co/i);
@@ -13,24 +17,23 @@ function resolveSupabaseApiUrl(rawValue: string): string {
   return '';
 }
 
-const supabaseUrl = resolveSupabaseApiUrl(
-  import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || ''
-);
+const rawEnvDb = import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || '';
+const supabaseUrl = resolveSupabaseApiUrl(rawEnvDb);
 
 const supabaseAnonKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.VITE_DB_KEY ||
   import.meta.env.VITE_DB_Key ||
-  '';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpveGVxbGdrdXZndmpvc2htanF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDY3NDIwMDAsImV4cCI6MjAyMjMxODAwMH0.dummy_publishable_key';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('[Supabase] Missing a valid Supabase URL or publishable key. Database features will not work.');
 }
 
 export const supabase = createClient(
-  supabaseUrl || 'https://invalid.supabase.co',
-  supabaseAnonKey || 'missing-publishable-key'
+  supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co',
+  supabaseAnonKey
 );
 
 export function normalizePhone(phone: string): string {
