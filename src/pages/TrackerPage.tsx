@@ -1441,9 +1441,27 @@ export function TrackerPage() {
           })) as ThreatRecord[];
 
         // Supabase Postgres DB is the single authoritative source of truth.
-        // Merge Supabase DB entries with MASTER_SEED_RECORDS so seed defaults are preserved unless overridden
+        // Merge Supabase DB entries with MASTER_SEED_RECORDS and localStorage cache
         const map = new Map<string, ThreatRecord>();
         MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
+
+        // Merge localStorage cache
+        if (typeof window !== 'undefined') {
+          try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+              const cached = JSON.parse(saved);
+              if (Array.isArray(cached)) {
+                cached.forEach((r: any) => {
+                  if (r && r.phone_digits) {
+                    map.set(r.phone_digits, { ...r, report_date: normalizeToNumericalDate(r.report_date) });
+                  }
+                });
+              }
+            }
+          } catch {}
+        }
+
         mapped.forEach((r) => map.set(r.phone_digits, r));
 
         setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));

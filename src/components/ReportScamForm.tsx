@@ -418,7 +418,42 @@ export default function ReportScamForm({ onSuccess, onCancel, isModal = false }:
         console.warn('[ReportScamForm] Backend endpoint note:', e);
       }
 
-      // 5. Broadcast live update to syncBridge (across open tabs)
+      // 5. Persist directly into local storage cache so it immediately displays on /tracker
+      if (typeof window !== 'undefined') {
+        try {
+          const STORAGE_KEY = 'esscan_threat_records_v2';
+          const saved = localStorage.getItem(STORAGE_KEY);
+          let list: any[] = [];
+          if (saved) {
+            try { list = JSON.parse(saved); } catch {}
+          }
+          if (!Array.isArray(list)) list = [];
+
+          const newThreatRecord = {
+            id: `rec-${phoneDigits}`,
+            phone_number: formattedPhone,
+            phone_digits: phoneDigits,
+            source_name: 'Community Report',
+            source_url: 'https://endscams.org/report',
+            report_date: form.incidentDate,
+            category: form.category,
+            description: form.description.trim(),
+            impersonated_company: 'Community Submission',
+            invoice_number: 'N/A',
+            amount_charged: moneyNum ? `$${moneyNum.toFixed(2)}` : 'N/A',
+            is_down: false,
+          };
+
+          // Filter out existing record with same digits and prepend new record
+          const filtered = list.filter((r: any) => r.phone_digits !== phoneDigits);
+          const updatedList = [newThreatRecord, ...filtered];
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+        } catch (e) {
+          console.warn('[ReportScamForm] localStorage update note:', e);
+        }
+      }
+
+      // 6. Broadcast live update to syncBridge (across open tabs)
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
         try {
           const bc = new BroadcastChannel('end_scam_scan_sync_channel');
