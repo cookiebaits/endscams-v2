@@ -1,8 +1,23 @@
 import React, { useState, useRef } from 'react';
-import { AlertTriangle, Phone, Calendar, FileText, DollarSign, Send, CheckCircle, AlertCircle, User, Mail, Upload, X, ExternalLink, Paperclip } from 'lucide-react';
+import {
+  AlertTriangle,
+  Phone,
+  Calendar,
+  FileText,
+  DollarSign,
+  Send,
+  CheckCircle,
+  AlertCircle,
+  User,
+  Mail,
+  Upload,
+  X,
+  ExternalLink,
+  Paperclip,
+  Download,
+} from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
-import { inferImpersonatedCompany } from './TrackerPage';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import { isUserCountryAllowed } from '../utils/geoIp';
 
@@ -126,6 +141,7 @@ export default function ReportScamPage() {
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [lastSubmittedDigits, setLastSubmittedDigits] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -203,8 +219,11 @@ export default function ReportScamPage() {
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormData | 'file', string>> = {};
     const digits = normalizePhone(form.phoneNumber);
-    if (digits.length < 7 || digits.length > 15) e.phoneNumber = 'Please enter a valid phone number (7–15 digits, with country code for international numbers).';
-    else if (isTollFree(digits)) e.phoneNumber = 'Toll-free numbers (800, 833, 844, etc.) are not accepted.';
+    if (digits.length < 7 || digits.length > 15) {
+      e.phoneNumber = 'Please enter a valid phone number (7–15 digits, with country code for international numbers).';
+    } else if (isTollFree(digits)) {
+      e.phoneNumber = 'Toll-free numbers (800, 833, 844, etc.) are not accepted.';
+    }
     if (!form.category) e.category = 'Please select a scam category.';
     if (form.description.trim().length < 20) e.description = 'Please provide more detail (at least 20 characters).';
     if (!form.incidentDate) e.incidentDate = 'Please enter the date the scam occurred.';
@@ -232,6 +251,77 @@ export default function ReportScamPage() {
     } catch {
       return null;
     }
+  };
+
+  // EXPORT CURRENT FORM / REPORT AS .TSX FILE
+  const handleExportTSX = () => {
+    const digits = normalizePhone(form.phoneNumber) || 'unknown';
+    const reportData = {
+      phoneNumber: formatPhoneDisplay(digits) || form.phoneNumber || 'Unspecified',
+      phoneDigits: digits,
+      category: form.category || 'General Scam',
+      howContacted: form.howContacted || 'Unknown',
+      incidentDate: form.incidentDate || new Date().toISOString().split('T')[0],
+      amountLost: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
+      description: form.description.trim() || 'No description provided',
+      exportedAt: new Date().toISOString(),
+    };
+
+    const tsxSource = `import React from 'react';
+
+export interface ScamReportEntry {
+  phoneNumber: string;
+  phoneDigits: string;
+  category: string;
+  howContacted: string;
+  incidentDate: string;
+  amountLost: string;
+  description: string;
+  exportedAt: string;
+}
+
+export const EXPORTED_SCAM_REPORT: ScamReportEntry = ${JSON.stringify(reportData, null, 2)};
+
+export default function ExportedScamReportCard(): React.ReactElement {
+  return (
+    <div style={{ fontFamily: 'sans-serif', maxWidth: '640px', margin: '2rem auto', padding: '1.5rem', background: '#0f172a', color: '#f8fafc', borderRadius: '1rem', border: '1px solid #1e293b' }}>
+      <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ef4444', marginBottom: '0.75rem' }}>
+        Scam Threat Report: {EXPORTED_SCAM_REPORT.phoneNumber}
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem', fontSize: '0.875rem' }}>
+        <div>
+          <strong style={{ color: '#94a3b8', display: 'block' }}>Category:</strong>
+          <span>{EXPORTED_SCAM_REPORT.category}</span>
+        </div>
+        <div>
+          <strong style={{ color: '#94a3b8', display: 'block' }}>Contact Channel:</strong>
+          <span>{EXPORTED_SCAM_REPORT.howContacted}</span>
+        </div>
+        <div>
+          <strong style={{ color: '#94a3b8', display: 'block' }}>Incident Date:</strong>
+          <span>{EXPORTED_SCAM_REPORT.incidentDate}</span>
+        </div>
+        <div>
+          <strong style={{ color: '#94a3b8', display: 'block' }}>Amount Lost:</strong>
+          <span>{EXPORTED_SCAM_REPORT.amountLost}</span>
+        </div>
+      </div>
+      <div style={{ background: '#020617', padding: '1rem', borderRadius: '0.5rem', fontSize: '0.85rem', lineHeight: 1.5 }}>
+        <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '0.25rem' }}>Description:</strong>
+        <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{EXPORTED_SCAM_REPORT.description}</p>
+      </div>
+    </div>
+  );
+}
+`;
+
+    const blob = new Blob([tsxSource], { type: 'text/typescript-jsx;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `scam_report_${digits}_${Date.now()}.tsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const sendEmail = async (fileUrl?: string, fileName?: string, fileType?: string) => {
@@ -268,7 +358,6 @@ export default function ReportScamPage() {
 
     const countryAllowed = await isUserCountryAllowed();
     if (!countryAllowed) {
-      // Silently deny by now allowing the add/submit action to proceed
       return;
     }
 
@@ -277,6 +366,8 @@ export default function ReportScamPage() {
     setErrorMsg('');
 
     const digits = normalizePhone(form.phoneNumber);
+    setLastSubmittedDigits(digits);
+
     let fileUrl: string | undefined;
     let fileName: string | undefined;
     let fileType: string | undefined;
@@ -291,6 +382,7 @@ export default function ReportScamPage() {
       }
     }
 
+    // 1. Insert into scam_reports table
     const reportPayload: Record<string, any> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
@@ -313,7 +405,7 @@ export default function ReportScamPage() {
     try {
       const { error } = await supabase.from('scam_reports').insert(reportPayload);
       if (error) {
-        console.error('Supabase scam_reports insert error:', error.message, error.code, error.details);
+        console.error('Supabase scam_reports insert error:', error.message);
       }
     } catch (e) {
       console.error('Supabase connection error:', e);
@@ -321,74 +413,81 @@ export default function ReportScamPage() {
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 60);
+    const amountVal = form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A';
 
-    const compTarget = inferImpersonatedCompany(form.description.trim(), form.category, 'User Report');
-
-    const trackerRecord: Record<string, any> = {
+    // 2. Direct Integration into tracker_entries table (immediate sync to /trackerpage)
+    const trackerRecordPayload = {
+      id: `report-${Date.now()}-${digits}`,
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
-      source_name: 'User Report',
-      source_url: '/report',
-      report_date: form.incidentDate || new Date().toISOString().split('T')[0],
-      category: form.category || 'General Tech Support & Refund Scams',
-      description: form.description.trim() || 'User submitted scam report.',
-      impersonated_company: compTarget !== 'N/A' ? compTarget : 'Tech & Refund Support',
+      country_code: 'US',
+      country_name: 'United States',
+      scam_type: form.category,
+      category: form.category,
+      impersonated_company: 'N/A',
       invoice_number: 'N/A',
-      amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
-      reported_down: false,
+      amount_charged: amountVal,
+      source_platform: 'User Report',
+      source_name: 'User Report',
+      source_url: '/reportscam',
+      source_domain: 'reportscam',
+      threat_intel: form.description.trim(),
+      description: form.description.trim(),
+      snippet: form.description.trim(),
+      detailed_summary: form.description.trim(),
+      detected_at: new Date().toISOString(),
+      report_date: form.incidentDate,
+      post_date: form.incidentDate,
       is_down: false,
+      is_number_down: false,
+      status: 'Active',
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Primary: Send directly to backend proxy endpoint POST /api/records/manual
-    try {
-      await fetch('/api/records/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(trackerRecord),
-      });
-    } catch (apiErr) {
-      console.warn('[Report Sync] Backend /api/records/manual error:', apiErr);
-    }
-
-    // 2. Secondary: Direct client Supabase upsert into tracker_entries
     try {
       const { error: trackerError } = await supabase
         .from('tracker_entries')
-        .upsert(trackerRecord, { onConflict: 'phone_digits,source_name' });
+        .upsert(trackerRecordPayload, { onConflict: 'phone_digits' });
 
       if (trackerError) {
-        console.error('tracker_entries upsert error:', trackerError.message, trackerError.code, trackerError.details);
+        console.error('tracker_entries upsert error:', trackerError.message);
       }
     } catch (e) {
       console.error('tracker_entries connection error:', e);
     }
 
-    // 3. BroadcastChannel sync bridge so open /tracker tabs update instantly
-    const newRecord = {
-      ...trackerRecord,
-      phone: formatPhoneDisplay(digits),
-      how_contacted: form.howContacted,
-      incident_date: form.incidentDate,
-      source: 'User Report',
-      platform: form.howContacted,
-      timestamp: new Date().toISOString(),
-    };
+    // 3. Replicate to backend Dokploy endpoint with no caching
+    try {
+      await fetch('/api/records/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+        body: JSON.stringify({
+          phone: formatPhoneDisplay(digits),
+          cleanPhone: digits,
+          isWhatsapp: form.howContacted === 'WhatsApp',
+          scamType: form.category,
+          impersonatedCompany: 'N/A',
+          sourceUrl: '/reportscam',
+          platform: 'User Report',
+          detailedSummary: form.description.trim(),
+          amountCharged: amountVal,
+          detectedAt: form.incidentDate,
+        }),
+      });
+    } catch {
+      // Backend is optional fallback to Supabase
+    }
 
+    // 4. In-memory cross-tab notification (Zero localStorage)
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
         type: 'ADD_RECORD',
-        event: 'ADD_RECORD',
-        action: 'ADD_RECORD',
-        payload: { record: newRecord, ...newRecord },
-        record: newRecord,
+        record: trackerRecordPayload,
       });
       bc.close();
-    } catch (e) {
-      console.warn('BroadcastChannel sync warning:', e);
-    }
+    } catch {}
 
     await sendEmail(fileUrl, fileName, fileType);
     setStatus('success');
@@ -414,19 +513,32 @@ export default function ReportScamPage() {
           </div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Report Submitted</h1>
           <p className="text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-            Thank you for helping protect others. Your report has been added to the Scam Tracker and will remain active for 45 days.
+            Thank you for helping protect others. Your report has been added directly into the Scam Tracker database and is immediately visible to everyone.
           </p>
-          {uploadedFileUrl && (
-            <a
-              href={uploadedFileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-brand-500 hover:text-brand-600 underline mb-6"
+
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <button
+              onClick={handleExportTSX}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+              title="Download this report formatted as a React .tsx component"
             >
-              <Paperclip className="w-4 h-4" />
-              View Uploaded Resource
-            </a>
-          )}
+              <Download className="w-4 h-4" />
+              <span>Export Report as .tsx</span>
+            </button>
+
+            {uploadedFileUrl && (
+              <a
+                href={uploadedFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-600 underline"
+              >
+                <Paperclip className="w-4 h-4" />
+                <span>View Attachment</span>
+              </a>
+            )}
+          </div>
+
           <div className="mb-8">
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Also consider reporting to federal agencies:</p>
             <div className="space-y-2">
@@ -456,19 +568,30 @@ export default function ReportScamPage() {
         variant="warning"
         id="report_privacy"
         dismissible
-        message={<span><strong>Privacy Notice:</strong> Any information you submit will be publicly visible on the Scam Tracker for 45 days. Do not include your own personal banking details.</span>}
+        message={<span><strong>Privacy Notice:</strong> Submissions are synced to the shared Dokploy database and publicly listed on the Tracker. Do not include private banking info.</span>}
       />
       <div className="max-w-2xl mx-auto px-4 pt-8">
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-4 mb-3">
-            <div className="flex-shrink-0 inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-brand-500/10">
-              <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7 text-brand-500" />
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-brand-500/10 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-brand-500" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-wider text-left">Report a Scam</h1>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-wider">Report a Scam</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Syncs directly into the live Threat Database</p>
+            </div>
           </div>
-          <p className="text-slate-500 dark:text-slate-400">
-            Help protect your community. Reports are retained for 45 days and visible in the Scam Tracker.
-          </p>
+
+          {/* Quick .tsx export */}
+          <button
+            type="button"
+            onClick={handleExportTSX}
+            className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-xs font-semibold text-emerald-400 flex items-center gap-1.5 transition cursor-pointer"
+            title="Export form draft as a React .tsx component"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export .tsx</span>
+          </button>
         </div>
 
         <div className="mb-6 rounded-xl border border-amber-800/40 bg-[#1a1200] p-5">
@@ -476,10 +599,7 @@ export default function ReportScamPage() {
             <ExternalLink className="w-4 h-4 text-amber-400 flex-shrink-0" />
             <h3 className="text-sm font-bold text-amber-400">Report to Federal Agencies</h3>
           </div>
-          <p className="text-xs text-amber-200/70 mb-4">
-            For official investigations and to help law enforcement take action, please also report to these agencies:
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
               { name: 'FTC — ReportFraud.ftc.gov', sub: 'Federal Trade Commission', url: 'https://reportfraud.ftc.gov' },
               { name: 'IC3 — Internet Crime (FBI)', sub: 'FBI Internet Crime Complaint Center', url: 'https://www.ic3.gov' },
@@ -498,31 +618,6 @@ export default function ReportScamPage() {
                 </div>
               </a>
             ))}
-          </div>
-          <div className="border-t border-amber-900/30 pt-4 mb-3">
-            <p className="text-xs text-amber-200/70 mb-3">
-              The following are independent, third-party platforms where you can also report scam activity and warn others in the community:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {[
-                { name: 'BBB Scam Tracker', sub: 'Better Business Bureau — community scam reports', url: 'https://www.bbb.org/scamtracker' },
-                { name: 'RoboKiller', sub: 'Spam call lookup & reporting tool', url: 'https://www.robokiller.com' },
-              ].map(link => (
-                <a
-                  key={link.name}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-2 rounded-lg bg-[#2a1d00] hover:bg-[#3a2800] border border-amber-900/40 px-4 py-3 transition-colors group"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-bold text-amber-400 group-hover:underline">{link.name}</p>
-                    <p className="text-xs text-amber-300/60 mt-0.5">{link.sub}</p>
-                  </div>
-                </a>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -544,7 +639,7 @@ export default function ReportScamPage() {
                 maxLength={20}
                 className={`input-field ${errors.phoneNumber ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Include country code for international numbers (e.g. +44, +234). Do not include toll-free numbers (800, 833, 844, 855, 866, 877, 888).</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Include country code for international numbers. Toll-free numbers are not accepted.</p>
             </Field>
 
             <Field label="Scam Category" icon={AlertTriangle} required error={errors.category}>
@@ -583,7 +678,7 @@ export default function ReportScamPage() {
               <textarea
                 value={form.description}
                 onChange={e => update('description', e.target.value)}
-                placeholder="What did the scammer say? What were they asking for? Any other details that may help others..."
+                placeholder="What did the scammer say? Any specific invoices, claims, or remote software requested..."
                 rows={5}
                 className={`input-field resize-none ${errors.description ? 'border-red-500 focus:ring-red-500' : ''}`}
               />
@@ -650,7 +745,7 @@ export default function ReportScamPage() {
                     <span className="text-sm text-slate-500 dark:text-slate-400 text-center">
                       <span className="text-brand-500 font-semibold">Click to upload</span>, drag & drop, or paste (Ctrl+V / Cmd+V)
                     </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB (auto-compressed)</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">PDF, JPG, PNG, GIF, WEBP — max 3 MB</span>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -665,7 +760,6 @@ export default function ReportScamPage() {
 
             <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact Info (Optional)</h3>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Provide contact info only if you'd like to be notified about follow-ups. Never shared publicly.</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <Field label="Your Name or Initials" icon={User} error={errors.reporterName}>
                   <input type="text" value={form.reporterName} onChange={e => update('reporterName', e.target.value)} placeholder="J.D. or Jane" className="input-field" />
@@ -680,7 +774,7 @@ export default function ReportScamPage() {
               <button
                 type="submit"
                 disabled={status === 'submitting'}
-                className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base"
+                className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base cursor-pointer"
               >
                 {status === 'submitting' ? (
                   <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting...</>
@@ -690,13 +784,6 @@ export default function ReportScamPage() {
               </button>
             </div>
           </form>
-        </div>
-
-        <div className="mt-6 card p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/50">
-          <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">Privacy Notice</p>
-          <p className="text-xs text-blue-600 dark:text-blue-400">
-            Your personal information (if provided) is never displayed publicly. Reports are anonymized and shared only for educational purposes. Reports expire and are deleted after 45 days.
-          </p>
         </div>
       </div>
     </div>
