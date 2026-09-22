@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createWorker } from 'tesseract.js';
 import { supabase, normalizePhone, formatPhoneDisplay } from '../lib/supabase';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import { isUserCountryAllowed } from '../utils/geoIp';
 
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
+
 export default function ReportScamPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+  const [ocrStatusText, setOcrStatusText] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+
   const [phone, setPhone] = useState('');
   const [category, setCategory] = useState('Lottery & Sweepstakes Scams');
   const [company, setCompany] = useState('');
@@ -18,12 +28,170 @@ export default function ReportScamPage() {
   const [alert, setAlert] = useState<{ message: string; isError: boolean } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     document.title = 'Report a Scam | EndScams';
   }, []);
 
   const showAlert = (message: string, isError: boolean) => {
     setAlert({ message, isError });
+  };
+
+  const processImageFile = async (selectedFile: File) => {
+    // Strictly validate file format
+    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type.toLowerCase())) {
+      showAlert('Invalid file type. Please upload strictly PNG, JPG, or JPEG image files.', true);
+      return;
+    }
+
+    // Strictly validate file size (2MB max)
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      showAlert(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB). Maximum allowed size is 2MB.`, true);
+      return;
+    }
+
+    setFile(selectedFile);
+    setAlert(null);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setFilePreview(dataUrl);
+      runOcr(dataUrl);
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  const runOcr = async (imageDataUrl: string) => {
+    setIsOcrProcessing(true);
+    setOcrStatusText('Analyzing image with OCR engine...');
+
+    try {
+      const worker = await createWorker('eng');
+      const ret = await worker.recognize(imageDataUrl);
+      await worker.terminate();
+
+      const text = ret.data.text || '';
+      setOcrStatusText('');
+      setIsOcrProcessing(false);
+
+      if (!text.trim()) {
+        showAlert('Image processed, but no readable text was detected. Please fill in the required fields.', false);
+        return;
+      }
+
+      // 1. Extract Phone Number
+      const phoneMatches = text.match(/(?:\+?\d{1,3}[\s\-.]*)?\(?\d{3}\)?[\s\-.]*\d{3}[\s\-.]*\d{4}/g);
+      if (phoneMatches && phoneMatches.length > 0) {
+        const extractedDigits = normalizePhone(phoneMatches[0]);
+        if (extractedDigits.length >= 10 && extractedDigits.length <= 15) {
+          setPhone(formatPhoneDisplay(extractedDigits));
+        }
+      }
+
+      // 2. Extract Monetary Loss ($ amount)
+      const moneyMatch = text.match(/\$\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?)/);
+      if (moneyMatch && moneyMatch[1]) {
+        const rawAmount = moneyMatch[1].replace(/,/g, '');
+        if (!isNaN(parseFloat(rawAmount))) {
+          setMoneyLost(parseFloat(rawAmount).toString());
+        }
+      }
+
+      // 3. Extract Incident Date
+      const dateMatch = text.match(/\b(20\d{2}[-/.](?:0[1-9]|1[0-2])[-/.](?:0[1-9]|[12]\d|3[01]))\b/) ||
+                        text.match(/\b((?:0[1-9]|1[0-2])[-/.](?:0[1-9]|[12]\d|3[01])[-/.](?:20\d{2}))\b/);
+      if (dateMatch && dateMatch[1]) {
+        try {
+          const parsedD = new Date(dateMatch[1]);
+          if (!isNaN(parsedD.getTime())) {
+            setIncidentDate(parsedD.toISOString().split('T')[0]);
+          }
+        } catch {}
+      }
+
+      // 4. Infer Category & Company Target
+      const lower = text.toLowerCase();
+      if (lower.includes('geek squad') || lower.includes('geeksquad')) setCompany('Geek Squad Protection');
+      else if (lower.includes('mcafee')) setCompany('McAfee AntiVirus');
+      else if (lower.includes('norton')) setCompany('Norton LifeLock');
+      else if (lower.includes('paypal')) setCompany('PayPal');
+      else if (lower.includes('amazon')) setCompany('Amazon Support');
+      else if (lower.includes('publishers clearing') || lower.includes('pch')) {
+        setCompany('Publishers Clearing House');
+        setCategory('Lottery & Sweepstakes Scams');
+      } else if (lower.includes('bitcoin') || lower.includes('crypto') || lower.includes('btc')) {
+        setCategory('Crypto BTC Recovery Scam');
+        setCompany('Crypto BTC Recovery Agent');
+      } else if (lower.includes('spellcaster') || lower.includes('spell') || lower.includes('fortune')) {
+        setCategory('Spellcaster WhatsApp Extortion');
+      }
+
+      if (lower.includes('whatsapp')) {
+        setIsWhatsApp(true);
+        setHowContacted('WhatsApp');
+      }
+
+      // Auto-fill description if currently empty or auto-populate snippet
+      const cleanSnippet = text.replace(/\s+/g, ' ').trim().slice(0, 400);
+      if (!description.trim() && cleanSnippet) {
+        setDescription(`[OCR Extracted Text]: ${cleanSnippet}`);
+      }
+
+      showAlert('OCR text scan completed! Form fields auto-populated where detected.', false);
+    } catch (err) {
+      console.warn('OCR error:', err);
+      setIsOcrProcessing(false);
+      setOcrStatusText('');
+      showAlert('OCR scan encountered an issue, but you can still manually complete the form.', false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) processImageFile(selected);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      processImageFile(droppedFiles[0]);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const pastedFile = items[i].getAsFile();
+        if (pastedFile) {
+          processImageFile(pastedFile);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,25 +231,17 @@ export default function ReportScamPage() {
       source_url: window.location.href || 'https://endscams.org/report',
     };
 
-    let backendSuccess = false;
-
     try {
-      // 1. Post to tracker backend API endpoint
       const targetEndpoint = '/api/report';
-      const res = await fetch(targetEndpoint, {
+      await fetch(targetEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (res.ok) {
-        backendSuccess = true;
-      }
     } catch (err) {
       console.warn('Backend /api/report fetch warning:', err);
     }
 
-    // Direct Supabase Fallback/Sync for client-side resiliency
     try {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 60);
@@ -120,7 +280,6 @@ export default function ReportScamPage() {
       console.warn('Supabase direct insert warning:', sbErr);
     }
 
-    // 2. Broadcast across tabs and windows
     try {
       if ('BroadcastChannel' in window) {
         const bc1 = new BroadcastChannel('endscams-reports');
@@ -158,7 +317,6 @@ export default function ReportScamPage() {
       console.warn('Broadcast warning:', bcErr);
     }
 
-    // Save to local storage cache so Tracker page re-hydrates immediately
     try {
       const trackerRecord = {
         id: `user-report-${Date.now()}-${digits}`,
@@ -186,7 +344,7 @@ export default function ReportScamPage() {
 
     showAlert(`Success! ${phone} (${company || 'Reported Entity'}) has been recorded and synchronized with the tracker.`, false);
 
-    // Reset form
+    removeFile();
     setPhone('');
     setCompany('');
     setMoneyLost('');
@@ -199,7 +357,7 @@ export default function ReportScamPage() {
   };
 
   return (
-    <div className="py-8 px-4">
+    <div className="py-8 px-4" onPaste={handlePaste}>
       {/* EndScams Direct Report Form */}
       <div
         id="endscams-report-container"
@@ -263,6 +421,76 @@ export default function ReportScamPage() {
         )}
 
         <form id="endscams-report-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* VERY FIRST SECTION: Image Upload & OCR Auto-Fill */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              background: isDragging ? 'rgba(239, 68, 68, 0.1)' : '#020617',
+              border: isDragging ? '2px dashed #ef4444' : '1px dashed #334155',
+              borderRadius: '12px',
+              padding: '16px',
+              textAlign: 'center',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#f87171', marginBottom: '4px' }}>
+              Upload Scam Image / Screenshot (OCR Auto-Fill)
+            </label>
+            <p style={{ margin: '0 0 10px', fontSize: '0.7rem', color: '#94a3b8' }}>
+              Strictly PNG, JPG, JPEG under 2MB. Drag & drop, paste (Ctrl+V / Cmd+V), or click to browse.
+            </p>
+
+            {filePreview ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifySelf: 'center', gap: '16px', background: '#0f172a', padding: '10px 16px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+                <img src={filePreview} alt="Uploaded Scam Screenshot" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '6px' }} />
+                <div style={{ textAlign: 'left', flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: '#ffffff' }}>{file?.name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.65rem', color: '#64748b' }}>{((file?.size || 0) / 1024 / 1024).toFixed(2)} MB</p>
+                  {isOcrProcessing && (
+                    <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#38bdf8', fontWeight: 600 }}>{ocrStatusText}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={removeFile}
+                  style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '6px 12px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer' }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png, image/jpeg, image/jpg"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  id="ocr-file-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    background: '#1e293b',
+                    color: '#ffffff',
+                    border: '1px solid #475569',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Browse Image File
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Phone & Category */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             <div>
@@ -529,7 +757,7 @@ export default function ReportScamPage() {
           </div>
 
           {/* Submit Button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e293b', paddingTop: '16px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifySelf: 'space-between', borderTop: '1px solid #1e293b', paddingTop: '16px', marginTop: '8px' }}>
             <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Submissions persist directly to the PostgreSQL database.</span>
             <button
               type="submit"
