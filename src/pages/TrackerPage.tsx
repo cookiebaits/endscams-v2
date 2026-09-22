@@ -1387,23 +1387,36 @@ export function TrackerPage() {
     return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
   });
 
-  // Fetch records from Supabase tracker_entries table (source of truth)
+  // Fetch records from Supabase tracker_entries table (source of truth across all browsers)
   const fetchSupabaseRecords = async () => {
     try {
+      let rawData: any[] | null = null;
+
+      // 1. Query client-side Supabase PostgREST endpoint
       const { data, error } = await supabase
         .from('tracker_entries')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('[Supabase] Failed to load tracker_entries:', error.message, error.code, error.details);
-        // On Supabase failure, try localStorage as offline cache fallback
-        loadLocalStorageCache();
-        return;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        rawData = data;
+      } else {
+        // 2. Query backend server proxy /api/records which connects directly to Supabase DB
+        try {
+          const apiRes = await fetch(`/api/records?t=${Date.now()}`, { cache: 'no-store' });
+          if (apiRes.ok) {
+            const jsonRes = await apiRes.json();
+            if (jsonRes.success && Array.isArray(jsonRes.records) && jsonRes.records.length > 0) {
+              rawData = jsonRes.records;
+            }
+          }
+        } catch (apiErr) {
+          console.warn('[Supabase Proxy Fetch Note]:', apiErr);
+        }
       }
 
-      if (data && Array.isArray(data) && data.length > 0) {
-        const mapped = data
+      if (rawData && rawData.length > 0) {
+        const mapped = rawData
           .filter((r: any) => {
             const p = r.phone_digits || r.phone_number || '';
             const src = (r.source_name || r.source_url || '').toLowerCase();
@@ -1435,10 +1448,7 @@ export function TrackerPage() {
 
         setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
       } else {
-        // First boot or empty database: Seed initial records into Supabase DB
-        syncThreatRecordsToSupabase(MASTER_SEED_RECORDS).then(() => {
-          loadLocalStorageCache();
-        });
+        loadLocalStorageCache();
       }
     } catch (err) {
       console.error('[Supabase] Tracker load error:', err);
@@ -1653,6 +1663,28 @@ export function TrackerPage() {
       },
       onTriggerScan: () => {
         executeFullHarvesterScan();
+      },
+      onAddManualRecord: (rec: any) => {
+        const phone = rec.phoneNumber || rec.phone_number || '';
+        const digits = rec.phoneDigits || rec.phone_digits || phone.replace(/\D/g, '');
+        if (!digits) return;
+
+        const newThreat: ThreatRecord = {
+          id: `manual-${Date.now()}`,
+          phone_number: formatDisplayPhone(phone, digits),
+          phone_digits: digits,
+          source_name: rec.sourcePlatform || rec.source_name || 'Community Report',
+          source_url: rec.sourceUrl || rec.source_url || 'https://endscams.org/report',
+          report_date: normalizeToNumericalDate(rec.detectedAt || new Date()),
+          category: rec.category || 'General Tech Support & Refund Scams',
+          description: rec.snippet || rec.description || 'User submitted scam report.',
+          impersonated_company: rec.companyImpersonated || rec.impersonated_company || 'Community Submission',
+          invoice_number: 'N/A',
+          amount_charged: 'N/A',
+          is_down: false,
+        };
+
+        setRecords((prev) => [newThreat, ...prev.filter((r) => r.phone_digits !== digits)]);
       },
       onToggleNumberDown: (id) => {
         setRecords((prev) => {
