@@ -64,6 +64,10 @@ export interface ThreatRecord {
   invoice_number?: string;
   amount_charged?: string;
   is_down?: boolean;
+  how_contacted?: string;
+  file_url?: string;
+  file_name?: string;
+  file_type?: string;
 }
 
 /**
@@ -1314,6 +1318,10 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
     amount_charged: r.amountCharged || r.amount_charged || 'N/A',
     description: r.detailedSummary || r.description || r.snippet || 'Verified scam threat intelligence report.',
     is_down: Boolean(r.isNumberDown || r.is_down),
+    how_contacted: r.how_contacted || r.howContacted || undefined,
+    file_url: r.file_url || r.fileUrl || undefined,
+    file_name: r.file_name || r.fileName || undefined,
+    file_type: r.file_type || r.fileType || undefined,
   };
 }
 
@@ -1442,6 +1450,10 @@ export function TrackerPage() {
           invoice_number: item.invoice_number || 'N/A',
           amount_charged: item.amount_charged || 'N/A',
           is_down: Boolean(item.reported_down),
+          how_contacted: item.how_contacted || undefined,
+          file_url: item.file_url || undefined,
+          file_name: item.file_name || undefined,
+          file_type: item.file_type || undefined,
         })) as ThreatRecord[];
 
       // Supabase is authoritative: seed records as base, Supabase overwrites
@@ -4596,8 +4608,21 @@ export function TrackerPage() {
                     </div>
                   </div>
 
+                  {/* Contact Method */}
+                  {selectedDetailRecord.how_contacted && (
+                    <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                        <PhoneCall className="w-3 h-3 text-emerald-400" />
+                        <span>Contact Method</span>
+                      </div>
+                      <div className="text-slate-200 font-semibold text-sm">
+                        {selectedDetailRecord.how_contacted}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Status */}
-                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1 sm:col-span-2">
+                  <div className={`bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1 ${selectedDetailRecord.how_contacted ? '' : 'sm:col-span-2'}`}>
                     <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                       <Shield className="w-3 h-3 text-emerald-400" />
                       <span>Status</span>
@@ -4634,6 +4659,30 @@ export function TrackerPage() {
                         </span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Uploaded Evidence Attachment Box */}
+                {(selectedDetailRecord.file_url || (selectedDetailRecord.source_url && selectedDetailRecord.source_url.includes('scam-reports'))) && (
+                  <div className="bg-blue-500/10 p-3.5 rounded-xl border border-blue-500/30 space-y-2">
+                    <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider flex items-center space-x-1.5">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Uploaded Evidence / Attachment</span>
+                    </div>
+                    <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                      <span className="text-xs text-slate-200 font-medium truncate max-w-sm">
+                        {selectedDetailRecord.file_name || 'Report Evidence File'}
+                      </span>
+                      <a
+                        href={selectedDetailRecord.file_url || selectedDetailRecord.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition inline-flex items-center space-x-1.5 shadow-sm"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>View Attachment</span>
+                      </a>
+                    </div>
                   </div>
                 )}
 

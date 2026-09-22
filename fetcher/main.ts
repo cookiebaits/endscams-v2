@@ -89,6 +89,15 @@ async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?:
 
     const isUuid = r.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id);
 
+    // Format description to explicitly include contact method and evidence attachment if provided
+    let fullDescription = description;
+    if (r.how_contacted && !fullDescription.includes("[Contact Method:")) {
+      fullDescription = `[Contact Method: ${r.how_contacted}] ${fullDescription}`;
+    }
+    if (r.file_url && !fullDescription.includes("[Evidence Attached:")) {
+      fullDescription = `${fullDescription} [Evidence Attached: ${r.file_name || 'Uploaded File'}]`;
+    }
+
     const payload: Record<string, any> = {
       phone_number,
       phone_digits,
@@ -96,7 +105,7 @@ async function saveRecordToSupabase(r: any): Promise<{ success: boolean; error?:
       source_url,
       report_date,
       category,
-      description,
+      description: fullDescription,
       impersonated_company,
       invoice_number,
       amount_charged,

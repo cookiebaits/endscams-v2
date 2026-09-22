@@ -324,14 +324,26 @@ export default function ReportScamPage() {
 
     const compTarget = inferImpersonatedCompany(form.description.trim(), form.category, 'User Report');
 
+    const isWa = form.howContacted === 'WhatsApp' || form.description.toLowerCase().includes('whatsapp') || form.category.toLowerCase().includes('whatsapp');
+
+    const descParts: string[] = [];
+    if (form.howContacted) {
+      descParts.push(`[Contact Method: ${form.howContacted}]`);
+    }
+    descParts.push(form.description.trim() || 'User submitted scam report.');
+    if (fileUrl) {
+      descParts.push(`[Evidence Attached: ${fileName || 'Uploaded File'}]`);
+    }
+
     const trackerRecord: Record<string, any> = {
       phone_number: formatPhoneDisplay(digits),
       phone_digits: digits,
+      is_whatsapp: isWa,
       source_name: 'User Report',
-      source_url: '/report',
+      source_url: fileUrl || '/report',
       report_date: form.incidentDate || new Date().toISOString().split('T')[0],
       category: form.category || 'General Tech Support & Refund Scams',
-      description: form.description.trim() || 'User submitted scam report.',
+      description: descParts.join(' '),
       impersonated_company: compTarget !== 'N/A' ? compTarget : 'Tech & Refund Support',
       invoice_number: 'N/A',
       amount_charged: form.moneyLost ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A',
@@ -339,6 +351,10 @@ export default function ReportScamPage() {
       is_down: false,
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
+      how_contacted: form.howContacted || undefined,
+      file_url: fileUrl || undefined,
+      file_name: fileName || undefined,
+      file_type: fileType || undefined,
     };
 
     // 1. Primary: Send directly to backend proxy endpoint POST /api/records/manual
