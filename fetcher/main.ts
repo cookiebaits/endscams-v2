@@ -92,14 +92,17 @@ async function saveRecordToSupabase(r: any) {
       id,
       phone_number,
       phone_digits,
+      scam_type: category,
+      category,
+      source_platform: source_name,
       source_name,
       source_url,
       report_date,
-      category,
       description,
       impersonated_company,
       invoice_number,
       amount_charged,
+      is_down,
       reported_down: is_down,
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
@@ -112,6 +115,27 @@ async function saveRecordToSupabase(r: any) {
         console.warn("saveRecordToSupabase upsert note:", retry.error.message);
       }
     }
+
+    // Backup alias table upsert
+    try {
+      await supabase.from("scam_records").upsert({
+        id,
+        phone: phone_number,
+        phone_number,
+        clean_phone: phone_digits,
+        phone_digits,
+        scam_type: category,
+        category,
+        source_platform: source_name,
+        source_name,
+        source_url,
+        description,
+        impersonated_company,
+        is_down,
+        reported_down: is_down,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
   } catch (err) {
     console.warn("saveRecordToSupabase error:", err);
   }

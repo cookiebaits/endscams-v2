@@ -365,14 +365,17 @@ export default function ReportScamForm({ onSuccess, onCancel, isModal = false }:
         id: `rec-${phoneDigits}`,
         phone_number: formattedPhone,
         phone_digits: phoneDigits,
+        scam_type: form.category,
+        category: form.category,
+        source_platform: 'Community Report',
         source_name: 'Community Report',
         source_url: 'https://endscams.org/report',
         report_date: form.incidentDate,
-        category: form.category,
         description: form.description.trim(),
         impersonated_company: 'Community Submission',
         invoice_number: 'N/A',
         amount_charged: moneyNum ? `$${moneyNum.toFixed(2)}` : 'N/A',
+        is_down: false,
         reported_down: false,
         expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date().toISOString(),
@@ -382,6 +385,27 @@ export default function ReportScamForm({ onSuccess, onCancel, isModal = false }:
       if (trackerErr) {
         await supabase.from('tracker_entries').upsert(trackerRecord, { onConflict: 'phone_digits,source_name' });
       }
+
+      // Also upsert into scam_records backup alias table if present
+      try {
+        await supabase.from('scam_records').upsert({
+          id: `rec-${phoneDigits}`,
+          phone: formattedPhone,
+          phone_number: formattedPhone,
+          clean_phone: phoneDigits,
+          phone_digits: phoneDigits,
+          scam_type: form.category,
+          category: form.category,
+          source_platform: 'Community Report',
+          source_name: 'Community Report',
+          source_url: 'https://endscams.org/report',
+          description: form.description.trim(),
+          impersonated_company: 'Community Submission',
+          is_down: false,
+          reported_down: false,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {}
 
       // 4. Send to backend fetcher /api/records/manual endpoint
       try {
