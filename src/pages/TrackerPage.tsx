@@ -1630,6 +1630,26 @@ export function TrackerPage() {
       onTriggerScan: () => {
         executeFullHarvesterScan();
       },
+      onAddManualRecord: (rawRecord: any) => {
+        if (!rawRecord) return;
+        const mapped = mapRawSeedToThreatRecord(rawRecord);
+        setRecords((prev) => {
+          if (prev.some((r) => r.phone_digits === mapped.phone_digits)) {
+            return prev.map((r) => (r.phone_digits === mapped.phone_digits ? { ...r, ...mapped } : r));
+          }
+          return [mapped, ...prev].sort(compareThreatDatesDesc);
+        });
+      },
+      onPushRecords: (rawRecords: any[]) => {
+        if (!Array.isArray(rawRecords) || rawRecords.length === 0) return;
+        const mappedList = rawRecords.map(mapRawSeedToThreatRecord);
+        setRecords((prev) => {
+          const map = new Map<string, ThreatRecord>();
+          prev.forEach((r) => map.set(r.phone_digits, r));
+          mappedList.forEach((r) => map.set(r.phone_digits, r));
+          return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+        });
+      },
       onToggleNumberDown: (id) => {
         setRecords((prev) => {
           const target = prev.find((r) => r.id === id || r.phone_digits === id);
