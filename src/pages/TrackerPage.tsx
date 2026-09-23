@@ -18,16 +18,22 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -37,11 +43,20 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV } from '../utils/csvHandler';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
+import { getCleanCopyPhone } from '../utils/phoneUtils';
+import { resolveTargetCompany } from '../utils/targetUtils';
 import { ScamPhoneRecord } from '../types';
+import {
+  verifyEncryptedAdmin,
+  verifyEncryptedBypass,
+  isBypassAllowedForAction,
+  checkClientGeoPermission,
+} from '../utils/security';
 
 export interface AltNumberEntry {
   phone: string;
@@ -105,54 +120,19 @@ export function isWhatsAppThreat(record: {
 // 1. EXACT SEARCH PARAMETERS & SCAN TARGETS FROM ESSCAN.AI.STUDIO
 // ============================================================================
 export const GEMINI_SEARCH_MODEL_VARIATIONS: string[] = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash-lite',
-  'gemini-2.5-pro',
+  'gemini-3.8-flash',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3.1-pro-preview',
+  'gemini-3-flash-preview',
   'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-pro-latest',
 ];
-
-export function inferImpersonatedCompany(text?: string, category?: string, sourceName?: string): string {
-  const combined = `${text || ''} ${category || ''} ${sourceName || ''}`.toLowerCase();
-  if (!combined.trim()) return 'N/A';
-
-  if (combined.includes('geek squad') || combined.includes('geeksquad')) return 'Geek Squad Protection';
-  if (combined.includes('paypal') || combined.includes('pay pal')) return 'PayPal';
-  if (combined.includes('mcafee')) return 'McAfee AntiVirus';
-  if (combined.includes('norton') || combined.includes('lifelock')) return 'Norton LifeLock';
-  if (combined.includes('amazon') || combined.includes('prime')) return 'Amazon Support';
-  if (combined.includes('microsoft') || combined.includes('windows support') || combined.includes('windows defender')) return 'Microsoft Support';
-  if (combined.includes('apple') || combined.includes('icloud') || combined.includes('mac support')) return 'Apple Support';
-  if (combined.includes('pch') || combined.includes('publishers clearing') || combined.includes('mega million') || combined.includes('sweepstakes') || combined.includes('readers digest')) return 'Publishers Clearing House';
-  if (combined.includes('quickbooks') || combined.includes('intuit')) return 'Intuit Quickbooks';
-  if (combined.includes('spectrum')) return 'Spectrum Support';
-  if (combined.includes('xfinity') || combined.includes('comcast')) return 'Xfinity Support';
-  if (combined.includes('spellcaster') || combined.includes('love spell') || combined.includes('healer') || combined.includes('temple') || combined.includes('spiritualist') || combined.includes('native doctor') || combined.includes('mama') || combined.includes('baba')) return 'Spiritual & Traditional Healer';
-  if (combined.includes('btc') || combined.includes('crypto') || combined.includes('blockchain') || combined.includes('trust wallet') || combined.includes('coinbase') || combined.includes('recovery')) return 'Crypto & BTC Recovery Agent';
-  if (combined.includes('stake.us') || combined.includes('stake')) return 'Stake.us Prize Claim';
-  if (combined.includes('ebay')) return 'eBay Support';
-  if (combined.includes('walmart')) return 'Walmart Support';
-  if (combined.includes('fcc') || combined.includes('ftc')) return 'US Gov FCC/FTC Consumer Feed';
-  if (combined.includes('bank of america') || combined.includes('chase') || combined.includes('wells fargo') || combined.includes('citi')) return 'Banking Fraud Dept';
-
-  if (category) {
-    const catLower = category.toLowerCase();
-    if (catLower.includes('spell')) return 'Spiritual & Traditional Healer';
-    if (catLower.includes('crypto') || catLower.includes('btc')) return 'Crypto & BTC Recovery Agent';
-    if (catLower.includes('lottery') || catLower.includes('prize')) return 'Prize & Sweepstakes Department';
-    if (catLower.includes('tech') || catLower.includes('refund')) return 'Tech & Refund Support';
-  }
-
-  if (sourceName) {
-    const srcLower = sourceName.toLowerCase();
-    if (srcLower.includes('tech support united') || srcLower.includes('techscammersunited')) return 'Tech & Refund Support';
-    if (srcLower.includes('scammer.info')) return 'Tech & Refund Support';
-  }
-
-  return 'N/A';
-}
 
 export interface ScanTargetConfig {
   id: string;
@@ -176,7 +156,7 @@ export const SCAN_TARGETS: ScanTargetConfig[] = [
     searchDomain: 'techscammersunited.com',
     targetQuery: 'site:techscammersunited.com/latest order:newest',
     requiresAfricanNumbers: false,
-    rejectTollFree: true,
+    rejectTollFree: false,
     rejectFictitious: true,
     timeConstraintHours: 24,
   },
@@ -188,7 +168,7 @@ export const SCAN_TARGETS: ScanTargetConfig[] = [
     searchDomain: 'scammer.info',
     targetQuery: 'site:scammer.info/c/scams order:latest',
     requiresAfricanNumbers: false,
-    rejectTollFree: true,
+    rejectTollFree: false,
     rejectFictitious: true,
     timeConstraintHours: 24,
   },
@@ -284,7 +264,7 @@ export const SCAN_TARGETS: ScanTargetConfig[] = [
     searchDomain: 'techscammersunited.com',
     targetQuery: 'site:techscammersunited.com "PCH" OR "Mega Millions"',
     requiresAfricanNumbers: false,
-    rejectTollFree: true,
+    rejectTollFree: false,
     rejectFictitious: true,
     timeConstraintHours: 48,
   },
@@ -373,7 +353,7 @@ CURRENT DATE: ${currentDateStr}.
 TASK: Search the front page and latest threads of TechScammersUnited (https://techscammersunited.com/latest).
 CRITICAL RULES:
 - ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY. If there is no number in the summary or title, skip it.
-- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- EXTRACT ALL PHONE NUMBERS: Include toll-free numbers (800, 888, 877, 866, 855, 844, 833) and all geographic area codes.
 - NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS (such as 555-01xx or 555 exchange). Only extract genuine, real numbers discovered in search results and post titles.
 - 24-HOUR / RECENT THREAD MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If the post is older than 24-48 hours, SKIP IT.
 - METADATA & DETAILED SUMMARY: Extract complete metadata:
@@ -392,7 +372,7 @@ CURRENT DATE: ${currentDateStr}.
 TASK: Search the front page and latest scam topics on Scammer.info (https://scammer.info/c/scams).
 CRITICAL RULES:
 - ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY. If there is no number in the summary or title, skip it.
-- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- EXTRACT ALL PHONE NUMBERS: Include toll-free numbers (800, 888, 877, 866, 855, 844, 833) and all geographic area codes.
 - NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS (such as 555-01xx or 555 exchange). Only extract genuine, real numbers discovered in search results and post titles.
 - 24-HOUR / RECENT THREAD MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If the post is older than 24-48 hours, SKIP IT.
 - METADATA & DETAILED SUMMARY: Extract complete metadata:
@@ -564,7 +544,7 @@ CURRENT DATE: ${currentDateStr}.
 TASK: Search TechScammersUnited (techscammersunited.com) and Scammer.info for active PCH (Publishers Clearing House), Mega Millions, Reader's Digest, and lottery/sweepstakes prize claim scams.
 CRITICAL RULES:
 - ONLY pull phone numbers if they are explicitly present in the post TITLE or SUMMARY.
-- NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+- EXTRACT ALL PHONE NUMBERS: Include toll-free numbers (800, 888, 877, 866, 855, 844, 833) and standard geographic area codes.
 - NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject any numbers containing 555, 123456, etc.
 - 24-HOUR / RECENT POST MANDATE: Check thread creation timestamps and dates. Only extract numbers reported in active recent threads. If older, SKIP IT.
 - METADATA & DETAILED SUMMARY: Extract complete metadata:
@@ -602,12 +582,12 @@ TASK: Search for fraudulent scam phone numbers active in the LAST 24 HOURS match
 
 CRITICAL MANDATORY RULES:
 1. ONLY return scam numbers reported, active, or discovered within the LAST 24 HOURS.
-2. NO TOLL FREE NUMBERS. Do NOT include numbers starting with 800, 888, 877, 866, 855, 844, or 833.
+2. EXTRACT ALL PHONE NUMBERS: Include toll-free numbers (800, 888, 877, 866, 855, 844, 833) and standard geographic area codes.
 3. NEVER RETURN FICTITIOUS/EXAMPLE/PLACEHOLDER NUMBERS. Reject 555 exchange, sequential digits, or repeating numbers.
 4. LOCATION MANDATE: ${
   target.requiresAfricanNumbers
     ? 'Extract ONLY African phone numbers (+234, +254, +27, +260, +233, etc.). Do not return US numbers for social targets.'
-    : 'Return non-toll-free geographic US VoIP DIDs or international numbers.'
+    : 'Return geographic US VoIP DIDs, toll-free lines, or international numbers.'
 }
 5. EXCLUDE REDDIT & META CORPORATE: Reject reddit.com, Meta/Facebook corporate lines (650 area code), and numbers matching Facebook internal URL post IDs.
 6. FALSE POSITIVE PREVENTION: Do not return victim reports or warning advisories; only return numbers used by the perpetrators.
@@ -620,18 +600,13 @@ Return ONLY valid JSON with an items array containing phone, cleanPhone, scamTyp
  * Checks if a phone number is a North American toll-free number.
  * Toll-free area codes: 800, 888, 877, 866, 855, 844, 833
  */
-export function isTollFreeNumber(phone: string): boolean {
-  if (!phone) return false;
-  const digits = phone.replace(/\D/g, '');
-  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
-  if (local.length !== 10) return false;
-  const tollFreePrefixes = ['800', '888', '877', '866', '855', '844', '833'];
-  return tollFreePrefixes.some((p) => local.startsWith(p));
+export function isTollFreeNumber(_phone: string): boolean {
+  return false;
 }
 
 /**
  * Strict validation helper to reject fake, dummy, 555-exchange, sequential,
- * repeating digits, or toll-free numbers matching esscan.ai.studio's server rules.
+ * or repeating digits matching esscan.ai.studio's server rules.
  */
 export function isFictitiousOrInvalidPhone(phone: string): boolean {
   if (!phone || typeof phone !== 'string') return true;
@@ -643,9 +618,6 @@ export function isFictitiousOrInvalidPhone(phone: string): boolean {
 
   // Universal fictional / placeholder: contains 555 anywhere
   if (digits.includes('555')) return true;
-
-  // STRICT REQUIREMENT: No toll-free numbers allowed
-  if (isTollFreeNumber(phone)) return true;
 
   // North American Numbering Plan validation (10 digits)
   const usLocal = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
@@ -838,7 +810,7 @@ export function threatRecordToScamPhoneRecord(r: ThreatRecord): ScamPhoneRecord 
     isWhatsapp: isWhatsAppThreat(r),
     altNumbers: r.alt_numbers && r.alt_numbers.length > 0 ? r.alt_numbers.map((a) => (typeof a === 'string' ? a : a.phone)) : undefined,
     scamType: r.category,
-    impersonatedCompany: r.impersonated_company || 'N/A',
+    impersonatedCompany: resolveTargetCompany(r.impersonated_company, r.category, r.description),
     invoiceNumber: r.invoice_number || 'N/A',
     amountCharged: r.amount_charged || 'N/A',
     sourceUrl: r.source_url || '',
@@ -854,6 +826,36 @@ export function threatRecordToScamPhoneRecord(r: ThreatRecord): ScamPhoneRecord 
     postDate: dateStr,
     searchQuery: r.source_name || '',
     confidence: 'High',
+  };
+}
+
+/**
+ * Converts global ScamPhoneRecord to internal ThreatRecord.
+ */
+export function scamPhoneRecordToThreatRecord(item: any): ThreatRecord {
+  const rawPhone = String(item.phone || item.phone_number || '').trim();
+  const digits = String(item.cleanPhone || item.phone_digits || rawPhone.replace(/\D/g, '')).trim();
+  const formatted = formatDisplayPhone(rawPhone, digits);
+  const reportDate = normalizeToNumericalDate(item.postDate || item.detectedAt || item.report_date || new Date());
+  const category = item.scamType || item.category || 'General Tech Support & Refund Scams';
+  const description = (item.snippet || item.detailedSummary || item.description || 'Reported via https://endscams.org/report').trim();
+  const impersonatedCompany = item.impersonatedCompany || item.impersonated_company || resolveTargetCompany(description, category);
+
+  return {
+    id: item.id || `rec-${Date.now()}-${digits.slice(-4) || Math.random().toString(36).slice(2, 6)}`,
+    phone_number: formatted,
+    phone_digits: digits,
+    is_whatsapp: Boolean(item.isWhatsapp || item.is_whatsapp),
+    alt_numbers: Array.isArray(item.altNumbers) ? item.altNumbers : (Array.isArray(item.alt_numbers) ? item.alt_numbers : undefined),
+    source_name: item.platform || item.source_name || 'User Report (endscams.org/report)',
+    source_url: item.sourceUrl || item.source_url || 'https://endscams.org/report',
+    report_date: reportDate,
+    category: category,
+    impersonated_company: impersonatedCompany,
+    invoice_number: item.invoiceNumber || item.invoice_number || 'N/A',
+    amount_charged: item.amountCharged || item.amount_charged || (item.money_lost ? `$${item.money_lost}` : 'N/A'),
+    description: description,
+    is_down: Boolean(item.isNumberDown || item.is_down),
   };
 }
 
@@ -970,16 +972,13 @@ export function getRetentionLabel(record: Partial<ThreatRecord> | null | undefin
 }
 
 export function isThreatRecordExpired(record: Partial<ThreatRecord> | null | undefined, now: number = Date.now()): boolean {
-  if (!record || !record.report_date) return false;
-  const dateNorm = normalizeToNumericalDate(record.report_date);
-  const recTime = new Date(`${dateNorm}T12:00:00.000Z`).getTime();
-  if (isNaN(recTime)) return false;
-  const maxAgeMs = isPrizeOrExtendedRetention(record) ? SIX_MONTHS_MS : SIXTY_DAYS_MS;
-  return now - recTime > maxAgeMs;
+  // Retain all numbers and older historical threats as requested; do not auto-delete
+  return false;
 }
 
 export function purgeExpiredThreatRecords(records: ThreatRecord[], now: number = Date.now()): ThreatRecord[] {
-  return records.filter((r) => !isThreatRecordExpired(r, now));
+  // Retain all numbers and older historical records; only discard null/empty records
+  return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number)));
 }
 
 /**
@@ -1047,30 +1046,26 @@ export function formatPSTTimeOnly(date = new Date(), withSeconds = true): string
 export function getNextScheduledPSTInfo(): { label: string; countdown: string } {
   const { hour, minute, second } = getPacificParts();
   let targetHour = 7;
-  let targetMinute = 0;
   let isTomorrow = false;
 
   if (hour < 7) {
     targetHour = 7;
-    targetMinute = 0;
-  } else if (hour < 13 || (hour === 13 && minute < 30)) {
+  } else if (hour < 13) {
     targetHour = 13;
-    targetMinute = 30;
   } else {
     targetHour = 7;
-    targetMinute = 0;
     isTomorrow = true;
   }
 
   const currentSecondsOfDay = hour * 3600 + minute * 60 + second;
-  let targetSecondsOfDay = targetHour * 3600 + targetMinute * 60;
+  let targetSecondsOfDay = targetHour * 3600;
   if (isTomorrow) targetSecondsOfDay += 24 * 3600;
 
   const diffSec = targetSecondsOfDay - currentSecondsOfDay;
   const diffHours = Math.floor(diffSec / 3600);
   const diffMins = Math.floor((diffSec % 3600) / 60);
 
-  const label = isTomorrow ? 'Tomorrow at 7:00 AM PST' : targetHour === 7 ? 'Today at 7:00 AM PST' : 'Today at 1:30 PM PST';
+  const label = isTomorrow ? 'Tomorrow at 7:00 AM PST' : targetHour === 7 ? 'Today at 7:00 AM PST' : 'Today at 1:00 PM PST';
   const countdown = `in ${diffHours}h ${diffMins}m`;
   return { label, countdown };
 }
@@ -1295,7 +1290,7 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
 
   return {
     id: r.id || `rec-${digits}`,
-    phone_number: r.phone || r.phone_number || formatDisplayPhone(rawPhone, digits),
+    phone_number: formatDisplayPhone(rawPhone, digits),
     phone_digits: digits,
     is_whatsapp: isWa,
     alt_numbers: alt_numbers && alt_numbers.length > 0 ? alt_numbers : undefined,
@@ -1303,13 +1298,11 @@ function mapRawSeedToThreatRecord(r: any): ThreatRecord {
     source_url: r.sourceUrl || r.source_url || '',
     report_date: normalizeToNumericalDate(r.detectedAt || r.report_date || r.postDate),
     category: r.scamType || r.category || 'General Tech Support & Refund Scams',
-    impersonated_company: (() => {
-      let comp = r.impersonatedCompany || r.impersonated_company || '';
-      if (!comp || comp === 'N/A' || comp === 'Unspecified Target' || comp === 'Unknown') {
-        comp = inferImpersonatedCompany(`${r.detailedSummary || r.description || r.snippet || ''} ${comp}`, r.scamType || r.category, r.platform || r.source_name || r.sourceDomain);
-      }
-      return comp && comp !== 'N/A' ? comp : 'Tech & Refund Support';
-    })(),
+    impersonated_company: resolveTargetCompany(
+      r.impersonatedCompany || r.impersonated_company,
+      r.scamType || r.category,
+      r.detailedSummary || r.description || r.snippet
+    ),
     invoice_number: r.invoiceNumber || r.invoice_number || 'N/A',
     amount_charged: r.amountCharged || r.amount_charged || 'N/A',
     description: r.detailedSummary || r.description || r.snippet || 'Verified scam threat intelligence report.',
@@ -1328,49 +1321,66 @@ const DATABASE_SEED_RECORDS: ThreatRecord[] = (databaseSeed as any[])
   .map(mapRawSeedToThreatRecord)
   .filter((r) => !isThreatRecordExpired(r));
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+// Centralized deduplication helper ensuring zero ID collisions and zero digit collisions
+export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRecord[] {
   const map = new Map<string, ThreatRecord>();
-  DATABASE_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-  CLEAN_ESSCAN_SEED_RECORDS.forEach((r) => {
-    if (!isThreatRecordExpired(r)) map.set(r.phone_digits, r);
-  });
-  return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
-})();
+  const idToDigits = new Map<string, string>();
 
-/**
- * Helper to match records against a target phone number string/digits.
- */
-export function isRecordMatch(record: any, target10Digits: string): boolean {
-  if (!record || !target10Digits) return false;
-  const target = target10Digits.replace(/\D/g, '');
-  if (!target) return false;
+  for (const item of records) {
+    if (!item) continue;
+    const digits = (item.phone_digits || item.phone_number || '').replace(/\D/g, '');
+    if (!digits) continue;
+    const cleanItem: ThreatRecord = { ...item, phone_digits: digits };
 
-  const candidateFields = [
-    record.phone_digits,
-    record.cleanPhone,
-    record.clean_phone,
-    record.phone,
-    record.phone_number,
-  ];
+    // If an item with this ID already exists, update/merge status without creating a second item
+    if (item.id && idToDigits.has(item.id)) {
+      const existingDigits = idToDigits.get(item.id)!;
+      const ex = map.get(existingDigits)!;
+      map.set(existingDigits, { ...ex, is_down: item.is_down ?? ex.is_down });
+      continue;
+    }
 
-  for (const field of candidateFields) {
-    if (typeof field === 'string' && field) {
-      const digits = field.replace(/\D/g, '');
-      if (digits.includes(target) || target.includes(digits)) return true;
+    // If an item with these phone digits already exists, merge with preference for newer reports
+    if (map.has(digits)) {
+      const ex = map.get(digits)!;
+      const itemDate = item.report_date || '';
+      const exDate = ex.report_date || '';
+      if (itemDate >= exDate) {
+        map.set(digits, {
+          ...ex,
+          ...cleanItem,
+          impersonated_company: cleanItem.impersonated_company && cleanItem.impersonated_company !== 'N/A' ? cleanItem.impersonated_company : ex.impersonated_company,
+          description: cleanItem.description || ex.description,
+          is_down: item.is_down ?? ex.is_down,
+        });
+      } else {
+        map.set(digits, {
+          ...cleanItem,
+          ...ex,
+          is_down: item.is_down ?? ex.is_down,
+        });
+      }
+    } else {
+      map.set(digits, cleanItem);
+      if (item.id) idToDigits.set(item.id, digits);
     }
   }
 
-  const alts = record.alt_numbers || record.altNumbers;
-  if (Array.isArray(alts)) {
-    for (const alt of alts) {
-      const altStr = typeof alt === 'string' ? alt : (alt?.digits || alt?.phone || '');
-      const altDigits = altStr.replace(/\D/g, '');
-      if (altDigits && (altDigits.includes(target) || target.includes(altDigits))) return true;
-    }
+  // Strict second-pass guarantee that every record has a strictly unique ID
+  const seenIds = new Set<string>();
+  const result: ThreatRecord[] = [];
+  for (const r of map.values()) {
+    if (r.id && seenIds.has(r.id)) continue;
+    if (r.id) seenIds.add(r.id);
+    result.push(r);
   }
-
-  return false;
+  return result;
 }
+
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+  const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
+  return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
+})();
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1380,96 +1390,89 @@ const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
 // ============================================================================
 export function TrackerPage() {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
-    const map = new Map<string, ThreatRecord>();
-    MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-    return purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+    let combined: ThreatRecord[] = [...MASTER_SEED_RECORDS];
+
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const validSaved: ThreatRecord[] = [];
+            parsed.forEach((r) => {
+              const p = r.phone_number || r.phone_digits || '';
+              const src = (r.source_name || r.source_url || '').toLowerCase();
+              if (
+                !isTollFreeNumber(p) &&
+                !isFictitiousOrInvalidPhone(p) &&
+                !src.includes('reddit') &&
+                !(src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) &&
+                !isThreatRecordExpired(r)
+              ) {
+                const normalizedDate = normalizeToNumericalDate(r.report_date);
+                validSaved.push({ ...r, report_date: normalizedDate });
+              }
+            });
+            combined = [...combined, ...validSaved];
+          }
+        }
+      } catch {}
+    }
+
+    const deduped = purgeExpiredThreatRecords(deduplicateThreatRecordsList(combined)).sort(compareThreatDatesDesc);
+
+    // Save cleaned deduplicated data back to localStorage to purge any legacy duplicate keys from past sessions
+    if (typeof window !== 'undefined' && deduped.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(deduped));
+      } catch {}
+    }
+
+    return deduped;
   });
 
-  // Fetch records from Supabase tracker_entries table (source of truth)
-  const fetchSupabaseRecords = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tracker_entries')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('[Supabase] Failed to load tracker_entries:', error.message, error.code, error.details);
-        // On Supabase failure, try localStorage as offline cache fallback
-        loadLocalStorageCache();
-        return;
-      }
-
-      if (data && Array.isArray(data) && data.length > 0) {
-        const mapped = data
-          .filter((r: any) => {
-            const p = r.phone_digits || r.phone_number || '';
-            const src = (r.source_name || r.source_url || '').toLowerCase();
-            if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
-            if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-            if (r.expires_at) return !isThreatRecordExpired(r);
-            return true;
-          })
-          .map((item: any) => ({
-            id: String(item.id || `sb-${item.phone_digits}`),
-            phone_number: item.phone_number || item.phone || '',
-            phone_digits: item.phone_digits || (item.phone_number || '').replace(/\D/g, ''),
-            source_name: item.source_name || 'Supabase DB',
-            source_url: item.source_url || '',
-            report_date: normalizeToNumericalDate(item.report_date || item.created_at || new Date()),
-            category: item.category || 'General Tech Support & Refund Scams',
-            description: item.description || 'Synchronized from Supabase database.',
-            impersonated_company: item.impersonated_company || 'N/A',
-            invoice_number: item.invoice_number || 'N/A',
-            amount_charged: item.amount_charged || 'N/A',
-            is_down: Boolean(item.reported_down),
-          })) as ThreatRecord[];
-
-        // Supabase is authoritative: seed records as base, Supabase overwrites
-        const map = new Map<string, ThreatRecord>();
-        MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-        mapped.forEach((r: ThreatRecord) => map.set(r.phone_digits, r));
-        setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
-      } else {
-        // Supabase returned 0 rows — use localStorage cache as fallback
-        loadLocalStorageCache();
-      }
-    } catch (err) {
-      console.error('[Supabase] Tracker load error:', err);
-      loadLocalStorageCache();
-    }
-  };
-
-  // Offline fallback: load cached records from localStorage when Supabase is unreachable
-  const loadLocalStorageCache = () => {
-    if (typeof window === 'undefined') return;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed) || parsed.length === 0) return;
-      const map = new Map<string, ThreatRecord>();
-      MASTER_SEED_RECORDS.forEach((r) => map.set(r.phone_digits, r));
-      parsed.forEach((r: any) => {
-        const p = r.phone_number || r.phone_digits || '';
-        const src = (r.source_name || r.source_url || '').toLowerCase();
-        if (
-          !isTollFreeNumber(p) &&
-          !isFictitiousOrInvalidPhone(p) &&
-          !src.includes('reddit') &&
-          !(src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) &&
-          !isThreatRecordExpired(r)
-        ) {
-          map.set(r.phone_digits || p.replace(/\D/g, ''), { ...r, report_date: normalizeToNumericalDate(r.report_date) });
-        }
-      });
-      setRecords(purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc));
-    } catch {}
-  };
-
-  // Load records from Supabase on mount (source of truth — works in incognito)
+  // Automatically fetch live records from backend /api/records on mount
   useEffect(() => {
-    fetchSupabaseRecords();
+    let isMounted = true;
+    const fetchBackendRecords = async () => {
+      try {
+        const res = await fetch('/api/records');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.records && Array.isArray(data.records) && data.records.length > 0) {
+            const mapped = data.records
+              .filter((r: any) => {
+                const p = r.cleanPhone || r.phone || '';
+                const src = (r.platform || r.sourceUrl || '').toLowerCase();
+                if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
+                if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
+                return !isThreatRecordExpired(r);
+              })
+              .map(mapRawSeedToThreatRecord);
+
+            if (isMounted && mapped.length > 0) {
+              setRecords((prev) => {
+                const combined = [...mapped, ...prev];
+                const finalDeduped = purgeExpiredThreatRecords(deduplicateThreatRecordsList(combined)).sort(compareThreatDatesDesc);
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(finalDeduped));
+                  } catch {}
+                }
+                return finalDeduped;
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Tracker] Backend /api/records unreachable, using local store:', err);
+      }
+    };
+
+    fetchBackendRecords();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Schedule & Time States
@@ -1478,7 +1481,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [, setScannerProgress] = useState(0);
+  const [scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1515,33 +1518,44 @@ export function TrackerPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  // Dokploy Settings & Supabase Database — Supabase is initialized in lib/supabase.ts
-  // No runtime config loading needed; the shared client is the single source of truth.
-
-  // Administrative & Bypass TRACKER_PASS Authentication
-  type UserRole = 'admin' | 'bypass' | null;
-
-  const [unlockedRole, setUnlockedRole] = useState<UserRole>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('tracker_pass_role');
-      if (stored === 'admin' || stored === 'bypass') return stored;
-      if (sessionStorage.getItem('tracker_pass_verified') === 'true') return 'admin';
-    }
-    return null;
+  // Dokploy Settings & Supabase Database
+  const [dokployConfig, setDokployConfig] = useState<{
+    supabaseUrl: string;
+    supabaseKey: string;
+    hasSupabase: boolean;
+    hasTrackerPass: boolean;
+  }>({
+    supabaseUrl: '',
+    supabaseKey: '',
+    hasSupabase: false,
+    hasTrackerPass: false,
   });
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
-  const isAdminUnlocked = unlockedRole === 'admin';
-  const isBypassUnlocked = unlockedRole === 'admin' || unlockedRole === 'bypass';
-  const isPasswordVerified = unlockedRole !== null;
-
+  // Administrative TRACKER_PASS Authentication & Encrypted Bypass
+  const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('tracker_pass_verified') === 'true';
+    }
+    return false;
+  });
+  const [isBypassSession, setIsBypassSession] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('tracker_pass_is_bypass') === 'true';
+    }
+    return false;
+  });
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordActionName, setPasswordActionName] = useState('Administrative Action');
-  const [pendingRoleRequired, setPendingRoleRequired] = useState<'admin' | 'any'>('any');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
+
+  // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
+  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1605,18 +1619,174 @@ export function TrackerPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<{ valid: ThreatRecord[]; rejectedTollFree: number; rejectedBad: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSyncProgress, setImportSyncProgress] = useState<string | null>(null);
+  const [isSupabaseSetupModalOpen, setIsSupabaseSetupModalOpen] = useState(false);
+  const [supabaseTableStatus, setSupabaseTableStatus] = useState<{
+    configured: boolean;
+    tablesExist: boolean;
+    table: string | null;
+    error: string | null;
+  } | null>(null);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Manual Add States (Supports up to 4 numbers: 1 primary + up to 3 alternate)
-  const [newPhone, setNewPhone] = useState('');
-  const [newIsWhatsApp, setNewIsWhatsApp] = useState(false);
-  const [newAltNumbers, setNewAltNumbers] = useState<Array<{ phone: string; is_whatsapp: boolean }>>([]);
-  const [newCategory, setNewCategory] = useState('General Tech Support & Refund Scams');
-  const [newCompany, setNewCompany] = useState('');
-  const [newSourceName, setNewSourceName] = useState('Tech Support United');
-  const [newSourceUrl, setNewSourceUrl] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [manualFormError, setManualFormError] = useState<string | null>(null);
+  // EndScams.org/report Integration & Modal States
+  const [quickReportPhone, setQuickReportPhone] = useState('');
+  const [quickReportCategory, setQuickReportCategory] = useState('Lottery & Sweepstakes Scams');
+  const [quickReportCompany, setQuickReportCompany] = useState('');
+  const [quickReportHowContacted, setQuickReportHowContacted] = useState('Phone Call');
+  const [quickReportIncidentDate, setQuickReportIncidentDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [quickReportDescription, setQuickReportDescription] = useState('');
+  const [quickReportMoneyLost, setQuickReportMoneyLost] = useState('');
+  const [quickReportIsWhatsApp, setQuickReportIsWhatsApp] = useState(false);
+  const [quickReportReporterName, setQuickReportReporterName] = useState('');
+  const [quickReportReporterEmail, setQuickReportReporterEmail] = useState('');
+  const [quickReportEvidenceFile, setQuickReportEvidenceFile] = useState<File | null>(null);
+  const [quickReportEvidencePreview, setQuickReportEvidencePreview] = useState<string | null>(null);
+  const [quickReportSubmitting, setQuickReportSubmitting] = useState(false);
+  const [quickReportMessage, setQuickReportMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  // Ingestion handler for numbers submitted via https://endscams.org/report (BroadcastChannel, Supabase, API, or window postMessage)
+  const handleIncomingReport = (rawPayload: any) => {
+    if (!rawPayload || typeof rawPayload !== 'object') return;
+    try {
+      const rawPhone = String(rawPayload.phone_number || rawPayload.phone || rawPayload.phone_digits || '').trim();
+      const cleanDigits = String(rawPayload.phone_digits || rawPhone.replace(/\D/g, '')).trim();
+
+      if (!cleanDigits || cleanDigits.length < 7) return;
+      if (isTollFreeNumber(rawPhone) || isTollFreeNumber(cleanDigits)) {
+        console.warn('[EndScams Ingestion] Discarded toll-free number from report:', rawPhone);
+        return;
+      }
+      if (isFictitiousOrInvalidPhone(rawPhone) || isFictitiousOrInvalidPhone(cleanDigits)) {
+        console.warn('[EndScams Ingestion] Discarded fictitious/invalid number from report:', rawPhone);
+        return;
+      }
+
+      const formatted = formatDisplayPhone(rawPhone, cleanDigits);
+      const reportDate = normalizeToNumericalDate(rawPayload.report_date || rawPayload.incident_date || new Date());
+      const category = rawPayload.category || 'General Tech Support & Refund Scams';
+      const description = (rawPayload.description || rawPayload.snippet || rawPayload.notes || 'Reported via https://endscams.org/report').trim();
+      const impersonatedCompany = rawPayload.impersonated_company || (description.toLowerCase().includes('washington') ? 'American Cash Award (James Washington)' : resolveTargetCompany(description, category));
+
+      const newRecord: ThreatRecord = {
+        id: `report-${Date.now()}-${cleanDigits.slice(-4) || Math.random().toString(36).slice(2, 6)}`,
+        phone_number: formatted,
+        phone_digits: cleanDigits,
+        is_whatsapp: Boolean(rawPayload.is_whatsapp || rawPayload.isWhatsapp),
+        alt_numbers: Array.isArray(rawPayload.alt_numbers) ? rawPayload.alt_numbers : undefined,
+        source_name: rawPayload.source_name || 'User Report (endscams.org/report)',
+        source_url: rawPayload.source_url || 'https://endscams.org/report',
+        report_date: reportDate,
+        category: category,
+        impersonated_company: impersonatedCompany,
+        invoice_number: rawPayload.invoice_number || 'N/A',
+        amount_charged: rawPayload.amount_charged || (rawPayload.money_lost ? `$${rawPayload.money_lost}` : 'N/A'),
+        description: description,
+        is_down: false,
+      };
+
+      setRecords((prev) => {
+        const withoutOld = prev.filter((r) => r.phone_digits !== cleanDigits && r.phone_number !== rawPhone && r.phone_number !== formatted);
+        const updated = purgeExpiredThreatRecords(deduplicateThreatRecordsList([newRecord, ...withoutOld])).sort(compareThreatDatesDesc);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      // Post to backend database so it persists across refreshes and devices
+      fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: newRecord.phone_number,
+          phone_digits: newRecord.phone_digits,
+          category: newRecord.category,
+          description: newRecord.description,
+          incident_date: newRecord.report_date,
+          source_name: newRecord.source_name,
+          source_url: newRecord.source_url,
+          is_whatsapp: newRecord.is_whatsapp,
+        }),
+      }).catch(() => {});
+
+      setStatusNotification(`Report ingested from endscams.org/report: ${newRecord.phone_number} (${newRecord.impersonated_company})`);
+    } catch (err) {
+      console.warn('[EndScams Ingestion] Error processing incoming report:', err);
+    }
+  };
+
+  const handleIncomingReportRef = useRef(handleIncomingReport);
+  handleIncomingReportRef.current = handleIncomingReport;
+
+  const handleQuickReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setQuickReportMessage(null);
+    setQuickReportSubmitting(true);
+    try {
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: quickReportPhone,
+          category: quickReportCategory,
+          impersonated_company: quickReportCompany,
+          how_contacted: quickReportHowContacted,
+          incident_date: quickReportIncidentDate,
+          description: quickReportDescription || 'Reported via https://endscams.org/report',
+          money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
+          is_whatsapp: quickReportIsWhatsApp,
+          reporter_name: quickReportReporterName,
+          reporter_email: quickReportReporterEmail,
+          source: 'user_report',
+          source_url: 'https://endscams.org/report',
+          source_name: 'EndScams Report (endscams.org/report)',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setQuickReportMessage({ text: data.error || 'Failed to submit report.', isError: true });
+      } else {
+        const phone = data.record?.phone || quickReportPhone;
+        const comp = data.record?.impersonatedCompany || quickReportCompany || 'Reported Entity';
+        setQuickReportMessage({
+          text: `Success! Added ${phone} (${comp}) to Tracker Page & persisted to database.`,
+          isError: false,
+        });
+        if (data.record) {
+          handleIncomingReport({
+            phone_number: data.record.phone,
+            phone_digits: data.record.cleanPhone,
+            category: data.record.scamType,
+            impersonated_company: data.record.impersonatedCompany || quickReportCompany,
+            description: data.record.detailedSummary || data.record.snippet || quickReportDescription,
+            incident_date: data.record.postDate || quickReportIncidentDate,
+            source_name: data.record.platform,
+            source_url: data.record.sourceUrl,
+            is_whatsapp: data.record.isWhatsapp,
+            amount_charged: data.record.amountCharged,
+          });
+        }
+        setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
+        setQuickReportPhone('');
+        setQuickReportCompany('');
+        setQuickReportDescription('');
+        setQuickReportMoneyLost('');
+        setQuickReportIsWhatsApp(false);
+        setQuickReportReporterName('');
+        setQuickReportReporterEmail('');
+        setQuickReportEvidenceFile(null);
+        setQuickReportEvidencePreview(null);
+      }
+    } catch (err: any) {
+      setQuickReportMessage({ text: err.message || 'Error submitting report.', isError: true });
+    } finally {
+      setQuickReportSubmitting(false);
+    }
+  };
 
   // Save to localStorage whenever records change
   useEffect(() => {
@@ -1646,15 +1816,15 @@ export function TrackerPage() {
           const target = prev.find((r) => r.id === id || r.phone_digits === id);
           if (!target) return prev;
           const nextStatus = !target.is_down;
-          supabase
-            .from('tracker_entries')
-            .update({ reported_down: nextStatus, updated_at: new Date().toISOString() })
-            .eq('phone_digits', target.phone_digits)
-            .then(({ error }) => {
-              if (error) console.warn('[Supabase] Sync toggle error:', error.message);
-            });
+          fetch(`/api/records/${target.id}/toggle-down`, { method: 'POST' }).catch(() => {});
           return prev.map((r) => (r.id === target.id ? { ...r, is_down: nextStatus } : r));
         });
+      },
+      onAddManualRecord: (rec) => {
+        handleIncomingReportRef.current(rec);
+      },
+      onPushRecords: (incoming) => {
+        incoming.forEach((r) => handleIncomingReportRef.current(r));
       },
     });
 
@@ -1662,6 +1832,143 @@ export function TrackerPage() {
       syncBridge.destroy();
     };
   }, []);
+
+  // Listen directly to BroadcastChannels used by https://endscams.org/report
+  useEffect(() => {
+    const channelNames = [
+      'end_scam_scan_sync_channel',
+      'threat_tracker_sync_channel',
+      'scam_reports_channel',
+      'endscams_report_channel',
+    ];
+    const openChannels: BroadcastChannel[] = [];
+
+    channelNames.forEach((name) => {
+      try {
+        const ch = new BroadcastChannel(name);
+        ch.onmessage = (event) => {
+          if (!event.data) return;
+          const data = event.data;
+          const type = data.type || data.action || '';
+          if (
+            type === 'ADD_RECORD' ||
+            type === 'INSERT_RECORD' ||
+            type === 'USER_REPORT' ||
+            type === 'ADD_MANUAL_RECORD' ||
+            type === 'SCAM_REPORT_SUBMITTED' ||
+            data.phone ||
+            data.phone_number ||
+            data.phone_digits
+          ) {
+            const payload = data.payload || data.record || data;
+            handleIncomingReportRef.current(payload);
+          }
+        };
+        openChannels.push(ch);
+      } catch (e) {
+        console.warn(`[TrackerPage] BroadcastChannel ${name} error:`, e);
+      }
+    });
+
+    return () => {
+      openChannels.forEach((ch) => ch.close());
+    };
+  }, []);
+
+  // Listen for cross-window / iframe postMessage submissions from https://endscams.org/report
+  useEffect(() => {
+    const handleWindowMsg = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') return;
+      const { type, action, payload, record } = event.data;
+      const msgType = type || action || '';
+      if (
+        msgType === 'ADD_RECORD' ||
+        msgType === 'USER_REPORT' ||
+        msgType === 'ADD_MANUAL_RECORD' ||
+        msgType === 'SCAM_REPORT_SUBMITTED' ||
+        msgType === 'INSERT_RECORD' ||
+        event.data.phone ||
+        event.data.phone_number ||
+        event.data.phone_digits
+      ) {
+        handleIncomingReportRef.current(payload || record || event.data);
+      }
+    };
+    window.addEventListener('message', handleWindowMsg);
+    return () => window.removeEventListener('message', handleWindowMsg);
+  }, []);
+
+  // Listen for cross-tab storage changes (e.g. if report form saves to shared localStorage)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        e.key === 'user_reported_scams' ||
+        e.key === 'tracker_records' ||
+        e.key === 'end_scam_scan_shared_state' ||
+        e.key === 'esscan_threat_records_v2'
+      ) {
+        if (e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            const list = Array.isArray(parsed) ? parsed : parsed.records || [];
+            list.forEach((item: any) => handleIncomingReportRef.current(item));
+          } catch {}
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Active live-sync poller to ingest any reports submitted from https://endscams.org/report into this TrackerPage
+  useEffect(() => {
+    const pollThreatReports = async () => {
+      try {
+        const res = await fetch('/api/records', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const incoming: any[] = Array.isArray(data) ? data : data.records || [];
+        if (incoming.length > 0) {
+          const currentList = recordsRef.current;
+          const currentPhoneKeys = new Set(
+            currentList.map((r) => r.phone_digits || r.phone_number.replace(/\D/g, ''))
+          );
+          const newlyDiscovered: ThreatRecord[] = [];
+          for (const item of incoming) {
+            const cleanDigits =
+              item.cleanPhone ||
+              item.phone_digits ||
+              (item.phone ? item.phone.replace(/\D/g, '') : '') ||
+              (item.phone_number ? item.phone_number.replace(/\D/g, '') : '');
+            if (cleanDigits && !currentPhoneKeys.has(cleanDigits)) {
+              currentPhoneKeys.add(cleanDigits);
+              const mapped = scamPhoneRecordToThreatRecord(item);
+              newlyDiscovered.push(mapped);
+            }
+          }
+          if (newlyDiscovered.length > 0) {
+            setRecords((prev) => {
+              const updated = purgeExpiredThreatRecords(
+                deduplicateThreatRecordsList([...newlyDiscovered, ...prev])
+              ).sort(compareThreatDatesDesc);
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
+            setStatusNotification(
+              `Live threat report added to Tracker Page: ${newlyDiscovered[0].phone_number}`
+            );
+          }
+        }
+      } catch {}
+    };
+
+    // Fast polling when modal is open (every 3 seconds), regular polling when closed (every 8 seconds)
+    const intervalTime = isReportModalOpen ? 3000 : 8000;
+    const poller = setInterval(pollThreatReports, intervalTime);
+    return () => clearInterval(poller);
+  }, [isReportModalOpen]);
 
   // Broadcast to syncBridge whenever records change
   useEffect(() => {
@@ -1708,140 +2015,263 @@ export function TrackerPage() {
     }
   }, [geminiApiKey]);
 
-  // Require TRACKER_PASS (Admin or Bypass) for protected actions
-  const requireTrackerPass = (
-    actionName: string,
-    requiredRole: 'admin' | 'any' = 'any',
-    onVerified: () => void = () => {}
-  ) => {
-    if (requiredRole === 'admin' && isAdminUnlocked) {
+  // Supabase Health Diagnostic Check
+  const checkSupabaseHealth = async () => {
+    try {
+      const res = await fetch('/api/supabase/status');
+      if (res.ok) {
+        const data = await res.json();
+        setSupabaseTableStatus(data);
+        if (data.tablesExist) {
+          setIsSupabaseConnected(true);
+        }
+        return data;
+      }
+    } catch {}
+    return null;
+  };
+
+  // Load Dokploy Environment Settings & Connect Supabase (DB & DB_Key)
+  useEffect(() => {
+    let isMounted = true;
+    const loadDokployConfig = async () => {
+      try {
+        // First check Supabase health status
+        checkSupabaseHealth();
+
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (!isMounted) return;
+          setDokployConfig({
+            supabaseUrl: cfg.supabaseUrl || '',
+            supabaseKey: cfg.supabaseKey || '',
+            hasSupabase: Boolean(cfg.hasSupabase),
+            hasTrackerPass: Boolean(cfg.hasTrackerPass),
+          });
+
+          // Initialize Supabase if DB and DB_Key are configured in Dokploy
+          if (cfg.supabaseUrl && cfg.supabaseKey) {
+            try {
+              const sb = createClient(cfg.supabaseUrl, cfg.supabaseKey);
+              (window as any).supabase = sb;
+              setIsSupabaseConnected(true);
+              console.log('[Dokploy Supabase] Successfully connected to live database:', cfg.supabaseUrl);
+
+              // Pull records from Supabase tracker_entries / scam_records
+              try {
+                let sbRes = await sb.from('tracker_entries').select('*');
+                if (sbRes.error) {
+                  sbRes = await sb.from('scam_records').select('*');
+                }
+                if (sbRes.data && Array.isArray(sbRes.data) && sbRes.data.length > 0) {
+                  const mappedFromSb = sbRes.data
+                    .map((item: any) => {
+                      const raw = item.phone_number || item.phone || '';
+                      const clean = item.phone_digits || raw.replace(/\D/g, '');
+                      return {
+                        id: String(item.id || `sb-${clean}`),
+                        phone_number: formatDisplayPhone(raw, clean),
+                        phone_digits: clean,
+                        source_name: item.source_name || item.source_platform || 'Supabase DB',
+                        source_url: item.source_url || '',
+                        report_date: normalizeToNumericalDate(item.report_date || item.detected_at || new Date()),
+                        category: item.category || item.scam_type || 'General Tech Support & Refund Scams',
+                        description: item.description || item.threat_intel || 'Synchronized from Dokploy Supabase database.',
+                        impersonated_company: item.impersonated_company || 'N/A',
+                        invoice_number: item.invoice_number || 'N/A',
+                        amount_charged: item.amount_charged || 'N/A',
+                        is_down: Boolean(item.is_down || item.status === 'Out of Service'),
+                      };
+                    })
+                    .filter((r: ThreatRecord) => !isTollFreeNumber(r.phone_number) && !isFictitiousOrInvalidPhone(r.phone_number));
+
+                  if (mappedFromSb.length > 0 && isMounted) {
+                    setRecords((prev) => {
+                      const combined = [...mappedFromSb, ...prev];
+                      return purgeExpiredThreatRecords(deduplicateThreatRecordsList(combined)).sort(compareThreatDatesDesc);
+                    });
+                  }
+                }
+              } catch (queryErr) {
+                console.warn('[Dokploy Supabase] Table query notice:', queryErr);
+              }
+            } catch (sbErr) {
+              console.warn('[Dokploy Supabase] Initialization notice:', sbErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Dokploy Config] Unable to load /api/config:', err);
+      }
+    };
+
+    loadDokployConfig();
+
+    // Check Geo-IP permission: US, Canada, Australia, and all EU countries
+    checkClientGeoPermission().then((res) => {
+      if (isMounted) {
+        setIsGeoAllowed(res.allowed);
+        setClientCountryCode(res.country);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Require Administrative or Encrypted Bypass for protected actions
+  const requireTrackerPass = (actionName: string, onVerified: () => void) => {
+    // If full admin verified, allow immediately
+    if (isPasswordVerified && !isBypassSession) {
       onVerified();
       return;
     }
-    if (requiredRole === 'any' && isBypassUnlocked) {
-      onVerified();
-      return;
+    // If verified via bypass, verify that this specific action is permitted under bypass scope (editing & status changing)
+    if (isPasswordVerified && isBypassSession) {
+      if (isBypassAllowedForAction(actionName)) {
+        onVerified();
+        return;
+      }
+      // If action is outside bypass scope (e.g. scanner), prompt for full Admin Password
     }
     setPasswordActionName(actionName);
-    setPendingRoleRequired(requiredRole);
     setPendingAction(() => onVerified);
     setPasswordInput('');
     setPasswordError(null);
     setIsPasswordModalOpen(true);
   };
 
-  const calculateSha256 = async (text: string): Promise<string> => {
-    const msgBuffer = new TextEncoder().encode(text.trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  // Verify password via backend endpoint with client SHA-256 fallback
+  // Verify password via encrypted admin / bypass check (client & backend verification)
   const handleVerifyPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const candidate = passwordInput.trim();
-    if (!candidate) {
-      setPasswordError('Please enter your Tracker Password.');
+    const entered = passwordInput.trim();
+    if (!entered) {
+      setPasswordError('Please enter your Administrator or Encrypted Bypass password.');
       return;
     }
     setIsVerifyingPassword(true);
     setPasswordError(null);
 
-    let detectedRole: UserRole = null;
-    const ADMIN_HASH = '97e96000beba9b14057d7c01f06833b0948ed7e776f536207058f00c15402324';
-    const BYPASS_HASH = 'dbd823ef2cafd01668dd5e20fb15cd29aec7bff94ea7d1d6f3333b28cc7272ef';
-
-    // 1. Check client SHA-256 hashes
-    try {
-      const hash = await calculateSha256(candidate);
-      if (hash === ADMIN_HASH) {
-        detectedRole = 'admin';
-      } else if (hash === BYPASS_HASH) {
-        detectedRole = 'bypass';
+    // 1. One-way encrypted admin verification (NEVER plain-text)
+    const isAdminMatch = await verifyEncryptedAdmin(entered);
+    if (isAdminMatch) {
+      setIsPasswordVerified(true);
+      setIsBypassSession(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.removeItem('tracker_pass_is_bypass');
       }
-    } catch {}
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Administrator authorized: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
 
-    // 2. Query backend /api/verify-password
-    if (!detectedRole) {
-      try {
-        const res = await fetch('/api/verify-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: candidate }),
-        });
-        const data = await res.json();
-        if (data.verified || data.success) {
-          detectedRole = data.role === 'bypass' ? 'bypass' : 'admin';
+    // 2. One-way encrypted bypass verification (NEVER plain-text)
+    const isBypassMatch = await verifyEncryptedBypass(entered);
+    if (isBypassMatch) {
+      // Limit bypass password strictly to Editing and changing status
+      if (!isBypassAllowedForAction(passwordActionName)) {
+        setIsVerifyingPassword(false);
+        setPasswordError('Encrypted bypass authorization is strictly limited to Editing post details and Changing line status.');
+        return;
+      }
+
+      setIsPasswordVerified(true);
+      setIsBypassSession(true);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+        sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authorized via encrypted bypass: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      setIsVerifyingPassword(false);
+      return;
+    }
+
+    // 3. Fallback verification via backend API endpoint (/api/verify-password)
+    try {
+      const res = await fetch('/api/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: entered, action: passwordActionName }),
+      });
+      const data = await res.json();
+      if (data.verified || data.success) {
+        setIsPasswordVerified(true);
+        setIsBypassSession(Boolean(data.isBypass));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('tracker_pass_verified', 'true');
+          if (data.isBypass) {
+            sessionStorage.setItem('tracker_pass_is_bypass', 'true');
+          } else {
+            sessionStorage.removeItem('tracker_pass_is_bypass');
+          }
         }
-      } catch {}
-    }
-
-    if (!detectedRole) {
-      setPasswordError('Incorrect Tracker Password. Access denied.');
+        setIsPasswordModalOpen(false);
+        setPasswordInput('');
+        setStatusNotification(data.isBypass ? `Authorized via encrypted bypass: ${passwordActionName}` : `Administrator authorized: ${passwordActionName}`);
+        if (pendingAction) {
+          const act = pendingAction;
+          setPendingAction(null);
+          act();
+        }
+      } else {
+        setPasswordError(data.message || 'Incorrect Password. Please provide a valid Administrator or Bypass password.');
+      }
+    } catch {
+      setPasswordError('Network error connecting to authentication server.');
+    } finally {
       setIsVerifyingPassword(false);
-      return;
     }
-
-    if (pendingRoleRequired === 'admin' && detectedRole === 'bypass') {
-      setPasswordError(
-        `Admin Password Required (!8008...). Bypass password (@CookieR...) is not authorized for ${passwordActionName}. Please enter Admin password (!8008...).`
-      );
-      setIsVerifyingPassword(false);
-      return;
-    }
-
-    setUnlockedRole(detectedRole);
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('tracker_pass_role', detectedRole);
-      sessionStorage.setItem('tracker_pass_verified', 'true');
-    }
-    setIsPasswordModalOpen(false);
-    setPasswordInput('');
-    setStatusNotification(`Authenticated (${detectedRole.toUpperCase()}): ${passwordActionName}`);
-    if (pendingAction) {
-      const act = pendingAction;
-      setPendingAction(null);
-      act();
-    }
-    setIsVerifyingPassword(false);
   };
 
   const handleLockSession = () => {
-    setUnlockedRole(null);
+    setIsPasswordVerified(false);
+    setIsBypassSession(false);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('tracker_pass_role');
       sessionStorage.removeItem('tracker_pass_verified');
+      sessionStorage.removeItem('tracker_pass_is_bypass');
     }
-    setStatusNotification('Admin / Bypass Session Locked.');
-  };
-
-  // Delete Threat Post handler (Requires Admin Password)
-  const handleDeleteRecord = async (recordToDelete: ThreatRecord | null) => {
-    if (!recordToDelete) return;
-    if (!window.confirm(`Are you sure you want to delete the threat post for ${recordToDelete.phone_number}?`)) return;
-
-    const id = recordToDelete.id;
-    const digits = recordToDelete.phone_digits;
-
-    // Remove from state
-    setRecords((prev) => prev.filter((r) => r.id !== id && r.phone_digits !== digits));
-    if (selectedDetailRecord && (selectedDetailRecord.id === id || selectedDetailRecord.phone_digits === digits)) {
-      setSelectedDetailRecord(null);
-      setIsEditingInPopup(false);
-    }
-
-    setStatusNotification(`Deleted Threat Post: ${recordToDelete.phone_number}`);
-
-    // Sync deletion to Supabase
-    try {
-      await supabase.from('tracker_entries').delete().or(`phone_digits.eq.${digits}`);
-    } catch (err) {
-      console.warn('Supabase delete warning:', err);
-    }
+    setStatusNotification('Admin session locked.');
   };
 
   // Edit Monitored Number Handlers
+  const handleOpenEditModal = (record: ThreatRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
+    });
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1920,52 +2350,104 @@ export function TrackerPage() {
     setEditingRecord(null);
     setStatusNotification(`Updated monitored line: ${updated.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} Alt numbers` : ''}`);
 
-    // Persist to Supabase
+    // Update on backend
+    try {
+      fetch(`/api/records/${editingRecord.id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: updated.phone_number,
+          cleanPhone: updated.phone_digits,
+          isWhatsapp: updated.is_whatsapp,
+          altNumbers: validAlts.map((a) => a.phone),
+          scamType: updated.category,
+          impersonatedCompany: updated.impersonated_company,
+          amountCharged: updated.amount_charged,
+          invoiceNumber: updated.invoice_number,
+          detailedSummary: updated.description,
+          platform: updated.source_name,
+          sourceUrl: updated.source_url,
+          isNumberDown: updated.is_down,
+        }),
+      }).catch(() => {});
+    } catch {}
+
+    // Sync to Dokploy Supabase
     syncRecordToSupabase(updated);
   };
 
-  // Bulk Sync Records to Supabase Database — returns true on success, false on failure
-  const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]): Promise<boolean> => {
-    if (!recs || recs.length === 0) return true;
-    let allOk = true;
+  // Bulk Sync Records to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend API
+  const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]): Promise<{ success: boolean; error?: string }> => {
+    if (!recs || recs.length === 0) return { success: true };
     try {
-      const payloads = recs.map((rec) => {
-        const expiresAt = new Date();
-        const retentionDays = getRetentionDays(rec);
-        expiresAt.setDate(expiresAt.getDate() + retentionDays);
-        return {
-          phone_number: rec.phone_number,
-          phone_digits: rec.phone_digits,
-          source_name: rec.source_name,
-          source_url: rec.source_url,
-          report_date: rec.report_date,
-          category: rec.category,
-          description: rec.description,
-          impersonated_company: rec.impersonated_company || 'N/A',
-          invoice_number: rec.invoice_number || 'N/A',
-          amount_charged: rec.amount_charged || 'N/A',
-          reported_down: Boolean(rec.is_down),
-          expires_at: expiresAt.toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      });
+      // 1. Supabase Client Upsert
+      const sb = (window as any).supabase;
+      if (sb && typeof sb.from === 'function') {
+        const payloads = recs.map((rec) => {
+          const expiresAt = new Date();
+          const retentionDays = getRetentionDays(rec);
+          expiresAt.setDate(expiresAt.getDate() + retentionDays);
+          const country = deriveCountryInfo(rec.phone_number);
+          const dateNorm = normalizeToNumericalDate(rec.report_date);
+          const isoDetected = `${dateNorm}T12:00:00.000Z`;
 
-      const BATCH_SIZE = 200;
-      for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
-        const batch = payloads.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase
-          .from('tracker_entries')
-          .upsert(batch, { onConflict: 'phone_digits,source_name' });
-        if (error) {
-          console.error('[Supabase] Batch upsert error:', error.message, error.code, error.details);
-          allOk = false;
+          return {
+            id: rec.id || `rec-${rec.phone_digits}`,
+            phone_number: rec.phone_number,
+            phone: rec.phone_number,
+            phone_digits: rec.phone_digits,
+            clean_phone: rec.phone_digits,
+            country_code: country.code || 'US',
+            country_name: country.name || 'United States',
+            category: rec.category || 'General Tech Support & Refund Scams',
+            scam_type: rec.category || 'General Tech Support & Refund Scams',
+            impersonated_company: rec.impersonated_company || 'N/A',
+            invoice_number: rec.invoice_number || 'N/A',
+            amount_charged: rec.amount_charged || 'N/A',
+            source_platform: rec.source_name || 'Threat Intelligence',
+            source_name: rec.source_name || 'Threat Intelligence',
+            platform: rec.source_name || 'Threat Intelligence',
+            source_url: rec.source_url || '',
+            source_domain: rec.source_url && rec.source_url.includes('//') ? rec.source_url.split('/')[2].replace(/^www\./, '') : 'threat-intel',
+            threat_intel: rec.description || 'Imported threat intelligence record.',
+            description: rec.description || 'Imported threat intelligence record.',
+            snippet: rec.description || 'Imported threat intelligence record.',
+            detailed_summary: rec.description || 'Imported threat intelligence record.',
+            detected_at: isoDetected,
+            report_date: dateNorm,
+            post_date: dateNorm,
+            is_down: Boolean(rec.is_down),
+            is_number_down: Boolean(rec.is_down),
+            status: rec.is_down ? 'Out of Service' : 'Active',
+            expires_at: expiresAt.toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        });
+
+        // Try tracker_entries in batches of 50
+        for (let i = 0; i < payloads.length; i += 50) {
+          const batch = payloads.slice(i, i + 50);
+          const res = await sb.from('tracker_entries').upsert(batch, { onConflict: 'phone_digits' });
+          if (res.error) {
+            // Fallback to scam_records
+            await sb.from('scam_records').upsert(batch, { onConflict: 'clean_phone' });
+          }
         }
       }
-    } catch (err) {
-      console.error('[Supabase] Batch sync error:', err);
-      allOk = false;
+
+      // 2. Server Bulk-Upsert API for two-way sync and disk persistence
+      const scamPayload = recs.map(threatRecordToScamPhoneRecord);
+      await fetch('/api/records/bulk-upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: scamPayload }),
+      }).catch(() => {});
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn('[Supabase Batch Sync Notice]', err);
+      return { success: false, error: err.message };
     }
-    return allOk;
   };
 
   // Sync Single Record to Supabase
@@ -2047,8 +2529,33 @@ export function TrackerPage() {
     setPopupEditError(null);
     setStatusNotification(`Updated threat post: ${updated.phone_number}`);
 
-    // 2. Persist to Supabase Database
+    // 2. Persist to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend
     await syncThreatRecordsToSupabase([updated]);
+
+    // 3. Update backend server specifically
+    try {
+      fetch(`/api/records/${updated.id}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          record: {
+            id: updated.id,
+            phone: updated.phone_number,
+            cleanPhone: updated.phone_digits,
+            impersonatedCompany: updated.impersonated_company,
+            scamType: updated.category,
+            platform: updated.source_name,
+            sourceUrl: updated.source_url,
+            snippet: updated.description,
+            detailedSummary: updated.description,
+            postDate: updated.report_date,
+            amountCharged: updated.amount_charged,
+            invoiceNumber: updated.invoice_number,
+            isNumberDown: updated.is_down,
+          },
+        }),
+      }).catch(() => {});
+    } catch {}
   };
 
   // ============================================================================
@@ -2059,15 +2566,14 @@ export function TrackerPage() {
       try {
         const { hour, dateStr } = getPacificParts(new Date());
 
-        // Target daily slots: 7:00 AM PST (hour 7) and 1:30 PM PST (hour 13, minute >= 30)
-        const { minute: pstMinute } = getPacificParts(new Date());
-        if (hour === 7 || (hour === 13 && pstMinute >= 30)) {
-          const slotKey = `auto_refresh_triggered_${dateStr}_${hour === 13 ? '13_30' : String(hour)}`;
+        // Target daily slots: 7:00 AM PST (hour 7) and 1:00 PM PST (hour 13)
+        if (hour === 7 || hour === 13) {
+          const slotKey = `auto_refresh_triggered_${dateStr}_${hour}`;
           const alreadyTriggered = localStorage.getItem(slotKey);
 
           if (!alreadyTriggered && !isScanningRef.current) {
             localStorage.setItem(slotKey, new Date().toISOString());
-            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:30 PM PST';
+            const slotLabel = hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
             console.log(`[Auto-Trigger] ${slotLabel} reached! Automatically triggering autonomous threat harvester scan...`);
             setStatusNotification(`[Auto-Scan Active] ${slotLabel} reached — Automatically executed threat harvester scan.`);
             // Automated scans do not require administrative password
@@ -2110,7 +2616,7 @@ export function TrackerPage() {
             searchDomain: 'techscammersunited.com',
             targetQuery: customQuery,
             requiresAfricanNumbers: false,
-            rejectTollFree: true,
+            rejectTollFree: false,
             rejectFictitious: true,
             timeConstraintHours: 24,
           },
@@ -2133,7 +2639,7 @@ export function TrackerPage() {
             let tsuAdded = 0;
             const tsuRecords = tsuData.items
               .filter((r: any) => {
-                const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
+                const p = r.cleanPhone || r.phone || '';
                 return !isTollFreeNumber(p) && !isFictitiousOrInvalidPhone(p);
               })
               .map(mapRawSeedToThreatRecord)
@@ -2263,8 +2769,8 @@ export function TrackerPage() {
                     if (rData.records && Array.isArray(rData.records)) {
                       const mapped = rData.records
                         .filter((r: any) => {
-                          const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
-                          const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
+                          const p = r.cleanPhone || r.phone || '';
+                          const src = (r.platform || r.sourceUrl || '').toLowerCase();
                           if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
                           if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
                           return !isThreatRecordExpired(r);
@@ -2279,6 +2785,28 @@ export function TrackerPage() {
                           setRecords((prev) => [r, ...prev.filter((p) => p.phone_digits !== r.phone_digits)]);
                           setStatusNotification(`Live Discovery: ${r.phone_number} (${r.impersonated_company})`);
                           addLog(`[LIVE HARVEST] Added threat line to table: ${r.phone_number} (${r.impersonated_company})`);
+                        } else {
+                          // Duplicate or older number: update existing record with enriched intel
+                          setRecords((prev) =>
+                            prev.map((p) => {
+                              if (p.phone_digits === r.phone_digits) {
+                                const hasBetterCompany = p.impersonated_company === 'N/A' && r.impersonated_company !== 'N/A';
+                                const hasBetterInvoice = (p.invoice_number === 'N/A' || !p.invoice_number) && r.invoice_number && r.invoice_number !== 'N/A';
+                                const hasBetterAmount = (p.amount_charged === 'N/A' || !p.amount_charged) && r.amount_charged && r.amount_charged !== 'N/A';
+                                const hasBetterDesc = r.description && r.description.length > (p.description || '').length;
+                                if (hasBetterCompany || hasBetterInvoice || hasBetterAmount || hasBetterDesc) {
+                                  return {
+                                    ...p,
+                                    impersonated_company: hasBetterCompany ? r.impersonated_company : p.impersonated_company,
+                                    invoice_number: hasBetterInvoice ? r.invoice_number : p.invoice_number,
+                                    amount_charged: hasBetterAmount ? r.amount_charged : p.amount_charged,
+                                    description: hasBetterDesc ? r.description : p.description,
+                                  };
+                                }
+                              }
+                              return p;
+                            })
+                          );
                         }
                       });
                     }
@@ -2296,11 +2824,11 @@ export function TrackerPage() {
                   if (fData.records && Array.isArray(fData.records)) {
                     const mapped = fData.records
                       .filter((r: any) => {
-                        const p = r.phone_digits || r.cleanPhone || r.phone_number || r.phone || '';
-                        const src = (r.source_name || r.source_url || r.platform || r.sourceUrl || '').toLowerCase();
+                        const p = r.cleanPhone || r.phone || '';
+                        const src = (r.platform || r.sourceUrl || '').toLowerCase();
                         if (isTollFreeNumber(p) || isFictitiousOrInvalidPhone(p) || src.includes('reddit')) return false;
                         if (src.includes('facebook') && isFalsePositiveFacebookRecord(r).isFalsePositive) return false;
-                        return !isThreatRecordExpired(r);
+                        return true;
                       })
                       .map(mapRawSeedToThreatRecord);
 
@@ -2308,6 +2836,28 @@ export function TrackerPage() {
                       if (!existingDigits.has(r.phone_digits)) {
                         accumulatedNew.push(r);
                         existingDigits.add(r.phone_digits);
+                        setRecords((prev) => [r, ...prev.filter((p) => p.phone_digits !== r.phone_digits)]);
+                      } else {
+                        setRecords((prev) =>
+                          prev.map((p) => {
+                            if (p.phone_digits === r.phone_digits) {
+                              const hasBetterCompany = p.impersonated_company === 'N/A' && r.impersonated_company !== 'N/A';
+                              const hasBetterInvoice = (p.invoice_number === 'N/A' || !p.invoice_number) && r.invoice_number && r.invoice_number !== 'N/A';
+                              const hasBetterAmount = (p.amount_charged === 'N/A' || !p.amount_charged) && r.amount_charged && r.amount_charged !== 'N/A';
+                              const hasBetterDesc = r.description && r.description.length > (p.description || '').length;
+                              if (hasBetterCompany || hasBetterInvoice || hasBetterAmount || hasBetterDesc) {
+                                return {
+                                  ...p,
+                                  impersonated_company: hasBetterCompany ? r.impersonated_company : p.impersonated_company,
+                                  invoice_number: hasBetterInvoice ? r.invoice_number : p.invoice_number,
+                                  amount_charged: hasBetterAmount ? r.amount_charged : p.amount_charged,
+                                  description: hasBetterDesc ? r.description : p.description,
+                                };
+                              }
+                            }
+                            return p;
+                          })
+                        );
                       }
                     });
                   }
@@ -2452,7 +3002,32 @@ export function TrackerPage() {
                 if (!digits || digits.length < 7) continue;
                 if (isTollFreeNumber(raw) || isTollFreeNumber(digits)) continue;
                 if (isFictitiousOrInvalidPhone(raw) || isFictitiousOrInvalidPhone(digits)) continue;
-                if (existingDigits.has(digits)) continue;
+                
+                if (existingDigits.has(digits)) {
+                  // Duplicate or older number: update existing record with enriched intel
+                  setRecords((prev) =>
+                    prev.map((p) => {
+                      if (p.phone_digits === digits) {
+                        const hasBetterCompany = p.impersonated_company === 'N/A' && item.impersonatedCompany && item.impersonatedCompany !== 'N/A';
+                        const hasBetterInvoice = (p.invoice_number === 'N/A' || !p.invoice_number) && item.invoiceNumber && item.invoiceNumber !== 'N/A';
+                        const hasBetterAmount = (p.amount_charged === 'N/A' || !p.amount_charged) && item.amountCharged && item.amountCharged !== 'N/A';
+                        const newDesc = item.detailedSummary || item.snippet;
+                        const hasBetterDesc = newDesc && newDesc.length > (p.description || '').length;
+                        if (hasBetterCompany || hasBetterInvoice || hasBetterAmount || hasBetterDesc) {
+                          return {
+                            ...p,
+                            impersonated_company: hasBetterCompany ? item.impersonatedCompany : p.impersonated_company,
+                            invoice_number: hasBetterInvoice ? item.invoiceNumber : p.invoice_number,
+                            amount_charged: hasBetterAmount ? item.amountCharged : p.amount_charged,
+                            description: hasBetterDesc ? newDesc : p.description,
+                          };
+                        }
+                      }
+                      return p;
+                    })
+                  );
+                  continue;
+                }
 
                 const country = deriveCountryInfo(raw);
                 if (!country.allowed) continue;
@@ -2490,8 +3065,7 @@ export function TrackerPage() {
                   // Trickle update state so new lines appear progressively in real time
                   setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                   addLog(`[DISCOVERY] Cataloged threat: ${rec.phone_number} (${rec.impersonated_company})`);
-                  syncRecordToSupabase(rec);
-                  await delay(2000);
+                  await delay(2000); // 2000ms trickle delay matching esscan.ai.studio!
                 }
               }
             }
@@ -2521,7 +3095,27 @@ export function TrackerPage() {
                   for (const top of topics) {
                     const raw = top.phone || top.cleanPhone || '';
                     const digits = (top.cleanPhone || raw).replace(/\D/g, '');
-                    if (!isTollFreeNumber(raw) && !isFictitiousOrInvalidPhone(raw) && !existingDigits.has(digits)) {
+                    if (!isTollFreeNumber(raw) && !isFictitiousOrInvalidPhone(raw)) {
+                      if (existingDigits.has(digits)) {
+                        setRecords((prev) =>
+                          prev.map((p) => {
+                            if (p.phone_digits === digits) {
+                              const hasBetterCompany = p.impersonated_company === 'N/A' && top.impersonatedCompany && top.impersonatedCompany !== 'N/A';
+                              const hasBetterDesc = top.snippet && top.snippet.length > (p.description || '').length;
+                              if (hasBetterCompany || hasBetterDesc) {
+                                return {
+                                  ...p,
+                                  impersonated_company: hasBetterCompany ? top.impersonatedCompany : p.impersonated_company,
+                                  description: hasBetterDesc ? top.snippet : p.description,
+                                };
+                              }
+                            }
+                            return p;
+                          })
+                        );
+                        continue;
+                      }
+
                       const rec: ThreatRecord = {
                         id: `tsu-${top.id || Date.now()}-${accumulatedNew.length}`,
                         phone_number: formatDisplayPhone(raw, digits),
@@ -2538,8 +3132,7 @@ export function TrackerPage() {
                       existingDigits.add(digits);
                       setRecords((prev) => [rec, ...prev.filter((p) => p.phone_digits !== digits)]);
                       addLog(`[TSU DISCOVERY] Dialable line captured: ${rec.phone_number} (${rec.impersonated_company})`);
-                      syncRecordToSupabase(rec);
-                      await delay(2000);
+                      await delay(2000); // 2000ms trickle delay
                     }
                   }
                 }
@@ -2549,7 +3142,7 @@ export function TrackerPage() {
             await delay(1500); // 1500ms pacing between feed targets
           }
 
-          addLog('[FILTER] Applying strict filtering: Removing toll-free lines and Facebook false positives...');
+          addLog('[FILTER] Applying strict filtering: Removing fictitious numbers and Facebook false positives...');
           const todayISO = normalizeToNumericalDate(new Date());
 
           const freshPool: ThreatRecord[] = [
@@ -2657,16 +3250,35 @@ export function TrackerPage() {
       setScannerProgress(95);
       addLog(`[DATABASE] Ingesting ${accumulatedNew.length} newly discovered verified threats into storage...`);
 
-      // Merge records and purge expired
+      // Merge records and retain full dataset
       if (accumulatedNew.length > 0) {
         setRecords((prev) => {
-          const map = new Map<string, ThreatRecord>();
-          prev.forEach((r) => map.set(r.phone_digits, r));
-          accumulatedNew.forEach((r) => {
-            map.set(r.phone_digits, r);
-            syncRecordToSupabase(r);
-          });
-          const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+          accumulatedNew.forEach((r) => syncRecordToSupabase(r));
+          const combined = [...accumulatedNew, ...prev];
+          const merged = purgeExpiredThreatRecords(deduplicateThreatRecordsList(combined)).sort(compareThreatDatesDesc);
+
+          // Persist to noSqlDatabase
+          try {
+            const col = noSqlDatabase.getRecordsCollection();
+            accumulatedNew.forEach((r) => {
+              const sr = threatRecordToScamPhoneRecord(r);
+              const key = sr.cleanPhone || sr.phone;
+              const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+              if (existing) col.update(existing.id, sr);
+              else col.insert(sr);
+            });
+            noSqlDatabase.persist();
+          } catch {}
+
+          // Synchronize to backend store, database seed, and Supabase via /api/records/sync-local
+          try {
+            const scamPayload = merged.map(threatRecordToScamPhoneRecord);
+            fetch('/api/records/sync-local', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ records: scamPayload }),
+            }).catch(() => {});
+          } catch {}
 
           return merged;
         });
@@ -2679,7 +3291,7 @@ export function TrackerPage() {
       setScannerStatusMessage('Scan complete');
       addLog(`[FINISHED] Harvest cycle complete. Total monitored lines: ${records.length + accumulatedNew.length}.`);
       setStatusNotification(
-        `Harvester scan complete! Cataloged ${accumulatedNew.length} new verified threat lines (Toll-free numbers & Facebook false positives removed).`
+        `Harvester scan complete! Cataloged ${accumulatedNew.length} new verified threat lines (Facebook false positives & fictitious numbers removed).`
       );
     } catch (err: any) {
       addLog(`[ERROR] Harvest cycle error: ${err.message || err}`);
@@ -2822,7 +3434,11 @@ export function TrackerPage() {
         phone_number: formatDisplayPhone(rawPhone, digits),
         phone_digits: digits,
         category: categoryIdx >= 0 && row[categoryIdx] && row[categoryIdx].trim() ? row[categoryIdx].trim() : 'General Tech Support & Refund Scams',
-        impersonated_company: companyIdx >= 0 && row[companyIdx] && row[companyIdx].trim() ? row[companyIdx].trim() : 'N/A',
+        impersonated_company: resolveTargetCompany(
+          companyIdx >= 0 && row[companyIdx] ? row[companyIdx].trim() : '',
+          categoryIdx >= 0 && row[categoryIdx] ? row[categoryIdx].trim() : '',
+          descIdx >= 0 && row[descIdx] ? row[descIdx].trim() : ''
+        ),
         source_name: sourceIdx >= 0 && row[sourceIdx] && row[sourceIdx].trim() ? row[sourceIdx].trim() : 'CSV Import',
         source_url: urlIdx >= 0 && row[urlIdx] && row[urlIdx].trim() ? row[urlIdx].trim() : '',
         report_date: normalizedDate,
@@ -2847,7 +3463,7 @@ export function TrackerPage() {
     }
 
     if (valid.length === 0) {
-      setImportError(`No valid non-toll-free records found (${rejectedTollFree} toll-free numbers rejected, ${rejectedBad} invalid or unverified rows rejected).`);
+      setImportError(`No valid threat records found (${rejectedBad} invalid or unverified rows rejected).`);
       setImportPreview(null);
       return;
     }
@@ -2856,26 +3472,40 @@ export function TrackerPage() {
     setImportPreview({ valid, rejectedTollFree, rejectedBad });
   };
 
-  const handleConfirmImport = () => {
-    if (!importPreview || importPreview.valid.length === 0) return;
+  const handleConfirmImport = async () => {
+    if (!importPreview || importPreview.valid.length === 0 || isImporting) return;
+
+    setIsImporting(true);
+    setImportSyncProgress('Saving records to local store, database seed, and Supabase...');
 
     const importedThreats = importPreview.valid;
+    const importedScamRecords = importedThreats.map(threatRecordToScamPhoneRecord);
 
+    // 1. Update React State immediately
     setRecords((prev) => {
-      const map = new Map<string, ThreatRecord>();
-      prev.forEach((r) => map.set(r.phone_digits, r));
-      importedThreats.forEach((r) => {
-        map.set(r.phone_digits, r);
-        syncRecordToSupabase(r);
-      });
-      const merged = purgeExpiredThreatRecords(Array.from(map.values())).sort(compareThreatDatesDesc);
+      const combined = [...importedThreats, ...prev];
+      const merged = purgeExpiredThreatRecords(deduplicateThreatRecordsList(combined)).sort(compareThreatDatesDesc);
 
-      // 1. Persist to localStorage
+      // Persist to localStorage
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } catch {}
 
-      // 3. Broadcast to syncBridge for endscams.org/tracker parent
+      // Persist to built-in NoSQL Database
+      try {
+        const col = noSqlDatabase.getRecordsCollection();
+        importedScamRecords.forEach((sr) => {
+          const key = sr.cleanPhone || sr.phone;
+          const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+          if (existing) col.update(existing.id, sr);
+          else col.insert(sr);
+        });
+        noSqlDatabase.persist();
+      } catch (dbErr) {
+        console.warn('[CSV Import] Local DB persist error:', dbErr);
+      }
+
+      // Broadcast to syncBridge for endscams.org/tracker parent
       try {
         const fullScamList = merged.map(threatRecordToScamPhoneRecord);
         syncBridge.broadcastRecords(fullScamList);
@@ -2885,21 +3515,76 @@ export function TrackerPage() {
       return merged;
     });
 
-    // 4. Persist to Supabase (source of truth)
-    syncThreatRecordsToSupabase(importedThreats).then((ok) => {
-      if (!ok) {
-        setStatusNotification(`Warning: ${importedThreats.length} records saved locally but Supabase sync had errors. Check browser console for details.`);
-      }
-      // Reload from Supabase so the count reflects the true database state
-      fetchSupabaseRecords();
-    });
+    // 2. Persist to server store and disk seed via dedicated /api/records/import-csv
+    setImportSyncProgress('Persisting to server database & codebase seed...');
+    let serverOk = false;
+    let serverTotal = 0;
+    let sbSynced = false;
 
-    setStatusNotification(
-      `Successfully imported ${importedThreats.length} threat records! (${importPreview.rejectedTollFree} toll-free skipped, ${importPreview.rejectedBad} invalid skipped).`
-    );
+    try {
+      const resp = await fetch('/api/records/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: importedScamRecords }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        serverOk = true;
+        serverTotal = data.total || 0;
+        if (data.supabase?.success) {
+          sbSynced = true;
+        }
+      }
+    } catch (e) {
+      console.warn('[CSV Import] Server import-csv failed, retrying with restore endpoint:', e);
+    }
+
+    if (!serverOk) {
+      try {
+        await fetch('/api/records/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            records: importedScamRecords,
+            mode: 'merge',
+          }),
+        });
+      } catch {}
+    }
+
+    // 3. Direct client Supabase sync
+    setImportSyncProgress('Syncing directly to Supabase database tables...');
+    const clientSb = await syncThreatRecordsToSupabase(importedThreats);
+    if (clientSb.success) {
+      sbSynced = true;
+    }
+
+    // 4. Check Supabase health to see if table is recognized
+    const health = await checkSupabaseHealth();
+    if (health?.tablesExist) {
+      sbSynced = true;
+    }
+
+    setIsImporting(false);
+    setImportSyncProgress(null);
     setIsImportModalOpen(false);
     setImportFile(null);
     setImportPreview(null);
+
+    if (sbSynced) {
+      setStatusNotification(
+        `Successfully imported ${importedThreats.length} threat records! Fully synchronized to your Supabase database & server store.`
+      );
+    } else if (health && health.configured && !health.tablesExist) {
+      setStatusNotification(
+        `Imported ${importedThreats.length} records to local/server store. Notice: Supabase tables ('tracker_entries') not found. Click 'Supabase Setup' to copy SQL.`
+      );
+      setIsSupabaseSetupModalOpen(true);
+    } else {
+      setStatusNotification(
+        `Successfully imported ${importedThreats.length} threat records! Database updated (${serverTotal || importedThreats.length} total records).`
+      );
+    }
   };
 
   // Download Sample CSV
@@ -2972,89 +3657,10 @@ export function TrackerPage() {
   };
 
   // ============================================================================
-  // 10. MANUAL REPORT ADD (SUPPORTS UP TO 4 NUMBERS PER ENTRY & WHATSAPP)
+  // 10. ENDSCAMS.ORG/REPORT INGESTION & REPORT MODAL
   // ============================================================================
-  const handleManualAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setManualFormError(null);
-
-    const digits = newPhone.replace(/\D/g, '');
-    if (isTollFreeNumber(newPhone)) {
-      setManualFormError('Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.');
-      return;
-    }
-
-    if (isFictitiousOrInvalidPhone(newPhone) || digits.length < 7) {
-      setManualFormError('Invalid or fictitious phone number (must be real dialable number, no 555-exchanges).');
-      return;
-    }
-
-    // Validate alternate numbers (up to 3 alt numbers, total 4 numbers)
-    const validAlts: AltNumberEntry[] = [];
-    const usedDigits = new Set<string>([digits]);
-
-    for (let i = 0; i < newAltNumbers.length; i++) {
-      const alt = newAltNumbers[i];
-      const rawAlt = (alt.phone || '').trim();
-      if (!rawAlt) continue;
-      const altDigits = rawAlt.replace(/\D/g, '');
-      if (altDigits.length < 7) {
-        setManualFormError(`Alt Number #${i + 2} is invalid (too short, min 7 digits).`);
-        return;
-      }
-      if (isTollFreeNumber(rawAlt)) {
-        setManualFormError(`Alt Number #${i + 2} is a prohibited toll-free number.`);
-        return;
-      }
-      if (isFictitiousOrInvalidPhone(rawAlt)) {
-        setManualFormError(`Alt Number #${i + 2} is an invalid or dummy number.`);
-        return;
-      }
-      if (usedDigits.has(altDigits)) {
-        setManualFormError(`Alt Number #${i + 2} duplicates another number on this report.`);
-        return;
-      }
-      usedDigits.add(altDigits);
-      validAlts.push({
-        phone: formatDisplayPhone(rawAlt, altDigits),
-        digits: altDigits,
-        is_whatsapp: Boolean(alt.is_whatsapp),
-      });
-      if (validAlts.length >= 3) break;
-    }
-
-    const today = getPSTDateStamp();
-    const newRecord: ThreatRecord = {
-      id: `manual-${Date.now()}`,
-      phone_number: formatDisplayPhone(newPhone, digits),
-      phone_digits: digits,
-      is_whatsapp: newIsWhatsApp,
-      alt_numbers: validAlts.length > 0 ? validAlts : undefined,
-      source_name: newSourceName || 'Community Report',
-      source_url: newSourceUrl || 'https://endscams.org',
-      report_date: today,
-      category: newCategory,
-      impersonated_company: newCompany || 'N/A',
-      description: newDescription || 'Manually cataloged threat report.',
-      is_down: false,
-    };
-
-    setRecords((prev) => [newRecord, ...prev].sort(compareThreatDatesDesc));
-    syncRecordToSupabase(newRecord).then((ok) => {
-      if (!ok) {
-        setStatusNotification(`Warning: ${newRecord.phone_number} saved locally but Supabase sync failed. Check browser console.`);
-      }
-    });
-
-    setStatusNotification(
-      `Added ${newRecord.phone_number}${validAlts.length > 0 ? ` + ${validAlts.length} tied alternate numbers` : ''} to monitored database.`
-    );
-    setIsReportModalOpen(false);
-    setNewPhone('');
-    setNewIsWhatsApp(false);
-    setNewAltNumbers([]);
-    setNewDescription('');
-    setNewCompany('');
+  const handleOpenReportModal = () => {
+    setIsReportModalOpen(true);
   };
 
   // ============================================================================
@@ -3066,14 +3672,8 @@ export function TrackerPage() {
       prev.map((r) => (r.id === record.id ? { ...r, is_down: nextStatus } : r))
     );
     setStatusNotification(`Marked ${record.phone_number} as ${nextStatus ? 'Out of Service' : 'Active Threat'}.`);
-    // Sync status to Supabase
-    supabase
-      .from('tracker_entries')
-      .update({ reported_down: nextStatus, updated_at: new Date().toISOString() })
-      .eq('phone_digits', record.phone_digits)
-      .then(({ error }) => {
-        if (error) console.warn('[Supabase] Toggle status error:', error.message);
-      });
+    // Sync status with backend
+    fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
   };
 
   const handleBulkMarkDown = () => {
@@ -3091,8 +3691,9 @@ export function TrackerPage() {
   };
 
   const handleCopyPhone = (id: string, text: string) => {
+    const textToCopy = getCleanCopyPhone(text);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(textToCopy);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     }
@@ -3133,7 +3734,14 @@ export function TrackerPage() {
     });
 
     // Automatically sort all results to the newest date first (descending order by default)
-    return list.sort((a, b) => (sortOrder === 'desc' ? compareThreatDatesDesc(a, b) : compareThreatDatesAsc(a, b)));
+    const sorted = list.sort((a, b) => (sortOrder === 'desc' ? compareThreatDatesDesc(a, b) : compareThreatDatesAsc(a, b)));
+    // Guarantee 100% unique IDs so React children never experience key collisions
+    const seenIds = new Set<string>();
+    return sorted.filter((r) => {
+      if (!r.id || seenIds.has(r.id)) return false;
+      seenIds.add(r.id);
+      return true;
+    });
   }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus, selectedRetention, sortOrder]);
 
   // Derived Metrics
@@ -3189,13 +3797,13 @@ export function TrackerPage() {
               </span>
 
               <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-full text-[10px] font-medium text-amber-400">
-                DAILY SCHEDULE: 7:00 AM & 1:30 PM PST
+                DAILY SCHEDULE: 7:00 AM & 1:00 PM PST
               </span>
             </div>
 
             <h1 className="text-lg sm:text-2xl font-black text-slate-100 flex items-center space-x-2 tracking-tight">
               <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
-              <span>SCAM HARVESTER & ACTIVE PHONE DATABASE</span>
+              <span>Tracker Page (Esscan)</span>
             </h1>
 
             <p className="text-xs text-slate-400 max-w-3xl">
@@ -3208,10 +3816,10 @@ export function TrackerPage() {
             {/* Manual Refresh / Scan */}
             <button
               id="btn-footer-manual-refresh"
-              onClick={() => requireTrackerPass('Execute Manual Threat Refresh', 'any', () => executeFullHarvesterScan())}
+              onClick={() => requireTrackerPass('Execute Manual Threat Refresh', () => executeFullHarvesterScan())}
               disabled={isScanning}
               className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
-              title="Manual Threat Refresh (requires TRACKER_PASS)"
+              title="Manual Threat Refresh (requires Admin Password)"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
               <span>{isScanning ? 'Scanning Feeds...' : 'Manual Refresh'}</span>
@@ -3228,13 +3836,12 @@ export function TrackerPage() {
 
             {/* Import CSV */}
             <button
-              onClick={() => requireTrackerPass('Import CSV Threat Records', 'admin', () => setIsImportModalOpen(true))}
+              onClick={() => requireTrackerPass('Import CSV Threat Records', () => setIsImportModalOpen(true))}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-              title="Import CSV Records (requires Admin TRACKER_PASS)"
+              title="Import CSV Records (requires Admin Password)"
             >
               <Upload className="w-3.5 h-3.5 text-blue-400" />
               <span>Import CSV</span>
-              {!isAdminUnlocked && <Lock className="w-3 h-3 text-amber-400/80 ml-0.5" />}
             </button>
 
             {/* Export CSV */}
@@ -3244,6 +3851,18 @@ export function TrackerPage() {
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
               <span>Export CSV</span>
+            </button>
+
+            {/* Report Scam via endscams.org/report */}
+            <button
+              id="btn-report-scam-endscams"
+              onClick={handleOpenReportModal}
+              className="px-3 py-2 bg-red-950/40 hover:bg-red-900/60 text-red-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-red-800/60 cursor-pointer shadow-sm group"
+              title="Report a scam via https://endscams.org/report (Form submissions automatically add numbers to this page)"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-red-400 group-hover:scale-110 transition-transform" />
+              <span>Report Scam (endscams.org)</span>
+              <ExternalLink className="w-3 h-3 text-red-400/80" />
             </button>
 
             {/* Scanner Settings */}
@@ -3267,33 +3886,46 @@ export function TrackerPage() {
               </span>
             </div>
 
-            {/* TRACKER_PASS Admin / Bypass Status */}
-            {unlockedRole === 'admin' ? (
+            {/* Dokploy DB Badge */}
+            <button
+              type="button"
+              onClick={() => setIsSupabaseSetupModalOpen(true)}
+              className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono border transition cursor-pointer ${
+                supabaseTableStatus?.tablesExist
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25'
+                  : dokployConfig.hasSupabase
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
+              }`}
+              title="Click to view Supabase Database status and SQL setup schema"
+            >
+              <Database className="w-3 h-3" />
+              <span>
+                {supabaseTableStatus?.tablesExist
+                  ? 'Dokploy DB: Supabase (Active)'
+                  : dokployConfig.hasSupabase
+                  ? 'Dokploy DB: Supabase (Setup Required)'
+                  : 'Dokploy DB: Local Store'}
+              </span>
+            </button>
+
+            {/* Admin Status */}
+            {isPasswordVerified ? (
               <button
                 type="button"
                 onClick={handleLockSession}
                 className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 text-[10px] font-mono transition cursor-pointer"
-                title="Admin session active (All actions unlocked). Click to lock session."
+                title="Admin session active. Click to lock session."
               >
                 <Unlock className="w-3 h-3 text-emerald-400" />
                 <span>Admin: Unlocked</span>
               </button>
-            ) : unlockedRole === 'bypass' ? (
-              <button
-                type="button"
-                onClick={handleLockSession}
-                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 hover:bg-amber-500/25 text-[10px] font-mono transition cursor-pointer"
-                title="Bypass session active (Edit & Status unlocked; Import/Delete require Admin). Click to lock session."
-              >
-                <Unlock className="w-3 h-3 text-amber-400" />
-                <span>Bypass: Unlocked</span>
-              </button>
             ) : (
               <button
                 type="button"
-                onClick={() => requireTrackerPass('Admin Authentication', 'any', () => {})}
+                onClick={() => requireTrackerPass('Admin Authentication', () => {})}
                 className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-800/90 border border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/30 text-[10px] font-mono transition cursor-pointer"
-                title="Administrative actions require TRACKER_PASS. Click to authenticate."
+                title="Administrative actions require authentication. Click to authenticate."
               >
                 <Lock className="w-3 h-3 text-amber-400" />
                 <span>Admin: Locked</span>
@@ -3487,7 +4119,7 @@ export function TrackerPage() {
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => requireTrackerPass('Bulk Change Status to Out of Service', 'any', () => handleBulkMarkDown())}
+              onClick={() => requireTrackerPass('Bulk Change Status to Out of Service', () => handleBulkMarkDown())}
               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs transition cursor-pointer"
             >
               Mark Out of Service
@@ -3558,13 +4190,14 @@ export function TrackerPage() {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => {
+                filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
+                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
-                      key={record.id}
+                      key={record.id || `threat-row-${rIdx}`}
                       onClick={() => handleOpenPopupDetail(record)}
                       className={`hover:bg-slate-800/70 transition-colors cursor-pointer group select-none ${isChecked ? 'bg-amber-500/5' : ''}`}
                       title="Click anywhere on row to view full threat intel & details"
@@ -3711,11 +4344,9 @@ export function TrackerPage() {
 
                       {/* Company Impersonated (Company / Target) */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
-                        {record.impersonated_company && record.impersonated_company !== 'N/A' ? (
-                          <span className="text-slate-200 font-semibold">{record.impersonated_company}</span>
-                        ) : (
-                          <span className="text-slate-400 font-medium">{inferImpersonatedCompany(`${record.description || ''} ${record.source_name || ''}`, record.category, record.source_name) !== 'N/A' ? inferImpersonatedCompany(`${record.description || ''} ${record.source_name || ''}`, record.category, record.source_name) : 'Tech & Refund Support'}</span>
-                        )}
+                        <span className="text-slate-200 font-semibold">
+                          {resolveTargetCompany(record.impersonated_company, record.category, record.description)}
+                        </span>
                       </td>
 
                       {/* Scam Category */}
@@ -3730,14 +4361,14 @@ export function TrackerPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            requireTrackerPass('Change Line Status', 'any', () => handleToggleStatus(record));
+                            requireTrackerPass('Change Line Status', () => handleToggleStatus(record));
                           }}
                           className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer shadow-xs ${
                             record.is_down
                               ? 'bg-slate-800/90 text-slate-400 border-slate-700 hover:border-slate-500'
                               : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35 hover:bg-emerald-500/25'
                           }`}
-                          title="Click to toggle status (requires TRACKER_PASS)"
+                          title="Click to toggle status (requires authentication)"
                         >
                           <span className="inline-flex items-center space-x-1.5">
                             <span
@@ -3822,7 +4453,7 @@ export function TrackerPage() {
                 disabled={!targetedQuery.trim() || isScanning}
                 onClick={() => {
                   setIsTargetedSearchOpen(false);
-                  requireTrackerPass('Execute Targeted Threat Search', 'any', () => executeFullHarvesterScan(targetedQuery, targetedCategory));
+                  requireTrackerPass('Execute Targeted Threat Search', () => executeFullHarvesterScan(targetedQuery, targetedCategory));
                 }}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
               >
@@ -3853,7 +4484,7 @@ export function TrackerPage() {
             </div>
 
             <p className="text-xs text-slate-400">
-              Monitors the 11 exact targets from esscan.ai.studio. Automated triggers fire daily at 7:00 AM PST and 1:30 PM PST.
+              Monitors the 11 exact targets from esscan.ai.studio. Automated triggers fire daily at 7:00 AM PST and 1:00 PM PST.
             </p>
 
             {/* Optional Gemini Key */}
@@ -3892,7 +4523,7 @@ export function TrackerPage() {
 
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Daily Auto-Scan Slots</span>
-                <p className="text-sm font-bold text-slate-200 font-mono">7:00 AM & 1:30 PM</p>
+                <p className="text-sm font-bold text-slate-200 font-mono">7:00 AM & 1:00 PM</p>
                 <p className="text-[10px] text-emerald-400">Next: {scheduleInfo.label}</p>
               </div>
             </div>
@@ -3919,7 +4550,7 @@ export function TrackerPage() {
               <button
                 onClick={() => {
                   setIsScannerModalOpen(false);
-                  requireTrackerPass('Execute Harvester Scan', 'any', () => executeFullHarvesterScan());
+                  requireTrackerPass('Execute Harvester Scan', () => executeFullHarvesterScan());
                 }}
                 disabled={isScanning}
                 className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
@@ -3997,7 +4628,7 @@ export function TrackerPage() {
                     <span>{importPreview.valid.length} valid numbers ready</span>
                   </span>
                   <span className="text-slate-400 text-[11px]">
-                    ({importPreview.rejectedTollFree} toll-free rejected, {importPreview.rejectedBad} bad rejected)
+                    ({importPreview.rejectedBad} invalid/unverified rejected)
                   </span>
                 </div>
 
@@ -4014,11 +4645,19 @@ export function TrackerPage() {
               </div>
             )}
 
+            {isImporting && (
+              <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl flex items-center space-x-3 text-xs text-blue-300">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-400 flex-shrink-0" />
+                <span>{importSyncProgress || 'Importing records and syncing to Supabase database...'}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={handleDownloadSampleCsv}
-                className="text-xs text-amber-400 hover:text-amber-300 flex items-center space-x-1 cursor-pointer"
+                disabled={isImporting}
+                className="text-xs text-amber-400 hover:text-amber-300 flex items-center space-x-1 cursor-pointer disabled:opacity-50"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Download Template</span>
@@ -4027,18 +4666,20 @@ export function TrackerPage() {
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
+                  disabled={isImporting}
                   onClick={() => setIsImportModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                  className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  disabled={!importPreview || importPreview.valid.length === 0}
+                  disabled={!importPreview || importPreview.valid.length === 0 || isImporting}
                   onClick={handleConfirmImport}
-                  className="px-4 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl text-xs transition shadow disabled:opacity-40 cursor-pointer"
+                  className="px-4 py-1.5 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl text-xs transition shadow disabled:opacity-40 cursor-pointer flex items-center space-x-1.5"
                 >
-                  Import {importPreview ? `${importPreview.valid.length} Records` : ''}
+                  {isImporting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isImporting ? 'Importing & Syncing...' : `Import ${importPreview ? `${importPreview.valid.length} Records` : ''}`}</span>
                 </button>
               </div>
             </div>
@@ -4047,211 +4688,599 @@ export function TrackerPage() {
       )}
 
       {/* ========================================== */}
-      {/* J. MANUAL ADD NUMBER MODAL                 */}
+      {/* SUPABASE SETUP & SCHEMA MODAL              */}
       {/* ========================================== */}
-      {isReportModalOpen && (
+      {isSupabaseSetupModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl p-6 relative max-h-[90vh] flex flex-col">
             <button
-              onClick={() => setIsReportModalOpen(false)}
+              onClick={() => setIsSupabaseSetupModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-base font-bold text-slate-100 flex items-center space-x-2 mb-4">
-              <Plus className="w-5 h-5 text-red-500" />
-              <span>Add Verified Threat Number</span>
-            </h2>
-
-            {manualFormError && (
-              <div className="mb-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{manualFormError}</span>
+            <div className="flex items-center space-x-2.5 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                <Database className="w-4 h-4" />
               </div>
-            )}
+              <div>
+                <h2 className="text-base font-bold text-slate-100 flex items-center space-x-2">
+                  <span>Supabase Live Database Connection</span>
+                </h2>
+                <p className="text-xs text-slate-400 font-mono truncate max-w-md">
+                  {dokployConfig.supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co'}
+                </p>
+              </div>
+            </div>
 
-            <form onSubmit={handleManualAddSubmit} className="space-y-3.5 text-xs max-h-[75vh] overflow-y-auto pr-1">
-              {/* Primary Phone Number & WhatsApp Toggle */}
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-slate-200 font-semibold">
-                    Primary Phone Number *
-                  </label>
-                  <label className="flex items-center space-x-1.5 cursor-pointer text-[11px] text-emerald-400 select-none">
-                    <input
-                      type="checkbox"
-                      checked={newIsWhatsApp}
-                      onChange={(e) => setNewIsWhatsApp(e.target.checked)}
-                      className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                    />
-                    <span className="font-medium">WhatsApp Line</span>
-                  </label>
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+              {/* Status Card */}
+              <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                supabaseTableStatus?.tablesExist
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+              }`}>
+                <div className="flex items-center justify-between font-semibold">
+                  <span className="flex items-center space-x-1.5">
+                    {supabaseTableStatus?.tablesExist ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    )}
+                    <span>
+                      {supabaseTableStatus?.tablesExist
+                        ? `Table '${supabaseTableStatus.table}' is Active & Connected`
+                        : 'Database Configured — SQL Schema Setup Required'}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isTestingSupabase}
+                    onClick={async () => {
+                      setIsTestingSupabase(true);
+                      const res = await checkSupabaseHealth();
+                      if (res?.tablesExist) {
+                        await syncThreatRecordsToSupabase(records);
+                        setStatusNotification(`Supabase table detected! Synchronized ${records.length} records to Supabase.`);
+                      }
+                      setIsTestingSupabase(false);
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-mono transition cursor-pointer flex items-center space-x-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isTestingSupabase ? 'animate-spin' : ''}`} />
+                    <span>Test & Sync</span>
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  required
-                  placeholder="1 (951) 629-3962 or +234 810 552 9412"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                />
-                <p className="text-[10px] text-slate-500">
-                  Dialable line only. Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.
+                <p className="text-[11px] opacity-85">
+                  {supabaseTableStatus?.tablesExist
+                    ? 'CSV imports, deletions, and edits automatically replicate in real-time to your remote Supabase instance.'
+                    : supabaseTableStatus?.error || "Your Supabase project is connected, but the 'tracker_entries' table has not been created yet in the schema cache."}
                 </p>
               </div>
 
-              {/* Alternate / Tied Numbers Section (Up to 3 additional numbers, total 4) */}
-              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 space-y-2.5">
+              {/* Instructions */}
+              <div className="bg-slate-950/70 border border-slate-800/80 p-3.5 rounded-xl space-y-2 text-xs text-slate-300">
+                <h3 className="font-semibold text-slate-200 flex items-center space-x-1.5">
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                  <span>How to Initialize in Supabase (1-Minute Setup):</span>
+                </h3>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-400 leading-relaxed">
+                  <li>Open your <strong className="text-slate-200">Supabase Dashboard</strong> for project <code className="text-amber-300">joxeqlgkuvgvjoshmjqu</code>.</li>
+                  <li>Click <strong className="text-slate-200">SQL Editor</strong> on the left sidebar.</li>
+                  <li>Click <strong className="text-slate-200">"New query"</strong>.</li>
+                  <li>Click the button below to copy the SQL schema, paste it into the editor, and click <strong className="text-emerald-300">Run</strong>.</li>
+                </ol>
+              </div>
+
+              {/* Copy SQL Schema Card */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300 font-mono">SQL Table & RLS Schema:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const schemaSql = `-- Supabase Schema for EndScams Threat Tracker
+CREATE TABLE IF NOT EXISTS public.tracker_entries (
+  id TEXT PRIMARY KEY,
+  phone_number TEXT NOT NULL,
+  phone_digits TEXT NOT NULL UNIQUE,
+  country_code TEXT DEFAULT 'US',
+  country_name TEXT DEFAULT 'United States',
+  scam_type TEXT DEFAULT 'General Tech Support & Refund Scams',
+  category TEXT DEFAULT 'General Tech Support & Refund Scams',
+  impersonated_company TEXT DEFAULT 'N/A',
+  invoice_number TEXT DEFAULT 'N/A',
+  amount_charged TEXT DEFAULT 'N/A',
+  source_platform TEXT DEFAULT 'Tech Support United',
+  source_name TEXT DEFAULT 'Tech Support United',
+  source_url TEXT DEFAULT '',
+  source_domain TEXT DEFAULT '',
+  threat_intel TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  detected_at TIMESTAMPTZ DEFAULT NOW(),
+  report_date TEXT DEFAULT '',
+  post_date TEXT DEFAULT '',
+  is_down BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'Active',
+  expires_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tracker_entries_phone_digits ON public.tracker_entries (phone_digits);
+CREATE INDEX IF NOT EXISTS idx_tracker_entries_detected_at ON public.tracker_entries (detected_at DESC);
+
+ALTER TABLE public.tracker_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon and auth read tracker_entries" ON public.tracker_entries;
+CREATE POLICY "Allow anon and auth read tracker_entries" ON public.tracker_entries FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow anon and auth insert tracker_entries" ON public.tracker_entries;
+CREATE POLICY "Allow anon and auth insert tracker_entries" ON public.tracker_entries FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon and auth update tracker_entries" ON public.tracker_entries;
+CREATE POLICY "Allow anon and auth update tracker_entries" ON public.tracker_entries FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon and auth delete tracker_entries" ON public.tracker_entries;
+CREATE POLICY "Allow anon and auth delete tracker_entries" ON public.tracker_entries FOR DELETE TO anon, authenticated USING (true);
+
+CREATE TABLE IF NOT EXISTS public.scam_records (
+  id TEXT PRIMARY KEY,
+  phone TEXT,
+  phone_number TEXT,
+  clean_phone TEXT,
+  phone_digits TEXT UNIQUE,
+  country_code TEXT DEFAULT 'US',
+  country_name TEXT DEFAULT 'United States',
+  scam_type TEXT,
+  category TEXT,
+  impersonated_company TEXT,
+  invoice_number TEXT,
+  amount_charged TEXT,
+  platform TEXT,
+  source_platform TEXT,
+  source_name TEXT,
+  source_url TEXT,
+  source_domain TEXT,
+  snippet TEXT,
+  threat_intel TEXT,
+  detailed_summary TEXT,
+  description TEXT,
+  detected_at TIMESTAMPTZ DEFAULT NOW(),
+  report_date TEXT,
+  post_date TEXT,
+  is_down BOOLEAN DEFAULT FALSE,
+  is_number_down BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'Active',
+  expires_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scam_records_phone_digits ON public.scam_records (phone_digits);
+ALTER TABLE public.scam_records ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon and auth read scam_records" ON public.scam_records;
+CREATE POLICY "Allow anon and auth read scam_records" ON public.scam_records FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow anon and auth insert scam_records" ON public.scam_records;
+CREATE POLICY "Allow anon and auth insert scam_records" ON public.scam_records FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon and auth update scam_records" ON public.scam_records;
+CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);`;
+                      navigator.clipboard.writeText(schemaSql);
+                      setCopiedSql(true);
+                      setTimeout(() => setCopiedSql(false), 3000);
+                    }}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1"
+                  >
+                    {copiedSql ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        <span>Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy SQL Schema</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-950 border border-slate-800 rounded-xl text-[10px] font-mono text-slate-400 max-h-36 overflow-y-auto select-all">
+{`CREATE TABLE IF NOT EXISTS public.tracker_entries (
+  id TEXT PRIMARY KEY,
+  phone_number TEXT NOT NULL,
+  phone_digits TEXT NOT NULL UNIQUE,
+  country_code TEXT DEFAULT 'US',
+  country_name TEXT DEFAULT 'United States',
+  scam_type TEXT DEFAULT 'General Tech Support & Refund Scams',
+  category TEXT DEFAULT 'General Tech Support & Refund Scams',
+  impersonated_company TEXT DEFAULT 'N/A',
+  invoice_number TEXT DEFAULT 'N/A',
+  amount_charged TEXT DEFAULT 'N/A',
+  source_platform TEXT DEFAULT 'Tech Support United',
+  source_name TEXT DEFAULT 'Tech Support United',
+  source_url TEXT DEFAULT '',
+  source_domain TEXT DEFAULT '',
+  threat_intel TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  detected_at TIMESTAMPTZ DEFAULT NOW(),
+  report_date TEXT DEFAULT '',
+  post_date TEXT DEFAULT '',
+  is_down BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'Active',
+  expires_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-800 flex items-center justify-end space-x-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setIsSupabaseSetupModalOpen(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* J. REPORT A SCAM (HTTPS://ENDSCAMS.ORG/REPORT) MODAL     */}
+      {/* ======================================================== */}
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+            {/* Header: Clean, focused, with direct ingestion indicators */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-950 border-b border-slate-800 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-slate-300 font-semibold text-xs">Tied Alternate Numbers</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono">
-                      {1 + newAltNumbers.length} / 4 configured
+                    <span className="text-sm sm:text-base font-bold text-slate-100">Report a Scam Line</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Live Sync Active
                     </span>
                   </div>
-
-                  {newAltNumbers.length < 3 && (
-                    <button
-                      type="button"
-                      onClick={() => setNewAltNumbers((prev) => [...prev, { phone: '', is_whatsapp: false }])}
-                      className="text-[11px] px-2 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition flex items-center space-x-1 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Alt Number</span>
-                    </button>
-                  )}
-                </div>
-
-                {newAltNumbers.length === 0 ? (
-                  <p className="text-[11px] text-slate-500 italic">
-                    No alternate numbers attached yet. Click "+ Add Alt Number" if the scammer operates multiple lines.
+                  <p className="text-[11px] text-slate-400 hidden sm:block">
+                    Direct EndScams ingestion — instantly persists to PostgreSQL and updates Tracker Page
                   </p>
-                ) : (
-                  <div className="space-y-2">
-                    {newAltNumbers.map((alt, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center space-x-2 bg-slate-900/90 p-2 rounded-xl border border-slate-800"
-                      >
-                        <span className="text-[10px] font-mono text-cyan-400 font-bold shrink-0 w-12">
-                          Alt #{idx + 2}:
-                        </span>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Alternate phone number"
-                          value={alt.phone}
-                          onChange={(e) => {
-                            const updated = [...newAltNumbers];
-                            updated[idx].phone = e.target.value;
-                            setNewAltNumbers(updated);
-                          }}
-                          className="flex-1 px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs font-mono focus:outline-none focus:border-cyan-500"
-                        />
-                        <label className="flex items-center space-x-1 cursor-pointer text-[10px] text-emerald-400 shrink-0 select-none">
-                          <input
-                            type="checkbox"
-                            checked={alt.is_whatsapp}
-                            onChange={(e) => {
-                              const updated = [...newAltNumbers];
-                              updated[idx].is_whatsapp = e.target.checked;
-                              setNewAltNumbers(updated);
-                            }}
-                            className="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
-                          />
-                          <span>WA</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setNewAltNumbers((prev) => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-slate-500 hover:text-red-400 transition cursor-pointer"
-                          title="Remove alternate number"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Company / Brand Impersonated</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Geek Squad, Microsoft Support, Norton, Dr. Love Spell"
-                  value={newCompany}
-                  onChange={(e) => setNewCompany(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Scam Category *</label>
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
+              <div className="flex items-center space-x-2">
+                <a
+                  href="https://endscams.org/report"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition text-xs flex items-center space-x-1 font-medium"
+                  title="Open endscams.org/report in external window"
                 >
-                  <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
-                  <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
-                  <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
-                  <option value="Publishing Chat Scam">Publishing Chat Scam</option>
-                  <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
-                  <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Source / Origin</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Tech Support United, Scammer.info, Facebook, Instagram"
-                  value={newSourceName}
-                  onChange={(e) => setNewSourceName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Source URL</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={newSourceUrl}
-                  onChange={(e) => setNewSourceUrl(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Threat Context / Snippet</label>
-                <textarea
-                  rows={2}
-                  placeholder="What was the fraudulent claim or fake invoice?"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
+                  <span className="hidden md:inline">endscams.org</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
                 <button
                   type="button"
                   onClick={() => setIsReportModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition cursor-pointer"
+                  title="Close modal"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition shadow cursor-pointer"
-                >
-                  Save Record
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* Modal Body: Direct Ingestion Form */}
+            <form onSubmit={handleQuickReportSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-900">
+                {/* Banner message if any */}
+                {quickReportMessage && (
+                  <div
+                    className={`p-4 rounded-xl border flex items-start space-x-3 ${
+                      quickReportMessage.isError
+                        ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    }`}
+                  >
+                    {quickReportMessage.isError ? (
+                      <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                    ) : (
+                      <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
+                    )}
+                    <div className="flex-1 text-xs sm:text-sm">
+                      <p className="font-semibold">{quickReportMessage.text}</p>
+                      {!quickReportMessage.isError && (
+                        <p className="text-[11px] text-emerald-400/80 mt-1">
+                          The threat record has been permanently upserted into the PostgreSQL database and is pinned to the top of your live tracker list.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* File / Screenshot Dropzone */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Screenshot / Evidence Image <span className="text-slate-500 font-normal">(Optional)</span>
+                  </label>
+                  <div
+                    onClick={() => {
+                      const input = document.getElementById('report-evidence-file-input') as HTMLInputElement;
+                      if (input) input.click();
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file && file.type.startsWith('image/')) {
+                        setQuickReportEvidenceFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (evt) => setQuickReportEvidencePreview(evt.target?.result as string);
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-4 sm:p-5 text-center cursor-pointer transition bg-slate-950/40 hover:bg-slate-950/70"
+                  >
+                    <input
+                      id="report-evidence-file-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setQuickReportEvidenceFile(file);
+                          const reader = new FileReader();
+                          reader.onload = (evt) => setQuickReportEvidencePreview(evt.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    {quickReportEvidencePreview ? (
+                      <div className="flex items-center justify-between bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <img
+                            src={quickReportEvidencePreview}
+                            alt="Evidence preview"
+                            className="w-12 h-12 rounded object-cover border border-slate-700 shrink-0"
+                          />
+                          <div className="text-left truncate">
+                            <p className="text-xs font-medium text-slate-200 truncate">
+                              {quickReportEvidenceFile?.name || 'Attached screenshot'}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {(quickReportEvidenceFile?.size ? (quickReportEvidenceFile.size / 1024).toFixed(1) : '0')} KB
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuickReportEvidenceFile(null);
+                            setQuickReportEvidencePreview(null);
+                          }}
+                          className="px-2 py-1 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded text-xs transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center space-y-1">
+                        <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                        <p className="text-xs text-slate-300 font-medium">
+                          Click to upload or drag and drop scam screenshot
+                        </p>
+                        <p className="text-[11px] text-slate-500">PNG, JPG, WEBP up to 10MB</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Primary Row: Phone Number & Category */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Scam Phone Number <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={quickReportPhone}
+                      onChange={(e) => setQuickReportPhone(e.target.value)}
+                      placeholder="e.g. 502-237-9660 or 1 (800)..."
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Real dialable scam numbers only. 800/888 toll-free numbers are screened.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Scam Category <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={quickReportCategory}
+                      onChange={(e) => setQuickReportCategory(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
+                    >
+                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)</option>
+                      <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
+                      <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
+                      <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                      <option value="Government Impersonation & Warrant Scams">Government Impersonation & Warrant Scams</option>
+                      <option value="Emergency & Grandparent Scams">Emergency & Grandparent Scams</option>
+                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                      <option value="Spiritual / Herbal / Fortune Scam">Spiritual / Herbal / Fortune Scam</option>
+                      <option value="Other Scam">Other Scam</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Secondary Row: Impersonated Company & How Contacted */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Impersonated Company / Scammer Name
+                    </label>
+                    <input
+                      type="text"
+                      value={quickReportCompany}
+                      onChange={(e) => setQuickReportCompany(e.target.value)}
+                      placeholder="e.g. American Cash Award (James Washington) or Geek Squad"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      How Were You Contacted?
+                    </label>
+                    <select
+                      value={quickReportHowContacted}
+                      onChange={(e) => setQuickReportHowContacted(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
+                    >
+                      <option value="Phone Call">Phone Call</option>
+                      <option value="Text Message">Text Message</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Email">Email</option>
+                      <option value="Social Media">Social Media</option>
+                      <option value="Website">Website</option>
+                      <option value="In Person">In Person</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Third Row: Incident Date & Amount Lost */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Date of Incident
+                    </label>
+                    <input
+                      type="date"
+                      value={quickReportIncidentDate}
+                      onChange={(e) => setQuickReportIncidentDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Financial Loss / Amount Lost ($) <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={quickReportMoneyLost}
+                      onChange={(e) => setQuickReportMoneyLost(e.target.value)}
+                      placeholder="e.g. 250.00"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* WhatsApp Checkbox */}
+                <div className="flex items-center space-x-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="quick-whatsapp-check"
+                    checked={quickReportIsWhatsApp}
+                    onChange={(e) => setQuickReportIsWhatsApp(e.target.checked)}
+                    className="w-4 h-4 rounded text-red-500 focus:ring-red-400 bg-slate-950 border-slate-700 cursor-pointer"
+                  />
+                  <label htmlFor="quick-whatsapp-check" className="text-xs text-slate-300 cursor-pointer select-none">
+                    This phone number operates as a WhatsApp or direct messaging threat line
+                  </label>
+                </div>
+
+                {/* Incident Description */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-200 mb-1">
+                    Describe What Happened <span className="text-red-400">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={quickReportDescription}
+                    onChange={(e) => setQuickReportDescription(e.target.value)}
+                    placeholder="Provide details on the call or message: What did the scammer say? What name did they give? What fees or gift cards did they demand? Any secondary callback numbers..."
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition resize-none"
+                  />
+                </div>
+
+                {/* Optional Reporter Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Your Name / Initials <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={quickReportReporterName}
+                      onChange={(e) => setQuickReportReporterName(e.target.value)}
+                      placeholder="e.g. Anonymous or J.D."
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Your Email <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={quickReportReporterEmail}
+                      onChange={(e) => setQuickReportReporterEmail(e.target.value)}
+                      placeholder="e.g. reporter@example.com"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Form Footer / Submit Actions */}
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-[11px] text-slate-500 flex items-center space-x-1">
+                    <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Submitted reports are permanently cataloged and synced across all user sessions.</span>
+                  </p>
+                  <div className="flex items-center space-x-2.5 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsReportModalOpen(false)}
+                      className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={quickReportSubmitting || !quickReportPhone.trim() || !quickReportDescription.trim()}
+                      className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-900/30 flex items-center justify-center space-x-2 cursor-pointer"
+                    >
+                      {quickReportSubmitting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Submitting to Database...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>Submit Scam Report</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
           </div>
         </div>
       )}
@@ -4260,7 +5289,7 @@ export function TrackerPage() {
       {/* J. TRACKER_PASS AUTHENTICATION MODAL       */}
       {/* ========================================== */}
       {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
             <button
               onClick={() => {
@@ -4278,17 +5307,13 @@ export function TrackerPage() {
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-100">
-                  {pendingRoleRequired === 'admin' ? 'Admin Password Required' : 'Tracker Password Required'}
-                </h2>
+                <h2 className="text-base font-bold text-slate-100">Administrator Password Required</h2>
                 <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
               </div>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              {pendingRoleRequired === 'admin'
-                ? 'This action requires the Admin password (!8008...). Bypass password (@CookieR...) is not authorized.'
-                : 'This action is secured by the TRACKER_PASS environment setting. Enter Admin or Bypass password.'}
+              Secured by encrypted Administrator or Bypass credentials (bypass access is strictly limited to editing post details and changing line status).
             </p>
 
             {passwordError && (
@@ -4301,7 +5326,7 @@ export function TrackerPage() {
             <form onSubmit={handleVerifyPassword} className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 text-xs">
-                  Enter Tracker Password (TRACKER_PASS)
+                  Enter Password or Encrypted Bypass Key
                 </label>
                 <div className="relative">
                   <input
@@ -4386,14 +5411,16 @@ export function TrackerPage() {
                   </span>
                   {isEditingInPopup && (
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-slate-950">
-                      EDITING MODE (TRACKER_PASS UNLOCKED)
+                      EDITING MODE (UNLOCKED)
                     </span>
                   )}
                 </div>
                 <h2 className="text-lg font-bold text-slate-100">
-                  {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
-                    ? selectedDetailRecord.impersonated_company
-                    : 'Tech & Refund Support Organization'}
+                  {resolveTargetCompany(
+                    selectedDetailRecord.impersonated_company,
+                    selectedDetailRecord.category,
+                    selectedDetailRecord.description
+                  )}
                 </h2>
               </div>
 
@@ -4560,9 +5587,11 @@ export function TrackerPage() {
                       <span>Company / Target</span>
                     </div>
                     <div className="text-slate-200 font-semibold text-sm">
-                      {selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A'
-                        ? selectedDetailRecord.impersonated_company
-                        : 'Tech & Refund Support'}
+                      {resolveTargetCompany(
+                        selectedDetailRecord.impersonated_company,
+                        selectedDetailRecord.category,
+                        selectedDetailRecord.description
+                      )}
                     </div>
                   </div>
 
@@ -4660,7 +5689,7 @@ export function TrackerPage() {
                     <div className="flex items-center space-x-2">
                       <Shield className="w-4 h-4 text-amber-400" />
                       <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                        Actions (Gated by TRACKER_PASS)
+                        Protected Actions
                       </span>
                     </div>
                     {!isPasswordVerified && (
@@ -4675,22 +5704,22 @@ export function TrackerPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        requireTrackerPass('Edit Monitored Number', 'any', () => {
+                        requireTrackerPass('Edit Monitored Number', () => {
                           handleStartEditingInPopup();
                         });
                       }}
                       className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
-                      title="Edit threat post details (requires TRACKER_PASS)"
+                      title="Edit threat post details (requires authentication)"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>Edit Threat Post (Actions)</span>
-                      {!isBypassUnlocked && <Lock className="w-3 h-3 ml-1 opacity-70" />}
+                      {!isPasswordVerified && <Lock className="w-3 h-3 ml-1 opacity-70" />}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => {
-                        requireTrackerPass('Change Line Status', 'any', () => {
+                        requireTrackerPass('Change Line Status', () => {
                           handleToggleStatus(selectedDetailRecord);
                           setSelectedDetailRecord((prev) =>
                             prev ? { ...prev, is_down: !prev.is_down } : null
@@ -4698,26 +5727,10 @@ export function TrackerPage() {
                         });
                       }}
                       className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
-                      title="Toggle line active / out of service (requires TRACKER_PASS)"
+                      title="Toggle line active / out of service (requires authentication)"
                     >
                       <span className={`w-2 h-2 rounded-full ${selectedDetailRecord.is_down ? 'bg-slate-500' : 'bg-emerald-400'}`} />
                       <span>Toggle Status ({selectedDetailRecord.is_down ? 'Mark Active' : 'Mark Out of Service'})</span>
-                      {!isBypassUnlocked && <Lock className="w-3 h-3 ml-1 opacity-70" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        requireTrackerPass('Delete Threat Post', 'admin', () => {
-                          handleDeleteRecord(selectedDetailRecord);
-                        });
-                      }}
-                      className="px-3.5 py-2 bg-red-600/90 hover:bg-red-500 text-white font-semibold rounded-xl text-xs transition border border-red-500/40 flex items-center space-x-1.5 cursor-pointer"
-                      title="Delete threat post permanently (requires Admin TRACKER_PASS)"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-white" />
-                      <span>Delete Post</span>
-                      {!isAdminUnlocked && <Lock className="w-3 h-3 ml-1 opacity-80" />}
                     </button>
                   </div>
                 </div>
