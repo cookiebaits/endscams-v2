@@ -1652,6 +1652,9 @@ export function TrackerPage() {
 
   // EndScams.org/report Integration & Modal States
   const [quickReportPhone, setQuickReportPhone] = useState('');
+  const [quickReportAltPhone1, setQuickReportAltPhone1] = useState('');
+  const [quickReportAltPhone2, setQuickReportAltPhone2] = useState('');
+  const [quickReportAlt2IsWhatsApp, setQuickReportAlt2IsWhatsApp] = useState(false);
   const [quickReportCategory, setQuickReportCategory] = useState('Lottery & Sweepstakes Scams');
   const [quickReportCompany, setQuickReportCompany] = useState('');
   const [quickReportHowContacted, setQuickReportHowContacted] = useState('Phone Call');
@@ -1744,6 +1747,21 @@ export function TrackerPage() {
     e.preventDefault();
     setQuickReportMessage(null);
     setQuickReportSubmitting(true);
+
+    const altNumbersList: Array<{ phone: string; digits: string; is_whatsapp?: boolean }> = [];
+    if (quickReportAltPhone1.trim()) {
+      const alt1Digits = quickReportAltPhone1.trim().replace(/\D/g, '');
+      if (alt1Digits.length >= 7 && !isTollFreeNumber(alt1Digits)) {
+        altNumbersList.push({ phone: formatDisplayPhone(quickReportAltPhone1, alt1Digits), digits: alt1Digits, is_whatsapp: false });
+      }
+    }
+    if (quickReportAltPhone2.trim()) {
+      const alt2Digits = quickReportAltPhone2.trim().replace(/\D/g, '');
+      if (alt2Digits.length >= 7 && !isTollFreeNumber(alt2Digits)) {
+        altNumbersList.push({ phone: formatDisplayPhone(quickReportAltPhone2, alt2Digits), digits: alt2Digits, is_whatsapp: quickReportAlt2IsWhatsApp });
+      }
+    }
+
     try {
       const res = await fetch('/api/report', {
         method: 'POST',
@@ -1757,6 +1775,7 @@ export function TrackerPage() {
           description: quickReportDescription || 'Reported via https://endscams.org/report',
           money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
           is_whatsapp: quickReportIsWhatsApp,
+          alt_numbers: altNumbersList,
           reporter_name: quickReportReporterName,
           reporter_email: quickReportReporterEmail,
           source: 'user_report',
@@ -1785,11 +1804,15 @@ export function TrackerPage() {
             source_name: data.record.platform,
             source_url: data.record.sourceUrl,
             is_whatsapp: data.record.isWhatsapp,
+            alt_numbers: altNumbersList,
             amount_charged: data.record.amountCharged,
           });
         }
         setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
         setQuickReportPhone('');
+        setQuickReportAltPhone1('');
+        setQuickReportAltPhone2('');
+        setQuickReportAlt2IsWhatsApp(false);
         setQuickReportCompany('');
         setQuickReportDescription('');
         setQuickReportMoneyLost('');
@@ -5077,7 +5100,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   </div>
                 </div>
 
-                {/* Primary Row: Phone Number & Category */}
+                {/* Row 1: Phone Number & Scammer's Name */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-200 mb-1">
@@ -5088,12 +5111,85 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       required
                       value={quickReportPhone}
                       onChange={(e) => setQuickReportPhone(e.target.value)}
-                      placeholder="e.g. 502-237-9660 or 1 (800)..."
+                      placeholder="e.g. 1 (502) 237-9660 or 800-..."
                       className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
-                      Real dialable scam numbers only. 800/888 toll-free numbers are screened.
+                      Real dialable scam numbers only.
                     </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Scammer's name
+                    </label>
+                    <input
+                      type="text"
+                      value={quickReportCompany}
+                      onChange={(e) => setQuickReportCompany(e.target.value)}
+                      placeholder="e.g. PCH, David Cooper, or Geek Squad"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: Alt Phone Number #1 & Alt Phone Number #2 / WhatsApp */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Alt Phone Number #1 <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={quickReportAltPhone1}
+                      onChange={(e) => setQuickReportAltPhone1(e.target.value)}
+                      placeholder="e.g. +1 (502) 237-9661"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Alt Phone Number #2 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="tel"
+                        value={quickReportAltPhone2}
+                        onChange={(e) => setQuickReportAltPhone2(e.target.value)}
+                        placeholder="e.g. +234 810 552 9412"
+                        className="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                      />
+                      <label className="flex items-center space-x-1 text-xs text-emerald-400 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={quickReportAlt2IsWhatsApp}
+                          onChange={(e) => setQuickReportAlt2IsWhatsApp(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded text-emerald-500 focus:ring-emerald-400 bg-slate-950 border-slate-700 cursor-pointer"
+                        />
+                        <span>WhatsApp</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 3: Financial Loss & Scam Category */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-200 mb-1">
+                      Financial Loss ($) <span className="text-slate-500 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={quickReportMoneyLost}
+                      onChange={(e) => setQuickReportMoneyLost(e.target.value)}
+                      placeholder="e.g. 250.00"
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                    />
                   </div>
 
                   <div>
@@ -5119,18 +5215,17 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   </div>
                 </div>
 
-                {/* Secondary Row: Impersonated Company & How Contacted */}
+                {/* Row 4: Date of Incident & How Were You Contacted? */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Impersonated Company / Scammer Name
+                      Date of Incident
                     </label>
                     <input
-                      type="text"
-                      value={quickReportCompany}
-                      onChange={(e) => setQuickReportCompany(e.target.value)}
-                      placeholder="e.g. American Cash Award (James Washington) or Geek Squad"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+                      type="date"
+                      value={quickReportIncidentDate}
+                      onChange={(e) => setQuickReportIncidentDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
                     />
                   </div>
 
@@ -5155,37 +5250,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   </div>
                 </div>
 
-                {/* Third Row: Incident Date & Amount Lost */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Date of Incident
-                    </label>
-                    <input
-                      type="date"
-                      value={quickReportIncidentDate}
-                      onChange={(e) => setQuickReportIncidentDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Financial Loss / Amount Lost ($) <span className="text-slate-500 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={quickReportMoneyLost}
-                      onChange={(e) => setQuickReportMoneyLost(e.target.value)}
-                      placeholder="e.g. 250.00"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* WhatsApp Checkbox */}
+                {/* Row 5: WhatsApp Checkbox */}
                 <div className="flex items-center space-x-2 pt-1">
                   <input
                     type="checkbox"
@@ -5195,7 +5260,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                     className="w-4 h-4 rounded text-red-500 focus:ring-red-400 bg-slate-950 border-slate-700 cursor-pointer"
                   />
                   <label htmlFor="quick-whatsapp-check" className="text-xs text-slate-300 cursor-pointer select-none">
-                    This phone number operates as a WhatsApp or direct messaging threat line
+                    This primary phone number operates as a WhatsApp or direct messaging threat line
                   </label>
                 </div>
 
