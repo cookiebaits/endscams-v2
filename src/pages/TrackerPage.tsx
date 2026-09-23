@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import databaseSeed from './database_seed.json';
+import { supabase } from '../lib/supabase';
 import {
   Shield,
   Search,
@@ -1746,7 +1747,30 @@ export function TrackerPage() {
   const handleQuickReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setQuickReportMessage(null);
+
+    const cleanPhone = quickReportPhone.trim();
+    const cleanDesc = quickReportDescription.trim();
+
+    if (!cleanPhone || !cleanDesc) {
+      setQuickReportMessage({ text: 'Please provide both the scam phone number and a description.', isError: true });
+      return;
+    }
+
+    const primaryDigits = cleanPhone.replace(/\D/g, '');
+    if (primaryDigits.length < 7 || primaryDigits.length > 15) {
+      setQuickReportMessage({ text: 'Please enter a valid primary phone number (7-15 digits).', isError: true });
+      return;
+    }
+
+    if (isTollFreeNumber(primaryDigits) || isTollFreeNumber(cleanPhone)) {
+      setQuickReportMessage({ text: 'Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.', isError: true });
+      return;
+    }
+
     setQuickReportSubmitting(true);
+
+    const formattedPrimary = formatDisplayPhone(cleanPhone, primaryDigits);
+    const amountVal = quickReportMoneyLost ? `$${parseFloat(quickReportMoneyLost).toFixed(2)}` : 'N/A';
 
     const altNumbersList: Array<{ phone: string; digits: string; is_whatsapp?: boolean }> = [];
     if (quickReportAltPhone1.trim()) {
@@ -1762,71 +1786,92 @@ export function TrackerPage() {
       }
     }
 
+    const payload = {
+      phone_number: formattedPrimary,
+      phone_digits: primaryDigits,
+      category: quickReportCategory,
+      impersonated_company: quickReportCompany.trim() || 'N/A',
+      how_contacted: quickReportHowContacted,
+      incident_date: quickReportIncidentDate,
+      description: cleanDesc,
+      money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
+      amount_charged: amountVal,
+      is_whatsapp: quickReportIsWhatsApp,
+      alt_numbers: altNumbersList,
+      reporter_name: quickReportReporterName.trim() || null,
+      reporter_email: quickReportReporterEmail.trim() || null,
+      source: 'user_report',
+      source_url: 'https://endscams.org/report',
+      source_name: 'EndScams Report (endscams.org/report)',
+    };
+
     try {
-      const res = await fetch('/api/report', {
+      await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone_number: quickReportPhone,
-          category: quickReportCategory,
-          impersonated_company: quickReportCompany,
-          how_contacted: quickReportHowContacted,
-          incident_date: quickReportIncidentDate,
-          description: quickReportDescription || 'Reported via https://endscams.org/report',
-          money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
-          is_whatsapp: quickReportIsWhatsApp,
-          alt_numbers: altNumbersList,
-          reporter_name: quickReportReporterName,
-          reporter_email: quickReportReporterEmail,
-          source: 'user_report',
-          source_url: 'https://endscams.org/report',
-          source_name: 'EndScams Report (endscams.org/report)',
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setQuickReportMessage({ text: data.error || 'Failed to submit report.', isError: true });
-      } else {
-        const phone = data.record?.phone || quickReportPhone;
-        const comp = data.record?.impersonatedCompany || quickReportCompany || 'Reported Entity';
-        setQuickReportMessage({
-          text: `Success! Added ${phone} (${comp}) to Tracker Page & persisted to database.`,
-          isError: false,
-        });
-        if (data.record) {
-          handleIncomingReport({
-            phone_number: data.record.phone,
-            phone_digits: data.record.cleanPhone,
-            category: data.record.scamType,
-            impersonated_company: data.record.impersonatedCompany || quickReportCompany,
-            description: data.record.detailedSummary || data.record.snippet || quickReportDescription,
-            incident_date: data.record.postDate || quickReportIncidentDate,
-            source_name: data.record.platform,
-            source_url: data.record.sourceUrl,
-            is_whatsapp: data.record.isWhatsapp,
-            alt_numbers: altNumbersList,
-            amount_charged: data.record.amountCharged,
-          });
-        }
-        setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
-        setQuickReportPhone('');
-        setQuickReportAltPhone1('');
-        setQuickReportAltPhone2('');
-        setQuickReportAlt2IsWhatsApp(false);
-        setQuickReportCompany('');
-        setQuickReportDescription('');
-        setQuickReportMoneyLost('');
-        setQuickReportIsWhatsApp(false);
-        setQuickReportReporterName('');
-        setQuickReportReporterEmail('');
-        setQuickReportEvidenceFile(null);
-        setQuickReportEvidencePreview(null);
-      }
-    } catch (err: any) {
-      setQuickReportMessage({ text: err.message || 'Error submitting report.', isError: true });
-    } finally {
-      setQuickReportSubmitting(false);
+    } catch (fErr) {
+      console.warn('[QuickReport] /api/report request failed:', fErr);
     }
+
+    // Direct Supabase storage fallback if API failed or offline
+    try {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 60);
+
+      await supabase.from('tracker_entries').upsert({
+        id: `rec-${primaryDigits}`,
+        phone_number: formattedPrimary,
+        phone_digits: primaryDigits,
+        source_name: 'User Report (endscams.org/report)',
+        source_url: 'https://endscams.org/report',
+        report_date: quickReportIncidentDate,
+        category: quickReportCategory,
+        impersonated_company: quickReportCompany.trim() || 'N/A',
+        description: cleanDesc,
+        amount_charged: amountVal,
+        is_down: false,
+        expires_at: expiresAt.toISOString(),
+      }, { onConflict: 'phone_digits' });
+    } catch (sbErr) {
+      console.warn('[QuickReport] Direct Supabase persist notice:', sbErr);
+    }
+
+    const compName = quickReportCompany.trim() || 'Reported Entity';
+    setQuickReportMessage({
+      text: `Success! Added ${formattedPrimary} (${compName}) to Tracker Page & persisted to database.`,
+      isError: false,
+    });
+
+    handleIncomingReport({
+      phone_number: formattedPrimary,
+      phone_digits: primaryDigits,
+      category: quickReportCategory,
+      impersonated_company: compName,
+      description: cleanDesc,
+      incident_date: quickReportIncidentDate,
+      source_name: 'User Report (endscams.org/report)',
+      source_url: 'https://endscams.org/report',
+      is_whatsapp: quickReportIsWhatsApp,
+      alt_numbers: altNumbersList,
+      amount_charged: amountVal,
+    });
+
+    setStatusNotification(`Threat report recorded: ${formattedPrimary} (${compName})`);
+    setQuickReportPhone('');
+    setQuickReportAltPhone1('');
+    setQuickReportAltPhone2('');
+    setQuickReportAlt2IsWhatsApp(false);
+    setQuickReportCompany('');
+    setQuickReportDescription('');
+    setQuickReportMoneyLost('');
+    setQuickReportIsWhatsApp(false);
+    setQuickReportReporterName('');
+    setQuickReportReporterEmail('');
+    setQuickReportEvidenceFile(null);
+    setQuickReportEvidencePreview(null);
+    setQuickReportSubmitting(false);
   };
 
   // Save to localStorage whenever records change

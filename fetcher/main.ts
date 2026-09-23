@@ -975,6 +975,48 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     }
   }
 
+  if (url.pathname === "/api/report") {
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+
+    const rawPhone = String(body.phone_number || body.phone || "").trim();
+    const cleanDigits = String(body.phone_digits || rawPhone.replace(/\D/g, "")).trim();
+
+    if (!cleanDigits || cleanDigits.length < 7) {
+      return cors(json({ error: "Please enter a valid phone number (at least 7 digits)." }, 400));
+    }
+
+    const recToSave = {
+      id: `rec-${cleanDigits}`,
+      phone: body.phone_number || rawPhone || cleanDigits,
+      cleanPhone: cleanDigits,
+      phone_number: body.phone_number || rawPhone || cleanDigits,
+      phone_digits: cleanDigits,
+      scamType: body.category || "General Tech Support & Refund Scams",
+      category: body.category || "General Tech Support & Refund Scams",
+      impersonatedCompany: body.impersonated_company || "N/A",
+      impersonated_company: body.impersonated_company || "N/A",
+      detailedSummary: body.description || "Reported via endscams.org",
+      snippet: body.description || "Reported via endscams.org",
+      description: body.description || "Reported via endscams.org",
+      postDate: body.incident_date || new Date().toISOString().split("T")[0],
+      report_date: body.incident_date || new Date().toISOString().split("T")[0],
+      platform: body.how_contacted || body.source_name || "User Report (endscams.org/report)",
+      source_name: body.source_name || "User Report (endscams.org/report)",
+      source_url: body.source_url || "https://endscams.org/report",
+      sourceUrl: body.source_url || "https://endscams.org/report",
+      amountCharged: body.amount_charged || (body.money_lost ? `$${parseFloat(body.money_lost).toFixed(2)}` : "N/A"),
+      amount_charged: body.amount_charged || (body.money_lost ? `$${parseFloat(body.money_lost).toFixed(2)}` : "N/A"),
+      isWhatsapp: Boolean(body.is_whatsapp),
+      is_whatsapp: Boolean(body.is_whatsapp),
+      alt_numbers: body.alt_numbers || [],
+    };
+
+    await saveRecordToSupabase(recToSave);
+    return cors(json({ success: true, record: recToSave }));
+  }
+
   if (url.pathname === "/api/records/manual") {
     if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
     let body: any = {};
