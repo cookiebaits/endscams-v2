@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../data/database_seed.json';
+import databaseSeed from './database_seed.json';
 import {
   Shield,
   Search,
@@ -18,22 +18,16 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
-  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -45,7 +39,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
@@ -971,12 +965,12 @@ export function getRetentionLabel(record: Partial<ThreatRecord> | null | undefin
   return isPrizeOrExtendedRetention(record) ? '6-Mo Prize' : '60-Day';
 }
 
-export function isThreatRecordExpired(record: Partial<ThreatRecord> | null | undefined, now: number = Date.now()): boolean {
+export function isThreatRecordExpired(_record?: Partial<ThreatRecord> | null, _now: number = Date.now()): boolean {
   // Retain all numbers and older historical threats as requested; do not auto-delete
   return false;
 }
 
-export function purgeExpiredThreatRecords(records: ThreatRecord[], now: number = Date.now()): ThreatRecord[] {
+export function purgeExpiredThreatRecords(records: ThreatRecord[], _now: number = Date.now()): ThreatRecord[] {
   // Retain all numbers and older historical records; only discard null/empty records
   return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number)));
 }
@@ -1377,7 +1371,31 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const cleanTarget = target10Digits.replace(/\D/g, '');
+  if (!cleanTarget) return false;
+
+  const phoneDigits = String(record.phone_digits || record.cleanPhone || record.phone || record.phone_number || '').replace(/\D/g, '');
+  if (phoneDigits.includes(cleanTarget)) return true;
+
+  if (Array.isArray(record.alt_numbers)) {
+    for (const alt of record.alt_numbers) {
+      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
+      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
+    }
+  }
+  if (Array.isArray(record.altNumbers)) {
+    for (const alt of record.altNumbers) {
+      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
+      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
+    }
+  }
+
+  return false;
+}
+
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
@@ -1481,7 +1499,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [_scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1530,7 +1548,7 @@ export function TrackerPage() {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [_isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1554,8 +1572,8 @@ export function TrackerPage() {
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
-  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [clientCountryCode, setClientCountryCode] = useState<string>('');
+  const [_isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [_clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -2251,27 +2269,6 @@ export function TrackerPage() {
   };
 
   // Edit Monitored Number Handlers
-  const handleOpenEditModal = (record: ThreatRecord) => {
-    setEditingRecord(record);
-    setEditForm({
-      phone_number: record.phone_number,
-      is_whatsapp: isWhatsAppThreat(record),
-      alt_numbers: (record.alt_numbers || []).map((a) => ({
-        phone: typeof a === 'string' ? a : a.phone,
-        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
-      })),
-      category: record.category,
-      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
-      source_name: record.source_name,
-      source_url: record.source_url || '',
-      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
-      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
-      description: record.description,
-      is_down: Boolean(record.is_down),
-    });
-    setEditError(null);
-    setIsEditModalOpen(true);
-  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -4193,7 +4190,6 @@ export function TrackerPage() {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
