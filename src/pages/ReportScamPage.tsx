@@ -5,14 +5,14 @@ import { isUserCountryAllowed } from '../utils/geoIp';
 
 export default function ReportScamPage() {
   const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
   const [altPhone1, setAltPhone1] = useState('');
   const [altPhone2, setAltPhone2] = useState('');
   const [alt2IsWhatsApp, setAlt2IsWhatsApp] = useState(false);
-  const [category, setCategory] = useState('Lottery & Sweepstakes Scams');
-  const [company, setCompany] = useState('');
-  const [howContacted, setHowContacted] = useState('Phone Call');
-  const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [moneyLost, setMoneyLost] = useState('');
+  const [category, setCategory] = useState('Lottery & Sweepstakes Scams');
+  const [incidentDate, setIncidentDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [howContacted, setHowContacted] = useState('Phone Call');
   const [isWhatsApp, setIsWhatsApp] = useState(false);
   const [description, setDescription] = useState('');
   const [reporterName, setReporterName] = useState('');
@@ -330,7 +330,7 @@ export default function ReportScamPage() {
         )}
 
         <form id="endscams-report-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Phone & Category */}
+          {/* Row 1: Phone & Scammer's Name */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
@@ -362,14 +362,15 @@ export default function ReportScamPage() {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
-                Scam Category <span style={{ color: '#f87171' }}>*</span>
+                Scammer's name
               </label>
-              <select
-                id="report-category"
-                name="category"
-                required
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
+              <input
+                type="text"
+                id="report-company"
+                name="impersonated_company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="e.g. PCH, David Cooper, or Geek Squad"
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -380,22 +381,11 @@ export default function ReportScamPage() {
                   color: '#ffffff',
                   fontSize: '0.875rem',
                 }}
-              >
-                <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)</option>
-                <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
-                <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
-                <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
-                <option value="Government Impersonation & Warrant Scams">Government Impersonation & Warrant Scams</option>
-                <option value="Emergency & Grandparent Scams">Emergency & Grandparent Scams</option>
-                <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
-                <option value="Publishing Chat Scam">Publishing Chat Scam</option>
-                <option value="Spiritual / Herbal / Fortune Scam">Spiritual / Herbal / Fortune Scam</option>
-                <option value="Other Scam">Other Scam</option>
-              </select>
+              />
             </div>
           </div>
 
-          {/* Extra Row for Alt Number #1 and Alt Number #2 / WhatsApp */}
+          {/* Row 2: Alt Phone Number #1 and Alt Phone Number #2 / WhatsApp */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#cbd5e1' }}>
@@ -459,19 +449,81 @@ export default function ReportScamPage() {
             </div>
           </div>
 
-          {/* Impersonated Entity & How Contacted */}
+          {/* Row 3: Financial Loss & Scam Category */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
-                Impersonated Company / Scammer Name
+                Financial Loss ($) <span style={{ color: '#64748b', fontWeight: 'normal' }}>(Optional)</span>
               </label>
               <input
-                type="text"
-                id="report-company"
-                name="impersonated_company"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="e.g. American Cash Award (James Washington) or Geek Squad"
+                type="number"
+                step="0.01"
+                min="0"
+                id="report-loss"
+                name="money_lost"
+                value={moneyLost}
+                onChange={(e) => setMoneyLost(e.target.value)}
+                placeholder="e.g. 250.00"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 14px',
+                  background: '#020617',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
+                Scam Category <span style={{ color: '#f87171' }}>*</span>
+              </label>
+              <select
+                id="report-category"
+                name="category"
+                required
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '10px 14px',
+                  background: '#020617',
+                  border: '1px solid #334155',
+                  borderRadius: '10px',
+                  color: '#ffffff',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)</option>
+                <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
+                <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
+                <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                <option value="Government Impersonation & Warrant Scams">Government Impersonation & Warrant Scams</option>
+                <option value="Emergency & Grandparent Scams">Emergency & Grandparent Scams</option>
+                <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                <option value="Spiritual / Herbal / Fortune Scam">Spiritual / Herbal / Fortune Scam</option>
+                <option value="Other Scam">Other Scam</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 4: Date of Incident & How Were You Contacted? */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
+                Date of Incident
+              </label>
+              <input
+                type="date"
+                id="report-date"
+                name="incident_date"
+                value={incidentDate}
+                onChange={(e) => setIncidentDate(e.target.value)}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -513,58 +565,6 @@ export default function ReportScamPage() {
                 <option value="Website">Website</option>
                 <option value="Other">Other</option>
               </select>
-            </div>
-          </div>
-
-          {/* Date & Money Lost */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
-                Date of Incident
-              </label>
-              <input
-                type="date"
-                id="report-date"
-                name="incident_date"
-                value={incidentDate}
-                onChange={(e) => setIncidentDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '10px 14px',
-                  background: '#020617',
-                  border: '1px solid #334155',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  fontSize: '0.875rem',
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px', color: '#e2e8f0' }}>
-                Financial Loss ($) <span style={{ color: '#64748b', fontWeight: 'normal' }}>(Optional)</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                id="report-loss"
-                name="money_lost"
-                value={moneyLost}
-                onChange={(e) => setMoneyLost(e.target.value)}
-                placeholder="e.g. 250.00"
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  padding: '10px 14px',
-                  background: '#020617',
-                  border: '1px solid #334155',
-                  borderRadius: '10px',
-                  color: '#ffffff',
-                  fontSize: '0.875rem',
-                }}
-              />
             </div>
           </div>
 
