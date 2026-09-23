@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export interface FtcStats {
@@ -9,7 +9,7 @@ export interface FtcStats {
   yoy_increase: string;
   median_loss: string;
   identity_theft_victims: string;
-  report_year: number | string;
+  report_year: string;
   last_updated: string | null;
 }
 
@@ -21,31 +21,46 @@ const DEFAULTS: FtcStats = {
   yoy_increase: '+14%',
   median_loss: '$500',
   identity_theft_victims: '1.1M',
-  report_year: '2024',
+  report_year: '2026',
   last_updated: null,
 };
 
 export function useFtcStats() {
   const [stats, setStats] = useState<FtcStats>(DEFAULTS);
-  const [loading, setLoading] = useState(true);
 
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from('ftc_stats').select('*').maybeSingle();
-    if (data) setStats(data as FtcStats);
-    setLoading(false);
+  useEffect(() => {
+    supabase
+      .from('ftc_stats')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setStats({
+            total_loss: data.total_loss ?? DEFAULTS.total_loss,
+            total_loss_short: data.total_loss_short ?? DEFAULTS.total_loss_short,
+            total_reports: data.total_reports ?? DEFAULTS.total_reports,
+            total_reports_short: data.total_reports_short ?? DEFAULTS.total_reports_short,
+            yoy_increase: data.yoy_increase ?? DEFAULTS.yoy_increase,
+            median_loss: data.median_loss ?? DEFAULTS.median_loss,
+            identity_theft_victims: data.identity_theft_victims ?? DEFAULTS.identity_theft_victims,
+            report_year: data.report_year ?? DEFAULTS.report_year,
+            last_updated: data.last_updated ?? null,
+          });
+        }
+      });
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
-
-  const update = useCallback(async (updates: Partial<FtcStats>) => {
+  const update = async (updates: Partial<FtcStats>) => {
     const { error } = await supabase
       .from('ftc_stats')
       .update({ ...updates, last_updated: new Date().toISOString() })
       .eq('id', 1);
-    if (!error) await fetch();
+    if (!error) {
+      setStats((prev) => ({ ...prev, ...updates, last_updated: new Date().toISOString() }));
+    }
     return error;
-  }, [fetch]);
+  };
 
-  return { stats, loading, refetch: fetch, update };
+  return { stats, update };
 }
