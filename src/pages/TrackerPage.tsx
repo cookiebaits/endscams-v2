@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from './database_seed.json';
+import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
   Search,
@@ -18,16 +18,22 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -39,7 +45,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV } from '../utils/csvHandler';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
@@ -933,9 +939,10 @@ export function isFalsePositiveFacebookRecord(rec: {
 }
 
 // ============================================================================
-// TIERED RETENTION: 6-MO PRIZE/PCH/STAKE & 60-DAY STANDARD
+// TIERED RETENTION: 6-MO PRIZE/PCH/STAKE & 90-DAY STANDARD
 // ============================================================================
-export const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+export const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+export const SIXTY_DAYS_MS = NINETY_DAYS_MS; // Backward compatibility alias
 export const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 
 export function isPrizeOrExtendedRetention(record: Partial<ThreatRecord> | null | undefined): boolean {
@@ -958,21 +965,36 @@ export function isPrizeOrExtendedRetention(record: Partial<ThreatRecord> | null 
 }
 
 export function getRetentionDays(record: Partial<ThreatRecord> | null | undefined): number {
-  return isPrizeOrExtendedRetention(record) ? 180 : 60;
+  return isPrizeOrExtendedRetention(record) ? 180 : 90;
 }
 
 export function getRetentionLabel(record: Partial<ThreatRecord> | null | undefined): string {
-  return isPrizeOrExtendedRetention(record) ? '6-Mo Prize' : '60-Day';
+  return isPrizeOrExtendedRetention(record) ? '6-Mo Prize' : '90-Day';
 }
 
-export function isThreatRecordExpired(_record?: Partial<ThreatRecord> | null, _now: number = Date.now()): boolean {
-  // Retain all numbers and older historical threats as requested; do not auto-delete
-  return false;
+export function getThreatRecordTimestamp(record: Partial<ThreatRecord> | null | undefined): number {
+  if (!record) return 0;
+  const candidate = record.report_date || record.post_date || record.detected_at || record.created_at;
+  if (!candidate) return 0;
+  const dateStr = normalizeToNumericalDate(candidate);
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const t = new Date(`${dateStr}T12:00:00.000Z`).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  const t = new Date(candidate).getTime();
+  return isNaN(t) ? 0 : t;
 }
 
-export function purgeExpiredThreatRecords(records: ThreatRecord[], _now: number = Date.now()): ThreatRecord[] {
-  // Retain all numbers and older historical records; only discard null/empty records
-  return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number)));
+export function isThreatRecordExpired(record: Partial<ThreatRecord> | null | undefined, now: number = Date.now()): boolean {
+  if (!record) return false;
+  const time = getThreatRecordTimestamp(record);
+  if (time === 0) return false;
+  const retentionMs = isPrizeOrExtendedRetention(record) ? SIX_MONTHS_MS : NINETY_DAYS_MS;
+  return (now - time) > retentionMs;
+}
+
+export function purgeExpiredThreatRecords(records: ThreatRecord[], now: number = Date.now()): ThreatRecord[] {
+  return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number) && !isThreatRecordExpired(r, now)));
 }
 
 /**
@@ -1371,31 +1393,7 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-export function isRecordMatch(record: any, target10Digits: string): boolean {
-  if (!record || !target10Digits) return false;
-  const cleanTarget = target10Digits.replace(/\D/g, '');
-  if (!cleanTarget) return false;
-
-  const phoneDigits = String(record.phone_digits || record.cleanPhone || record.phone || record.phone_number || '').replace(/\D/g, '');
-  if (phoneDigits.includes(cleanTarget)) return true;
-
-  if (Array.isArray(record.alt_numbers)) {
-    for (const alt of record.alt_numbers) {
-      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
-      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
-    }
-  }
-  if (Array.isArray(record.altNumbers)) {
-    for (const alt of record.altNumbers) {
-      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
-      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
-    }
-  }
-
-  return false;
-}
-
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
@@ -1499,7 +1497,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [_scannerProgress, setScannerProgress] = useState(0);
+  const [scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1526,7 +1524,7 @@ export function TrackerPage() {
   const [selectedSource, setSelectedSource] = useState('ALL');
   const [selectedCountry, setSelectedCountry] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [selectedRetention, setSelectedRetention] = useState<'ALL' | 'PRIZE_6MO' | 'STANDARD_60D'>('ALL');
+  const [selectedRetention, setSelectedRetention] = useState<'ALL' | 'PRIZE_6MO' | 'STANDARD_90D'>('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1548,7 +1546,7 @@ export function TrackerPage() {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [_isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1572,8 +1570,8 @@ export function TrackerPage() {
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
-  const [_isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [_clientCountryCode, setClientCountryCode] = useState<string>('');
+  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -2269,6 +2267,27 @@ export function TrackerPage() {
   };
 
   // Edit Monitored Number Handlers
+  const handleOpenEditModal = (record: ThreatRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
+    });
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -3725,7 +3744,7 @@ export function TrackerPage() {
       const matchesRetention =
         selectedRetention === 'ALL' ||
         (selectedRetention === 'PRIZE_6MO' && isPrizeOrExtendedRetention(r)) ||
-        (selectedRetention === 'STANDARD_60D' && !isPrizeOrExtendedRetention(r));
+        (selectedRetention === 'STANDARD_90D' && !isPrizeOrExtendedRetention(r));
 
       return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus && matchesRetention;
     });
@@ -3800,7 +3819,7 @@ export function TrackerPage() {
 
             <h1 className="text-lg sm:text-2xl font-black text-slate-100 flex items-center space-x-2 tracking-tight">
               <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
-              <span>Tracker Page (Esscan)</span>
+              <span>CWN Scam Tracker</span>
             </h1>
 
             <p className="text-xs text-slate-400 max-w-3xl">
@@ -3882,29 +3901,6 @@ export function TrackerPage() {
                 <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
               </span>
             </div>
-
-            {/* Dokploy DB Badge */}
-            <button
-              type="button"
-              onClick={() => setIsSupabaseSetupModalOpen(true)}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono border transition cursor-pointer ${
-                supabaseTableStatus?.tablesExist
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25'
-                  : dokployConfig.hasSupabase
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
-              }`}
-              title="Click to view Supabase Database status and SQL setup schema"
-            >
-              <Database className="w-3 h-3" />
-              <span>
-                {supabaseTableStatus?.tablesExist
-                  ? 'Dokploy DB: Supabase (Active)'
-                  : dokployConfig.hasSupabase
-                  ? 'Dokploy DB: Supabase (Setup Required)'
-                  : 'Dokploy DB: Local Store'}
-              </span>
-            </button>
 
             {/* Admin Status */}
             {isPasswordVerified ? (
@@ -4004,26 +4000,16 @@ export function TrackerPage() {
       {/* ========================================== */}
       {/* D. SEARCH & FILTERS BAR                    */}
       {/* ========================================== */}
-      <section className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search phone, company, category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2 w-full md:w-auto flex-wrap gap-y-2">
+      <section className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col gap-2.5">
+        {/* Upper Row: All Dropdown Filters (including All Retentions) */}
+        <div className="flex flex-wrap items-center gap-2 w-full">
           {/* Category Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Filter className="w-3.5 h-3.5 text-amber-400" />
+          <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Filter className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Categories</option>
               {categoriesList.map((c) => (
@@ -4033,12 +4019,12 @@ export function TrackerPage() {
           </div>
 
           {/* Source Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Database className="w-3.5 h-3.5 text-blue-400" />
+          <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Database className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <select
               value={selectedSource}
               onChange={(e) => setSelectedSource(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Sources</option>
               {sourcesList.map((s) => (
@@ -4048,12 +4034,12 @@ export function TrackerPage() {
           </div>
 
           {/* Country Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <select
               value={selectedCountry}
               onChange={(e) => setSelectedCountry(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Countries</option>
               {countriesList.map((c) => (
@@ -4062,40 +4048,55 @@ export function TrackerPage() {
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
+          {/* Retention Tier Filter (shifted to upper part) */}
+          <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <select
+              value={selectedRetention}
+              onChange={(e) => setSelectedRetention(e.target.value as any)}
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
+            >
+              <option value="ALL" className="bg-slate-900">All Retentions</option>
+              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/Lotto/Stake)</option>
+              <option value="STANDARD_90D" className="bg-slate-900">90-Day Standard</option>
+            </select>
+          </div>
+
+          {/* Status Filter (positioned above Sort) */}
+          <div className="w-full sm:w-auto sm:min-w-[190px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Statuses</option>
               <option value="ACTIVE" className="bg-slate-900">Active Lines Only</option>
               <option value="DOWN" className="bg-slate-900">Down / Closed Only</option>
             </select>
           </div>
+        </div>
 
-          {/* Retention Tier Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <select
-              value={selectedRetention}
-              onChange={(e) => setSelectedRetention(e.target.value as any)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
-            >
-              <option value="ALL" className="bg-slate-900">All Retentions</option>
-              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/PCH/Stake)</option>
-              <option value="STANDARD_60D" className="bg-slate-900">60-Day Standard</option>
-            </select>
+        {/* Lower Row: Expanded Search Bar (left) + Sort Newest (right, under All Statuses) */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+          {/* Expanded Search Bar */}
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search phone, company, category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+            />
           </div>
 
-          {/* Automatic Date Sort Control */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+          {/* Automatic Date Sort Control (right under All Statuses) */}
+          <div className="w-full sm:w-auto sm:min-w-[190px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="desc" className="bg-slate-900">Sort: Newest Date First</option>
               <option value="asc" className="bg-slate-900">Sort: Oldest Date First</option>
@@ -4190,6 +4191,7 @@ export function TrackerPage() {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
+                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
