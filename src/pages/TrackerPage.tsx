@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from './database_seed.json';
-import { supabase } from '../lib/supabase';
+import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
   Search,
@@ -19,16 +18,23 @@ import {
   X,
   Radio,
   FileSpreadsheet,
+  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
+  Phone,
   ShieldAlert,
+  Building2,
   Calendar,
+  DollarSign,
+  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
+  Share2,
+  Award,
   ArrowDown,
   ArrowUp,
   Lock,
@@ -40,12 +46,13 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV } from '../utils/csvHandler';
+import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
 import { resolveTargetCompany } from '../utils/targetUtils';
 import { ScamPhoneRecord } from '../types';
+import ReportScamPage from './ReportScamPage';
 import {
   verifyEncryptedAdmin,
   verifyEncryptedBypass,
@@ -71,9 +78,20 @@ export interface ThreatRecord {
   category: string;
   description: string;
   impersonated_company?: string;
+  scammer_name?: string;
   invoice_number?: string;
   amount_charged?: string;
+  money_lost?: number | string;
+  how_contacted?: string;
+  reporter_name?: string;
+  reporter_email?: string;
+  image_url?: string;
+  evidence_url?: string;
   is_down?: boolean;
+}
+
+export interface TrackerPageProps {
+  onNavigateToReport?: () => void;
 }
 
 /**
@@ -803,11 +821,18 @@ export function threatRecordToScamPhoneRecord(r: ThreatRecord): ScamPhoneRecord 
     phone: r.phone_number,
     cleanPhone: r.phone_digits,
     isWhatsapp: isWhatsAppThreat(r),
-    altNumbers: r.alt_numbers && r.alt_numbers.length > 0 ? r.alt_numbers.map((a) => (typeof a === 'string' ? a : a.phone)) : undefined,
+    altNumbers: r.alt_numbers && r.alt_numbers.length > 0 ? r.alt_numbers.map((a: any) => (typeof a === 'string' ? a : a.phone)) : undefined,
+    altNumbersWithDetails: r.alt_numbers && r.alt_numbers.length > 0 ? r.alt_numbers.map((a: any) => (typeof a === 'string' ? { phone: a, digits: String(a).replace(/\D/g, '') } : a)) : undefined,
     scamType: r.category,
-    impersonatedCompany: resolveTargetCompany(r.impersonated_company, r.category, r.description),
+    impersonatedCompany: resolveTargetCompany(r.scammer_name || r.impersonated_company, r.category, r.description),
+    scammerName: r.scammer_name || r.impersonated_company,
     invoiceNumber: r.invoice_number || 'N/A',
-    amountCharged: r.amount_charged || 'N/A',
+    amountCharged: r.amount_charged || (r.money_lost ? `$${r.money_lost}` : 'N/A'),
+    moneyLost: r.money_lost,
+    howContacted: r.how_contacted,
+    reporterName: r.reporter_name,
+    reporterEmail: r.reporter_email,
+    imageUrl: r.image_url || r.evidence_url,
     sourceUrl: r.source_url || '',
     sourceDomain: r.source_url ? (r.source_url.includes('//') ? r.source_url.split('/')[2].replace(/^www\./, '') : 'threat-intel') : 'threat-intel',
     platform: r.source_name || 'Threat Intelligence',
@@ -835,20 +860,36 @@ export function scamPhoneRecordToThreatRecord(item: any): ThreatRecord {
   const category = item.scamType || item.category || 'General Tech Support & Refund Scams';
   const description = (item.snippet || item.detailedSummary || item.description || 'Reported via https://endscams.org/report').trim();
   const impersonatedCompany = item.impersonatedCompany || item.impersonated_company || resolveTargetCompany(description, category);
+  const scammerName = item.scammerName || item.scammer_name || impersonatedCompany;
+
+  let mappedAlts: AltNumberEntry[] | undefined = undefined;
+  if (Array.isArray(item.altNumbersWithDetails) && item.altNumbersWithDetails.length > 0) {
+    mappedAlts = item.altNumbersWithDetails;
+  } else if (Array.isArray(item.altNumbers) && item.altNumbers.length > 0) {
+    mappedAlts = item.altNumbers.map((a: any) => (typeof a === 'string' ? { phone: a, digits: a.replace(/\D/g, ''), is_whatsapp: false } : a));
+  } else if (Array.isArray(item.alt_numbers) && item.alt_numbers.length > 0) {
+    mappedAlts = item.alt_numbers.map((a: any) => (typeof a === 'string' ? { phone: a, digits: a.replace(/\D/g, ''), is_whatsapp: false } : a));
+  }
 
   return {
     id: item.id || `rec-${Date.now()}-${digits.slice(-4) || Math.random().toString(36).slice(2, 6)}`,
     phone_number: formatted,
     phone_digits: digits,
     is_whatsapp: Boolean(item.isWhatsapp || item.is_whatsapp),
-    alt_numbers: Array.isArray(item.altNumbers) ? item.altNumbers : (Array.isArray(item.alt_numbers) ? item.alt_numbers : undefined),
+    alt_numbers: mappedAlts,
     source_name: item.platform || item.source_name || 'User Report (endscams.org/report)',
     source_url: item.sourceUrl || item.source_url || 'https://endscams.org/report',
     report_date: reportDate,
     category: category,
     impersonated_company: impersonatedCompany,
+    scammer_name: scammerName,
     invoice_number: item.invoiceNumber || item.invoice_number || 'N/A',
-    amount_charged: item.amountCharged || item.amount_charged || (item.money_lost ? `$${item.money_lost}` : 'N/A'),
+    amount_charged: item.amountCharged || item.amount_charged || (item.moneyLost || item.money_lost ? `$${item.moneyLost || item.money_lost}` : 'N/A'),
+    money_lost: item.moneyLost || item.money_lost,
+    how_contacted: item.howContacted || item.how_contacted,
+    reporter_name: item.reporterName || item.reporter_name,
+    reporter_email: item.reporterEmail || item.reporter_email,
+    image_url: item.imageUrl || item.image_url || item.evidenceUrl || item.evidence_url,
     description: description,
     is_down: Boolean(item.isNumberDown || item.is_down),
   };
@@ -934,9 +975,10 @@ export function isFalsePositiveFacebookRecord(rec: {
 }
 
 // ============================================================================
-// TIERED RETENTION: 6-MO PRIZE/PCH/STAKE & 60-DAY STANDARD
+// TIERED RETENTION: 6-MO PRIZE/PCH/STAKE & 90-DAY STANDARD
 // ============================================================================
-export const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+export const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+export const SIXTY_DAYS_MS = NINETY_DAYS_MS; // Backward compatibility alias
 export const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000;
 
 export function isPrizeOrExtendedRetention(record: Partial<ThreatRecord> | null | undefined): boolean {
@@ -959,21 +1001,36 @@ export function isPrizeOrExtendedRetention(record: Partial<ThreatRecord> | null 
 }
 
 export function getRetentionDays(record: Partial<ThreatRecord> | null | undefined): number {
-  return isPrizeOrExtendedRetention(record) ? 180 : 60;
+  return isPrizeOrExtendedRetention(record) ? 180 : 90;
 }
 
 export function getRetentionLabel(record: Partial<ThreatRecord> | null | undefined): string {
-  return isPrizeOrExtendedRetention(record) ? '6-Mo Prize' : '60-Day';
+  return isPrizeOrExtendedRetention(record) ? '6-Mo Prize' : '90-Day';
 }
 
-export function isThreatRecordExpired(_record?: Partial<ThreatRecord> | null, _now: number = Date.now()): boolean {
-  // Retain all numbers and older historical threats as requested; do not auto-delete
-  return false;
+export function getThreatRecordTimestamp(record: Partial<ThreatRecord> | null | undefined): number {
+  if (!record) return 0;
+  const candidate = record.report_date;
+  if (!candidate) return 0;
+  const dateStr = normalizeToNumericalDate(candidate);
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const t = new Date(`${dateStr}T12:00:00.000Z`).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  const t = new Date(candidate).getTime();
+  return isNaN(t) ? 0 : t;
 }
 
-export function purgeExpiredThreatRecords(records: ThreatRecord[], _now: number = Date.now()): ThreatRecord[] {
-  // Retain all numbers and older historical records; only discard null/empty records
-  return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number)));
+export function isThreatRecordExpired(record: Partial<ThreatRecord> | null | undefined, now: number = Date.now()): boolean {
+  if (!record) return false;
+  const time = getThreatRecordTimestamp(record);
+  if (time === 0) return false;
+  const retentionMs = isPrizeOrExtendedRetention(record) ? SIX_MONTHS_MS : NINETY_DAYS_MS;
+  return (now - time) > retentionMs;
+}
+
+export function purgeExpiredThreatRecords(records: ThreatRecord[], now: number = Date.now()): ThreatRecord[] {
+  return records.filter((r) => Boolean(r && (r.phone_digits || r.phone_number) && !isThreatRecordExpired(r, now)));
 }
 
 /**
@@ -1372,31 +1429,7 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-export function isRecordMatch(record: any, target10Digits: string): boolean {
-  if (!record || !target10Digits) return false;
-  const cleanTarget = target10Digits.replace(/\D/g, '');
-  if (!cleanTarget) return false;
-
-  const phoneDigits = String(record.phone_digits || record.cleanPhone || record.phone || record.phone_number || '').replace(/\D/g, '');
-  if (phoneDigits.includes(cleanTarget)) return true;
-
-  if (Array.isArray(record.alt_numbers)) {
-    for (const alt of record.alt_numbers) {
-      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
-      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
-    }
-  }
-  if (Array.isArray(record.altNumbers)) {
-    for (const alt of record.altNumbers) {
-      const altStr = typeof alt === 'string' ? alt : alt.digits || alt.phone || '';
-      if (altStr.replace(/\D/g, '').includes(cleanTarget)) return true;
-    }
-  }
-
-  return false;
-}
-
-export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
@@ -1407,7 +1440,7 @@ const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
 // ============================================================================
 // 5. TRACKER PAGE COMPONENT (MATCHING ESSCAN.AI.STUDIO)
 // ============================================================================
-export function TrackerPage() {
+export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
     let combined: ThreatRecord[] = [...MASTER_SEED_RECORDS];
 
@@ -1500,7 +1533,7 @@ export function TrackerPage() {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [_scannerProgress, setScannerProgress] = useState(0);
+  const [scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1527,7 +1560,7 @@ export function TrackerPage() {
   const [selectedSource, setSelectedSource] = useState('ALL');
   const [selectedCountry, setSelectedCountry] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [selectedRetention, setSelectedRetention] = useState<'ALL' | 'PRIZE_6MO' | 'STANDARD_60D'>('ALL');
+  const [selectedRetention, setSelectedRetention] = useState<'ALL' | 'PRIZE_6MO' | 'STANDARD_90D'>('ALL');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1549,7 +1582,7 @@ export function TrackerPage() {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [_isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1573,8 +1606,8 @@ export function TrackerPage() {
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
-  const [_isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [_clientCountryCode, setClientCountryCode] = useState<string>('');
+  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1590,6 +1623,12 @@ export function TrackerPage() {
     amount_charged: string;
     invoice_number: string;
     description: string;
+    alt_phone_1?: string;
+    alt_phone_2?: string;
+    alt_phone_2_whatsapp?: boolean;
+    is_whatsapp?: boolean;
+    how_contacted?: string;
+    money_lost?: string;
   }>({
     phone_number: '',
     impersonated_company: '',
@@ -1601,6 +1640,12 @@ export function TrackerPage() {
     amount_charged: '',
     invoice_number: '',
     description: '',
+    alt_phone_1: '',
+    alt_phone_2: '',
+    alt_phone_2_whatsapp: false,
+    is_whatsapp: false,
+    how_contacted: 'Phone Call',
+    money_lost: '',
   });
   const [popupEditError, setPopupEditError] = useState<string | null>(null);
 
@@ -1646,6 +1691,13 @@ export function TrackerPage() {
     tablesExist: boolean;
     table: string | null;
     error: string | null;
+    databaseSource?: string;
+    connectionTarget?: string;
+    isDirectConnection?: boolean;
+    isDokployEnvironment?: boolean;
+    postgresConnected?: boolean;
+    postgresCount?: number;
+    postgresLatencyMs?: number;
   } | null>(null);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
@@ -1653,9 +1705,6 @@ export function TrackerPage() {
 
   // EndScams.org/report Integration & Modal States
   const [quickReportPhone, setQuickReportPhone] = useState('');
-  const [quickReportAltPhone1, setQuickReportAltPhone1] = useState('');
-  const [quickReportAltPhone2, setQuickReportAltPhone2] = useState('');
-  const [quickReportAlt2IsWhatsApp, setQuickReportAlt2IsWhatsApp] = useState(false);
   const [quickReportCategory, setQuickReportCategory] = useState('Lottery & Sweepstakes Scams');
   const [quickReportCompany, setQuickReportCompany] = useState('');
   const [quickReportHowContacted, setQuickReportHowContacted] = useState('Phone Call');
@@ -1689,23 +1738,44 @@ export function TrackerPage() {
 
       const formatted = formatDisplayPhone(rawPhone, cleanDigits);
       const reportDate = normalizeToNumericalDate(rawPayload.report_date || rawPayload.incident_date || new Date());
-      const category = rawPayload.category || 'General Tech Support & Refund Scams';
-      const description = (rawPayload.description || rawPayload.snippet || rawPayload.notes || 'Reported via https://endscams.org/report').trim();
-      const impersonatedCompany = rawPayload.impersonated_company || (description.toLowerCase().includes('washington') ? 'American Cash Award (James Washington)' : resolveTargetCompany(description, category));
+      const category = rawPayload.category || rawPayload.scamType || 'General Tech Support & Refund Scams';
+      const description = (rawPayload.description || rawPayload.threat_intel || rawPayload.snippet || rawPayload.notes || 'Reported via https://endscams.org/report').trim();
+      const scammerName = rawPayload.scammer_name || rawPayload.scammerName || rawPayload.impersonated_company || rawPayload.impersonatedCompany || (description.toLowerCase().includes('washington') ? 'American Cash Award (James Washington)' : resolveTargetCompany(description, category));
+      const impersonatedCompany = scammerName;
+      const howContacted = rawPayload.how_contacted || rawPayload.howContacted || 'Phone Call';
+      const moneyLost = rawPayload.money_lost !== undefined ? rawPayload.money_lost : rawPayload.moneyLost;
+      const reporterName = rawPayload.reporter_name || rawPayload.reporterName;
+      const reporterEmail = rawPayload.reporter_email || rawPayload.reporterEmail;
+      const imageUrl = rawPayload.image_url || rawPayload.imageUrl || rawPayload.evidence_url || rawPayload.evidenceUrl;
+
+      let altNumbers: AltNumberEntry[] | undefined = undefined;
+      if (Array.isArray(rawPayload.alt_numbers) && rawPayload.alt_numbers.length > 0) {
+        altNumbers = rawPayload.alt_numbers.map((a: any) => (typeof a === 'string' ? { phone: a, digits: a.replace(/\D/g, ''), is_whatsapp: false } : a));
+      } else if (Array.isArray(rawPayload.altNumbersWithDetails) && rawPayload.altNumbersWithDetails.length > 0) {
+        altNumbers = rawPayload.altNumbersWithDetails;
+      } else if (Array.isArray(rawPayload.altNumbers) && rawPayload.altNumbers.length > 0) {
+        altNumbers = rawPayload.altNumbers.map((a: any) => (typeof a === 'string' ? { phone: a, digits: a.replace(/\D/g, ''), is_whatsapp: false } : a));
+      }
 
       const newRecord: ThreatRecord = {
-        id: `report-${Date.now()}-${cleanDigits.slice(-4) || Math.random().toString(36).slice(2, 6)}`,
+        id: rawPayload.id || `report-${Date.now()}-${cleanDigits.slice(-4) || Math.random().toString(36).slice(2, 6)}`,
         phone_number: formatted,
         phone_digits: cleanDigits,
         is_whatsapp: Boolean(rawPayload.is_whatsapp || rawPayload.isWhatsapp),
-        alt_numbers: Array.isArray(rawPayload.alt_numbers) ? rawPayload.alt_numbers : undefined,
-        source_name: rawPayload.source_name || 'User Report (endscams.org/report)',
-        source_url: rawPayload.source_url || 'https://endscams.org/report',
+        alt_numbers: altNumbers,
+        source_name: rawPayload.source_name || rawPayload.platform || 'User Report (endscams.org/report)',
+        source_url: rawPayload.source_url || rawPayload.sourceUrl || 'https://endscams.org/report',
         report_date: reportDate,
         category: category,
         impersonated_company: impersonatedCompany,
-        invoice_number: rawPayload.invoice_number || 'N/A',
-        amount_charged: rawPayload.amount_charged || (rawPayload.money_lost ? `$${rawPayload.money_lost}` : 'N/A'),
+        scammer_name: scammerName,
+        invoice_number: rawPayload.invoice_number || rawPayload.invoiceNumber || 'N/A',
+        amount_charged: rawPayload.amount_charged || rawPayload.amountCharged || (moneyLost ? `$${moneyLost}` : 'N/A'),
+        money_lost: moneyLost,
+        how_contacted: howContacted,
+        reporter_name: reporterName,
+        reporter_email: reporterEmail,
+        image_url: imageUrl,
         description: description,
         is_down: false,
       };
@@ -1747,131 +1817,67 @@ export function TrackerPage() {
   const handleQuickReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setQuickReportMessage(null);
-
-    const cleanPhone = quickReportPhone.trim();
-    const cleanDesc = quickReportDescription.trim();
-
-    if (!cleanPhone || !cleanDesc) {
-      setQuickReportMessage({ text: 'Please provide both the scam phone number and a description.', isError: true });
-      return;
-    }
-
-    const primaryDigits = cleanPhone.replace(/\D/g, '');
-    if (primaryDigits.length < 7 || primaryDigits.length > 15) {
-      setQuickReportMessage({ text: 'Please enter a valid primary phone number (7-15 digits).', isError: true });
-      return;
-    }
-
-    if (isTollFreeNumber(primaryDigits) || isTollFreeNumber(cleanPhone)) {
-      setQuickReportMessage({ text: 'Toll-free numbers (800, 888, 877, 866, 855, 844, 833) are strictly prohibited.', isError: true });
-      return;
-    }
-
     setQuickReportSubmitting(true);
-
-    const formattedPrimary = formatDisplayPhone(cleanPhone, primaryDigits);
-    const amountVal = quickReportMoneyLost ? `$${parseFloat(quickReportMoneyLost).toFixed(2)}` : 'N/A';
-
-    const altNumbersList: Array<{ phone: string; digits: string; is_whatsapp?: boolean }> = [];
-    if (quickReportAltPhone1.trim()) {
-      const alt1Digits = quickReportAltPhone1.trim().replace(/\D/g, '');
-      if (alt1Digits.length >= 7 && !isTollFreeNumber(alt1Digits)) {
-        altNumbersList.push({ phone: formatDisplayPhone(quickReportAltPhone1, alt1Digits), digits: alt1Digits, is_whatsapp: false });
-      }
-    }
-    if (quickReportAltPhone2.trim()) {
-      const alt2Digits = quickReportAltPhone2.trim().replace(/\D/g, '');
-      if (alt2Digits.length >= 7 && !isTollFreeNumber(alt2Digits)) {
-        altNumbersList.push({ phone: formatDisplayPhone(quickReportAltPhone2, alt2Digits), digits: alt2Digits, is_whatsapp: quickReportAlt2IsWhatsApp });
-      }
-    }
-
-    const payload = {
-      phone_number: formattedPrimary,
-      phone_digits: primaryDigits,
-      category: quickReportCategory,
-      impersonated_company: quickReportCompany.trim() || 'N/A',
-      how_contacted: quickReportHowContacted,
-      incident_date: quickReportIncidentDate,
-      description: cleanDesc,
-      money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
-      amount_charged: amountVal,
-      is_whatsapp: quickReportIsWhatsApp,
-      alt_numbers: altNumbersList,
-      reporter_name: quickReportReporterName.trim() || null,
-      reporter_email: quickReportReporterEmail.trim() || null,
-      source: 'user_report',
-      source_url: 'https://endscams.org/report',
-      source_name: 'EndScams Report (endscams.org/report)',
-    };
-
     try {
-      await fetch('/api/report', {
+      const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          phone_number: quickReportPhone,
+          category: quickReportCategory,
+          impersonated_company: quickReportCompany,
+          how_contacted: quickReportHowContacted,
+          incident_date: quickReportIncidentDate,
+          description: quickReportDescription || 'Reported via https://endscams.org/report',
+          money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
+          is_whatsapp: quickReportIsWhatsApp,
+          reporter_name: quickReportReporterName,
+          reporter_email: quickReportReporterEmail,
+          source: 'user_report',
+          source_url: 'https://endscams.org/report',
+          source_name: 'EndScams Report (endscams.org/report)',
+        }),
       });
-    } catch (fErr) {
-      console.warn('[QuickReport] /api/report request failed:', fErr);
+      const data = await res.json();
+      if (!res.ok) {
+        setQuickReportMessage({ text: data.error || 'Failed to submit report.', isError: true });
+      } else {
+        const phone = data.record?.phone || quickReportPhone;
+        const comp = data.record?.impersonatedCompany || quickReportCompany || 'Reported Entity';
+        setQuickReportMessage({
+          text: `Success! Added ${phone} (${comp}) to Tracker Page & persisted to database.`,
+          isError: false,
+        });
+        if (data.record) {
+          handleIncomingReport({
+            phone_number: data.record.phone,
+            phone_digits: data.record.cleanPhone,
+            category: data.record.scamType,
+            impersonated_company: data.record.impersonatedCompany || quickReportCompany,
+            description: data.record.detailedSummary || data.record.snippet || quickReportDescription,
+            incident_date: data.record.postDate || quickReportIncidentDate,
+            source_name: data.record.platform,
+            source_url: data.record.sourceUrl,
+            is_whatsapp: data.record.isWhatsapp,
+            amount_charged: data.record.amountCharged,
+          });
+        }
+        setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
+        setQuickReportPhone('');
+        setQuickReportCompany('');
+        setQuickReportDescription('');
+        setQuickReportMoneyLost('');
+        setQuickReportIsWhatsApp(false);
+        setQuickReportReporterName('');
+        setQuickReportReporterEmail('');
+        setQuickReportEvidenceFile(null);
+        setQuickReportEvidencePreview(null);
+      }
+    } catch (err: any) {
+      setQuickReportMessage({ text: err.message || 'Error submitting report.', isError: true });
+    } finally {
+      setQuickReportSubmitting(false);
     }
-
-    // Direct Supabase storage fallback if API failed or offline
-    try {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 60);
-
-      await supabase.from('tracker_entries').upsert({
-        id: `rec-${primaryDigits}`,
-        phone_number: formattedPrimary,
-        phone_digits: primaryDigits,
-        source_name: 'User Report (endscams.org/report)',
-        source_url: 'https://endscams.org/report',
-        report_date: quickReportIncidentDate,
-        category: quickReportCategory,
-        impersonated_company: quickReportCompany.trim() || 'N/A',
-        description: cleanDesc,
-        amount_charged: amountVal,
-        is_down: false,
-        expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'phone_digits' });
-    } catch (sbErr) {
-      console.warn('[QuickReport] Direct Supabase persist notice:', sbErr);
-    }
-
-    const compName = quickReportCompany.trim() || 'Reported Entity';
-    setQuickReportMessage({
-      text: `Success! Added ${formattedPrimary} (${compName}) to Tracker Page & persisted to database.`,
-      isError: false,
-    });
-
-    handleIncomingReport({
-      phone_number: formattedPrimary,
-      phone_digits: primaryDigits,
-      category: quickReportCategory,
-      impersonated_company: compName,
-      description: cleanDesc,
-      incident_date: quickReportIncidentDate,
-      source_name: 'User Report (endscams.org/report)',
-      source_url: 'https://endscams.org/report',
-      is_whatsapp: quickReportIsWhatsApp,
-      alt_numbers: altNumbersList,
-      amount_charged: amountVal,
-    });
-
-    setStatusNotification(`Threat report recorded: ${formattedPrimary} (${compName})`);
-    setQuickReportPhone('');
-    setQuickReportAltPhone1('');
-    setQuickReportAltPhone2('');
-    setQuickReportAlt2IsWhatsApp(false);
-    setQuickReportCompany('');
-    setQuickReportDescription('');
-    setQuickReportMoneyLost('');
-    setQuickReportIsWhatsApp(false);
-    setQuickReportReporterName('');
-    setQuickReportReporterEmail('');
-    setQuickReportEvidenceFile(null);
-    setQuickReportEvidencePreview(null);
-    setQuickReportSubmitting(false);
   };
 
   // Save to localStorage whenever records change
@@ -2108,7 +2114,7 @@ export function TrackerPage() {
       if (res.ok) {
         const data = await res.json();
         setSupabaseTableStatus(data);
-        if (data.tablesExist) {
+        if (data.tablesExist || data.postgresConnected) {
           setIsSupabaseConnected(true);
         }
         return data;
@@ -2337,6 +2343,27 @@ export function TrackerPage() {
   };
 
   // Edit Monitored Number Handlers
+  const handleOpenEditModal = (record: ThreatRecord) => {
+    setEditingRecord(record);
+    setEditForm({
+      phone_number: record.phone_number,
+      is_whatsapp: isWhatsAppThreat(record),
+      alt_numbers: (record.alt_numbers || []).map((a) => ({
+        phone: typeof a === 'string' ? a : a.phone,
+        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
+      })),
+      category: record.category,
+      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      source_name: record.source_name,
+      source_url: record.source_url || '',
+      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
+      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
+      description: record.description,
+      is_down: Boolean(record.is_down),
+    });
+    setEditError(null);
+    setIsEditModalOpen(true);
+  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -2525,9 +2552,15 @@ export function TrackerPage() {
     setSelectedDetailRecord(record);
     setIsEditingInPopup(false);
     setPopupEditError(null);
+
+    const alts = record.alt_numbers || [];
+    const a1 = alts[0] ? (typeof alts[0] === 'string' ? alts[0] : alts[0].phone) : '';
+    const a2 = alts[1] ? (typeof alts[1] === 'string' ? alts[1] : alts[1].phone) : '';
+    const a2Wa = alts[1] && typeof alts[1] !== 'string' ? Boolean(alts[1].is_whatsapp) : false;
+
     setPopupEditForm({
       phone_number: record.phone_number,
-      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
+      impersonated_company: record.scammer_name || (record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : ''),
       category: record.category,
       source_name: record.source_name,
       source_url: record.source_url || '',
@@ -2536,6 +2569,12 @@ export function TrackerPage() {
       amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
       invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
       description: record.description || '',
+      alt_phone_1: a1,
+      alt_phone_2: a2,
+      alt_phone_2_whatsapp: a2Wa,
+      is_whatsapp: Boolean(record.is_whatsapp),
+      how_contacted: record.how_contacted || 'Phone Call',
+      money_lost: record.money_lost !== undefined && record.money_lost !== null ? String(record.money_lost) : '',
     });
   };
 
@@ -2543,9 +2582,15 @@ export function TrackerPage() {
   const handleStartEditingInPopup = () => {
     if (!selectedDetailRecord) return;
     setPopupEditError(null);
+
+    const alts = selectedDetailRecord.alt_numbers || [];
+    const a1 = alts[0] ? (typeof alts[0] === 'string' ? alts[0] : alts[0].phone) : '';
+    const a2 = alts[1] ? (typeof alts[1] === 'string' ? alts[1] : alts[1].phone) : '';
+    const a2Wa = alts[1] && typeof alts[1] !== 'string' ? Boolean(alts[1].is_whatsapp) : false;
+
     setPopupEditForm({
       phone_number: selectedDetailRecord.phone_number,
-      impersonated_company: selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A' ? selectedDetailRecord.impersonated_company : '',
+      impersonated_company: selectedDetailRecord.scammer_name || (selectedDetailRecord.impersonated_company && selectedDetailRecord.impersonated_company !== 'N/A' ? selectedDetailRecord.impersonated_company : ''),
       category: selectedDetailRecord.category,
       source_name: selectedDetailRecord.source_name,
       source_url: selectedDetailRecord.source_url || '',
@@ -2554,6 +2599,12 @@ export function TrackerPage() {
       amount_charged: selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' ? selectedDetailRecord.amount_charged : '',
       invoice_number: selectedDetailRecord.invoice_number && selectedDetailRecord.invoice_number !== 'N/A' ? selectedDetailRecord.invoice_number : '',
       description: selectedDetailRecord.description || '',
+      alt_phone_1: a1,
+      alt_phone_2: a2,
+      alt_phone_2_whatsapp: a2Wa,
+      is_whatsapp: Boolean(selectedDetailRecord.is_whatsapp),
+      how_contacted: selectedDetailRecord.how_contacted || 'Phone Call',
+      money_lost: selectedDetailRecord.money_lost !== undefined && selectedDetailRecord.money_lost !== null ? String(selectedDetailRecord.money_lost) : '',
     });
     setIsEditingInPopup(true);
   };
@@ -2572,17 +2623,48 @@ export function TrackerPage() {
       return;
     }
 
+    // Build updated alt numbers
+    const updatedAlts: AltNumberEntry[] = [];
+    if (popupEditForm.alt_phone_1 && popupEditForm.alt_phone_1.trim()) {
+      const d1 = popupEditForm.alt_phone_1.replace(/\D/g, '');
+      if (d1.length >= 7) {
+        updatedAlts.push({
+          phone: formatDisplayPhone(popupEditForm.alt_phone_1, d1),
+          digits: d1,
+          is_whatsapp: false,
+        });
+      }
+    }
+    if (popupEditForm.alt_phone_2 && popupEditForm.alt_phone_2.trim()) {
+      const d2 = popupEditForm.alt_phone_2.replace(/\D/g, '');
+      if (d2.length >= 7) {
+        updatedAlts.push({
+          phone: formatDisplayPhone(popupEditForm.alt_phone_2, d2),
+          digits: d2,
+          is_whatsapp: Boolean(popupEditForm.alt_phone_2_whatsapp),
+        });
+      }
+    }
+
+    const moneyLostVal = popupEditForm.money_lost ? parseFloat(popupEditForm.money_lost) : undefined;
+    const amountVal = popupEditForm.amount_charged.trim() || (moneyLostVal ? `$${moneyLostVal}` : 'N/A');
+
     const updated: ThreatRecord = {
       ...selectedDetailRecord,
       phone_number: popupEditForm.phone_number.trim(),
       phone_digits: digits,
+      is_whatsapp: Boolean(popupEditForm.is_whatsapp),
+      alt_numbers: updatedAlts.length > 0 ? updatedAlts : undefined,
       impersonated_company: popupEditForm.impersonated_company.trim() || 'N/A',
+      scammer_name: popupEditForm.impersonated_company.trim() || 'N/A',
       category: popupEditForm.category.trim() || 'General Tech Support & Refund Scams',
       source_name: popupEditForm.source_name.trim() || 'Threat Intel Feed',
       source_url: popupEditForm.source_url.trim(),
       report_date: normalizeToNumericalDate(popupEditForm.report_date.trim()),
       is_down: Boolean(popupEditForm.is_down),
-      amount_charged: popupEditForm.amount_charged.trim() || 'N/A',
+      amount_charged: amountVal,
+      money_lost: moneyLostVal,
+      how_contacted: popupEditForm.how_contacted || 'Phone Call',
       invoice_number: popupEditForm.invoice_number.trim() || 'N/A',
       description: popupEditForm.description.trim(),
     };
@@ -2594,7 +2676,7 @@ export function TrackerPage() {
     setPopupEditError(null);
     setStatusNotification(`Updated threat post: ${updated.phone_number}`);
 
-    // 2. Persist to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend
+    // 2. Persist to Supabase Database & Backend
     await syncThreatRecordsToSupabase([updated]);
 
     // 3. Update backend server specifically
@@ -2607,7 +2689,11 @@ export function TrackerPage() {
             id: updated.id,
             phone: updated.phone_number,
             cleanPhone: updated.phone_digits,
+            isWhatsapp: updated.is_whatsapp,
+            altNumbers: updated.alt_numbers ? updated.alt_numbers.map((a) => a.phone) : undefined,
+            altNumbersWithDetails: updated.alt_numbers,
             impersonatedCompany: updated.impersonated_company,
+            scammerName: updated.scammer_name,
             scamType: updated.category,
             platform: updated.source_name,
             sourceUrl: updated.source_url,
@@ -2615,6 +2701,8 @@ export function TrackerPage() {
             detailedSummary: updated.description,
             postDate: updated.report_date,
             amountCharged: updated.amount_charged,
+            moneyLost: updated.money_lost,
+            howContacted: updated.how_contacted,
             invoiceNumber: updated.invoice_number,
             isNumberDown: updated.is_down,
           },
@@ -3725,6 +3813,14 @@ export function TrackerPage() {
   // 10. ENDSCAMS.ORG/REPORT INGESTION & REPORT MODAL
   // ============================================================================
   const handleOpenReportModal = () => {
+    if (onNavigateToReport) {
+      onNavigateToReport();
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/report');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
     setIsReportModalOpen(true);
   };
 
@@ -3793,7 +3889,7 @@ export function TrackerPage() {
       const matchesRetention =
         selectedRetention === 'ALL' ||
         (selectedRetention === 'PRIZE_6MO' && isPrizeOrExtendedRetention(r)) ||
-        (selectedRetention === 'STANDARD_60D' && !isPrizeOrExtendedRetention(r));
+        (selectedRetention === 'STANDARD_90D' && !isPrizeOrExtendedRetention(r));
 
       return matchesSearch && matchesCategory && matchesSource && matchesCountry && matchesStatus && matchesRetention;
     });
@@ -3868,7 +3964,7 @@ export function TrackerPage() {
 
             <h1 className="text-lg sm:text-2xl font-black text-slate-100 flex items-center space-x-2 tracking-tight">
               <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
-              <span>Tracker Page (Esscan)</span>
+              <span>CWN Scam Tracker</span>
             </h1>
 
             <p className="text-xs text-slate-400 max-w-3xl">
@@ -3950,29 +4046,6 @@ export function TrackerPage() {
                 <strong>Status:</strong> {isScanning ? scannerStatusMessage : 'Monitoring live threat streams'}
               </span>
             </div>
-
-            {/* Dokploy DB Badge */}
-            <button
-              type="button"
-              onClick={() => setIsSupabaseSetupModalOpen(true)}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono border transition cursor-pointer ${
-                supabaseTableStatus?.tablesExist
-                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25'
-                  : dokployConfig.hasSupabase
-                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
-              }`}
-              title="Click to view Supabase Database status and SQL setup schema"
-            >
-              <Database className="w-3 h-3" />
-              <span>
-                {supabaseTableStatus?.tablesExist
-                  ? 'Dokploy DB: Supabase (Active)'
-                  : dokployConfig.hasSupabase
-                  ? 'Dokploy DB: Supabase (Setup Required)'
-                  : 'Dokploy DB: Local Store'}
-              </span>
-            </button>
 
             {/* Admin Status */}
             {isPasswordVerified ? (
@@ -4072,26 +4145,16 @@ export function TrackerPage() {
       {/* ========================================== */}
       {/* D. SEARCH & FILTERS BAR                    */}
       {/* ========================================== */}
-      <section className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search phone, company, category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2 w-full md:w-auto flex-wrap gap-y-2">
+      <section className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col gap-2.5">
+        {/* Upper Row: All Dropdown Filters (including All Retentions) */}
+        <div className="flex flex-wrap items-center gap-2 w-full">
           {/* Category Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Filter className="w-3.5 h-3.5 text-amber-400" />
+          <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Filter className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Categories</option>
               {categoriesList.map((c) => (
@@ -4101,12 +4164,12 @@ export function TrackerPage() {
           </div>
 
           {/* Source Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Database className="w-3.5 h-3.5 text-blue-400" />
+          <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Database className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <select
               value={selectedSource}
               onChange={(e) => setSelectedSource(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Sources</option>
               {sourcesList.map((s) => (
@@ -4116,12 +4179,12 @@ export function TrackerPage() {
           </div>
 
           {/* Country Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <select
               value={selectedCountry}
               onChange={(e) => setSelectedCountry(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Countries</option>
               {countriesList.map((c) => (
@@ -4130,40 +4193,55 @@ export function TrackerPage() {
             </select>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
+          {/* Retention Tier Filter (shifted to upper part) */}
+          <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <select
+              value={selectedRetention}
+              onChange={(e) => setSelectedRetention(e.target.value as any)}
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
+            >
+              <option value="ALL" className="bg-slate-900">All Retentions</option>
+              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/Lotto/Stake)</option>
+              <option value="STANDARD_90D" className="bg-slate-900">90-Day Standard</option>
+            </select>
+          </div>
+
+          {/* Status Filter (positioned above Sort) */}
+          <div className="w-full sm:w-auto sm:min-w-[190px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Statuses</option>
               <option value="ACTIVE" className="bg-slate-900">Active Lines Only</option>
               <option value="DOWN" className="bg-slate-900">Down / Closed Only</option>
             </select>
           </div>
+        </div>
 
-          {/* Retention Tier Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <select
-              value={selectedRetention}
-              onChange={(e) => setSelectedRetention(e.target.value as any)}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
-            >
-              <option value="ALL" className="bg-slate-900">All Retentions</option>
-              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/PCH/Stake)</option>
-              <option value="STANDARD_60D" className="bg-slate-900">60-Day Standard</option>
-            </select>
+        {/* Lower Row: Expanded Search Bar (left) + Sort Newest (right, under All Statuses) */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+          {/* Expanded Search Bar */}
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search phone, company, category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+            />
           </div>
 
-          {/* Automatic Date Sort Control */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+          {/* Automatic Date Sort Control (right under All Statuses) */}
+          <div className="w-full sm:w-auto sm:min-w-[190px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
-              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="desc" className="bg-slate-900">Sort: Newest Date First</option>
               <option value="asc" className="bg-slate-900">Sort: Oldest Date First</option>
@@ -4258,6 +4336,7 @@ export function TrackerPage() {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
+                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
@@ -4768,12 +4847,24 @@ export function TrackerPage() {
               <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
                 <Database className="w-4 h-4" />
               </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-100 flex items-center space-x-2">
-                  <span>Supabase Live Database Connection</span>
-                </h2>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-base font-bold text-slate-100">
+                    Supabase Live Database
+                  </h2>
+                  {supabaseTableStatus?.isDirectConnection && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      Direct 5432
+                    </span>
+                  )}
+                  {supabaseTableStatus?.isDokployEnvironment && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Dokploy Configured
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 font-mono truncate max-w-md">
-                  {dokployConfig.supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co'}
+                  {supabaseTableStatus?.connectionTarget || supabaseTableStatus?.databaseSource || dokployConfig.supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co'}
                 </p>
               </div>
             </div>
@@ -4781,20 +4872,20 @@ export function TrackerPage() {
             <div className="space-y-4 overflow-y-auto flex-1 pr-1">
               {/* Status Card */}
               <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
-                supabaseTableStatus?.tablesExist
+                supabaseTableStatus?.tablesExist || supabaseTableStatus?.postgresConnected
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
               }`}>
                 <div className="flex items-center justify-between font-semibold">
                   <span className="flex items-center space-x-1.5">
-                    {supabaseTableStatus?.tablesExist ? (
+                    {supabaseTableStatus?.tablesExist || supabaseTableStatus?.postgresConnected ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-amber-400" />
                     )}
                     <span>
-                      {supabaseTableStatus?.tablesExist
-                        ? `Table '${supabaseTableStatus.table}' is Active & Connected`
+                      {supabaseTableStatus?.tablesExist || supabaseTableStatus?.postgresConnected
+                        ? `Connected (${supabaseTableStatus.databaseSource || 'Direct Supabase PostgreSQL'})`
                         : 'Database Configured — SQL Schema Setup Required'}
                     </span>
                   </span>
@@ -4804,9 +4895,9 @@ export function TrackerPage() {
                     onClick={async () => {
                       setIsTestingSupabase(true);
                       const res = await checkSupabaseHealth();
-                      if (res?.tablesExist) {
+                      if (res?.tablesExist || res?.postgresConnected) {
                         await syncThreatRecordsToSupabase(records);
-                        setStatusNotification(`Supabase table detected! Synchronized ${records.length} records to Supabase.`);
+                        setStatusNotification(`Database connected! Synchronized ${records.length} records to Supabase.`);
                       }
                       setIsTestingSupabase(false);
                     }}
@@ -4817,8 +4908,8 @@ export function TrackerPage() {
                   </button>
                 </div>
                 <p className="text-[11px] opacity-85">
-                  {supabaseTableStatus?.tablesExist
-                    ? 'CSV imports, deletions, and edits automatically replicate in real-time to your remote Supabase instance.'
+                  {supabaseTableStatus?.tablesExist || supabaseTableStatus?.postgresConnected
+                    ? `Live persistence active. All records are continuously saved to your Supabase PostgreSQL tables (${supabaseTableStatus.postgresCount !== undefined ? `${supabaseTableStatus.postgresCount} stored records, ` : ''}${supabaseTableStatus.postgresLatencyMs ? `${supabaseTableStatus.postgresLatencyMs}ms latency` : 'instant'}).`
                     : supabaseTableStatus?.error || "Your Supabase project is connected, but the 'tracker_entries' table has not been created yet in the schema cache."}
                 </p>
               </div>
@@ -4994,493 +5085,17 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
       )}
 
       {/* ======================================================== */}
+      {/* ======================================================== */}
       {/* J. REPORT A SCAM (HTTPS://ENDSCAMS.ORG/REPORT) MODAL     */}
       {/* ======================================================== */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-4xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-            {/* Header: Clean, focused, with direct ingestion indicators */}
-            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-950 border-b border-slate-800 shrink-0">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm sm:text-base font-bold text-slate-100">Report a Scam Line</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Live Sync Active
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 hidden sm:block">
-                    Direct EndScams ingestion — instantly persists to PostgreSQL and updates Tracker Page
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <a
-                  href="https://endscams.org/report"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition text-xs flex items-center space-x-1 font-medium"
-                  title="Open endscams.org/report in external window"
-                >
-                  <span className="hidden md:inline">endscams.org</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setIsReportModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition cursor-pointer"
-                  title="Close modal"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body: Direct Ingestion Form */}
-            <form onSubmit={handleQuickReportSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-900">
-                {/* Banner message if any */}
-                {quickReportMessage && (
-                  <div
-                    className={`p-4 rounded-xl border flex items-start space-x-3 ${
-                      quickReportMessage.isError
-                        ? 'bg-red-500/10 border-red-500/30 text-red-300'
-                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    }`}
-                  >
-                    {quickReportMessage.isError ? (
-                      <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
-                    ) : (
-                      <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
-                    )}
-                    <div className="flex-1 text-xs sm:text-sm">
-                      <p className="font-semibold">{quickReportMessage.text}</p>
-                      {!quickReportMessage.isError && (
-                        <p className="text-[11px] text-emerald-400/80 mt-1">
-                          The threat record has been permanently upserted into the PostgreSQL database and is pinned to the top of your live tracker list.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* File / Screenshot Dropzone */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Screenshot / Evidence Image <span className="text-slate-500 font-normal">(Optional)</span>
-                  </label>
-                  <div
-                    onClick={() => {
-                      const input = document.getElementById('report-evidence-file-input') as HTMLInputElement;
-                      if (input) input.click();
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file && file.type.startsWith('image/')) {
-                        setQuickReportEvidenceFile(file);
-                        const reader = new FileReader();
-                        reader.onload = (evt) => setQuickReportEvidencePreview(evt.target?.result as string);
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                    className="border-2 border-dashed border-slate-700 hover:border-slate-500 rounded-xl p-4 sm:p-5 text-center cursor-pointer transition bg-slate-950/40 hover:bg-slate-950/70"
-                  >
-                    <input
-                      id="report-evidence-file-input"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setQuickReportEvidenceFile(file);
-                          const reader = new FileReader();
-                          reader.onload = (evt) => setQuickReportEvidencePreview(evt.target?.result as string);
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                    {quickReportEvidencePreview ? (
-                      <div className="flex items-center justify-between bg-slate-800/80 p-2 rounded-lg border border-slate-700">
-                        <div className="flex items-center space-x-3 overflow-hidden">
-                          <img
-                            src={quickReportEvidencePreview}
-                            alt="Evidence preview"
-                            className="w-12 h-12 rounded object-cover border border-slate-700 shrink-0"
-                          />
-                          <div className="text-left truncate">
-                            <p className="text-xs font-medium text-slate-200 truncate">
-                              {quickReportEvidenceFile?.name || 'Attached screenshot'}
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              {(quickReportEvidenceFile?.size ? (quickReportEvidenceFile.size / 1024).toFixed(1) : '0')} KB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setQuickReportEvidenceFile(null);
-                            setQuickReportEvidencePreview(null);
-                          }}
-                          className="px-2 py-1 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded text-xs transition"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center space-y-1">
-                        <Upload className="w-6 h-6 text-slate-400 mb-1" />
-                        <p className="text-xs text-slate-300 font-medium">
-                          Click to upload or drag and drop scam screenshot
-                        </p>
-                        <p className="text-[11px] text-slate-500">PNG, JPG, WEBP up to 10MB</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 1: Phone Number & Scammer's Name */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Scam Phone Number <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={quickReportPhone}
-                      onChange={(e) => setQuickReportPhone(e.target.value)}
-                      placeholder="e.g. 1 (502) 237-9660 or 800-..."
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Real dialable scam numbers only.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Scammer's name
-                    </label>
-                    <input
-                      type="text"
-                      value={quickReportCompany}
-                      onChange={(e) => setQuickReportCompany(e.target.value)}
-                      placeholder="e.g. PCH, David Cooper, or Geek Squad"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: Alt Phone Number #1 & Alt Phone Number #2 / WhatsApp */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Alt Phone Number #1 <span className="text-slate-500 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={quickReportAltPhone1}
-                      onChange={(e) => setQuickReportAltPhone1(e.target.value)}
-                      placeholder="e.g. +1 (502) 237-9661"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-slate-300">
-                        Alt Phone Number #2 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="tel"
-                        value={quickReportAltPhone2}
-                        onChange={(e) => setQuickReportAltPhone2(e.target.value)}
-                        placeholder="e.g. +234 810 552 9412"
-                        className="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                      />
-                      <label className="flex items-center space-x-1 text-xs text-emerald-400 cursor-pointer whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={quickReportAlt2IsWhatsApp}
-                          onChange={(e) => setQuickReportAlt2IsWhatsApp(e.target.checked)}
-                          className="w-3.5 h-3.5 rounded text-emerald-500 focus:ring-emerald-400 bg-slate-950 border-slate-700 cursor-pointer"
-                        />
-                        <span>WhatsApp</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Row 3: Financial Loss & Scam Category */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Financial Loss ($) <span className="text-slate-500 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={quickReportMoneyLost}
-                      onChange={(e) => setQuickReportMoneyLost(e.target.value)}
-                      placeholder="e.g. 250.00"
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Scam Category <span className="text-red-400">*</span>
-                    </label>
-                    <select
-                      value={quickReportCategory}
-                      onChange={(e) => setQuickReportCategory(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                    >
-                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)</option>
-                      <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
-                      <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
-                      <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
-                      <option value="Government Impersonation & Warrant Scams">Government Impersonation & Warrant Scams</option>
-                      <option value="Emergency & Grandparent Scams">Emergency & Grandparent Scams</option>
-                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
-                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
-                      <option value="Spiritual / Herbal / Fortune Scam">Spiritual / Herbal / Fortune Scam</option>
-                      <option value="Other Scam">Other Scam</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 4: Date of Incident & How Were You Contacted? */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      Date of Incident
-                    </label>
-                    <input
-                      type="date"
-                      value={quickReportIncidentDate}
-                      onChange={(e) => setQuickReportIncidentDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-200 mb-1">
-                      How Were You Contacted?
-                    </label>
-                    <select
-                      value={quickReportHowContacted}
-                      onChange={(e) => setQuickReportHowContacted(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                    >
-                      <option value="Phone Call">Phone Call</option>
-                      <option value="Text Message">Text Message</option>
-                      <option value="WhatsApp">WhatsApp</option>
-                      <option value="Email">Email</option>
-                      <option value="Social Media">Social Media</option>
-                      <option value="Website">Website</option>
-                      <option value="In Person">In Person</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Row 5: WhatsApp Checkbox */}
-                <div className="flex items-center space-x-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="quick-whatsapp-check"
-                    checked={quickReportIsWhatsApp}
-                    onChange={(e) => setQuickReportIsWhatsApp(e.target.checked)}
-                    className="w-4 h-4 rounded text-red-500 focus:ring-red-400 bg-slate-950 border-slate-700 cursor-pointer"
-                  />
-                  <label htmlFor="quick-whatsapp-check" className="text-xs text-slate-300 cursor-pointer select-none">
-                    This primary phone number operates as a WhatsApp or direct messaging threat line
-                  </label>
-                </div>
-
-                {/* Incident Description */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-200 mb-1">
-                    Describe What Happened <span className="text-red-400">*</span>
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={quickReportDescription}
-                    onChange={(e) => setQuickReportDescription(e.target.value)}
-                    placeholder="Provide details on the call or message: What did the scammer say? What name did they give? What fees or gift cards did they demand? Any secondary callback numbers..."
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition resize-none"
-                  />
-                </div>
-
-                {/* Optional Reporter Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Your Name / Initials <span className="text-slate-500 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={quickReportReporterName}
-                      onChange={(e) => setQuickReportReporterName(e.target.value)}
-                      placeholder="e.g. Anonymous or J.D."
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Your Email <span className="text-slate-500 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={quickReportReporterEmail}
-                      onChange={(e) => setQuickReportReporterEmail(e.target.value)}
-                      placeholder="e.g. reporter@example.com"
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* Form Footer / Submit Actions */}
-                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <p className="text-[11px] text-slate-500 flex items-center space-x-1">
-                    <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Submitted reports are permanently cataloged and synced across all user sessions.</span>
-                  </p>
-                  <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => setIsReportModalOpen(false)}
-                      className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={quickReportSubmitting || !quickReportPhone.trim() || !quickReportDescription.trim()}
-                      className="flex-1 sm:flex-none px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-900/30 flex items-center justify-center space-x-2 cursor-pointer"
-                    >
-                      {quickReportSubmitting ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Submitting to Database...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                          <span>Submit Scam Report</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </form>
-          </div>
-        </div>
+        <ReportScamPage
+          isModal={true}
+          onCloseModal={() => setIsReportModalOpen(false)}
+          onNavigateToTracker={() => setIsReportModalOpen(false)}
+        />
       )}
 
-      {/* ========================================== */}
-      {/* J. TRACKER_PASS AUTHENTICATION MODAL       */}
-      {/* ========================================== */}
-      {isPasswordModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
-            <button
-              onClick={() => {
-                setIsPasswordModalOpen(false);
-                setPendingAction(null);
-                setPasswordError(null);
-              }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                <Lock className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-100">Administrator Password Required</h2>
-                <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Secured by encrypted Administrator or Bypass credentials (bypass access is strictly limited to editing post details and changing line status).
-            </p>
-
-            {passwordError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>{passwordError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleVerifyPassword} className="space-y-4">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1 text-xs">
-                  Enter Password or Encrypted Bypass Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPasswordText ? 'text' : 'password'}
-                    required
-                    autoFocus
-                    placeholder="Enter password..."
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-amber-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordText(!showPasswordText)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                  >
-                    {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsPasswordModalOpen(false);
-                    setPendingAction(null);
-                    setPasswordError(null);
-                  }}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isVerifyingPassword}
-                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <Unlock className="w-3.5 h-3.5" />
-                  <span>{isVerifyingPassword ? 'Verifying...' : 'Unlock & Proceed'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ======================================================== */}
       {/* J2. THREAT POST DETAILS & ACTIONS POPUP MODAL (CENTER)    */}
       {/* ======================================================== */}
       {selectedDetailRecord && (
@@ -5664,7 +5279,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
 
                 {/* 2-Column Attributes Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Date Detected */}
+                  {/* Date Detected / Incident Date */}
                   <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
                     <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                       <Calendar className="w-3 h-3 text-amber-400" />
@@ -5686,18 +5301,20 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                     </div>
                   </div>
 
-                  {/* Company / Target */}
+                  {/* Scammer's Name / Impersonated Target */}
                   <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
                     <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                       <Shield className="w-3 h-3 text-cyan-400" />
-                      <span>Company / Target</span>
+                      <span>Scammer's Name / Target</span>
                     </div>
                     <div className="text-slate-200 font-semibold text-sm">
-                      {resolveTargetCompany(
-                        selectedDetailRecord.impersonated_company,
-                        selectedDetailRecord.category,
-                        selectedDetailRecord.description
-                      )}
+                      {selectedDetailRecord.scammer_name && selectedDetailRecord.scammer_name !== 'N/A'
+                        ? selectedDetailRecord.scammer_name
+                        : resolveTargetCompany(
+                            selectedDetailRecord.impersonated_company,
+                            selectedDetailRecord.category,
+                            selectedDetailRecord.description
+                          )}
                     </div>
                   </div>
 
@@ -5710,6 +5327,38 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                         {selectedDetailRecord.category}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* How Were You Contacted? */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Phone className="w-3 h-3 text-indigo-400" />
+                      <span>How Were You Contacted?</span>
+                    </div>
+                    <div className="text-slate-200 font-semibold text-sm">
+                      {selectedDetailRecord.how_contacted || 'Phone Call'}
+                    </div>
+                  </div>
+
+                  {/* Financial Loss ($) */}
+                  <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Award className="w-3 h-3 text-emerald-400" />
+                      <span>Financial Loss ($)</span>
+                    </div>
+                    <div className="font-mono font-bold text-sm">
+                      {selectedDetailRecord.money_lost !== undefined && selectedDetailRecord.money_lost !== null ? (
+                        selectedDetailRecord.money_lost === 0 ? (
+                          <span className="text-slate-400 font-medium">$0.00 (No Loss)</span>
+                        ) : (
+                          <span className="text-rose-400 font-extrabold">${selectedDetailRecord.money_lost.toLocaleString()}</span>
+                        )
+                      ) : selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A' ? (
+                        <span className="text-amber-400">{selectedDetailRecord.amount_charged}</span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">None / Not Reported</span>
+                      )}
                     </div>
                   </div>
 
@@ -5778,11 +5427,55 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   </div>
                 )}
 
-                {/* Threat Intel & Snippet */}
+                {/* Attached Screenshot / Evidence (if available) */}
+                {(selectedDetailRecord.image_url || selectedDetailRecord.evidence_url) && (
+                  <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                      <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Attached Evidence / Scam Screenshot</span>
+                    </div>
+                    <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={selectedDetailRecord.image_url || selectedDetailRecord.evidence_url}
+                          alt="Scam evidence"
+                          className="w-14 h-14 object-cover rounded-lg border border-slate-700 cursor-pointer hover:opacity-90 transition"
+                          onClick={() => window.open(selectedDetailRecord.image_url || selectedDetailRecord.evidence_url, '_blank')}
+                        />
+                        <div className="text-xs text-slate-300">
+                          <p className="font-semibold">Screenshot Evidence</p>
+                          <p className="text-[10px] text-slate-500">Provided during scam report submission</p>
+                        </div>
+                      </div>
+                      <a
+                        href={selectedDetailRecord.image_url || selectedDetailRecord.evidence_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-medium inline-flex items-center space-x-1 transition"
+                      >
+                        <span>View Full</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional Reporter Credits */}
+                {(selectedDetailRecord.reporter_name || selectedDetailRecord.reporter_email) && (
+                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Submitted by Community Reporter:</span>
+                    <span className="text-slate-200 font-medium">
+                      {selectedDetailRecord.reporter_name || 'Anonymous'}
+                      {selectedDetailRecord.reporter_email ? ` (${selectedDetailRecord.reporter_email})` : ''}
+                    </span>
+                  </div>
+                )}
+
+                {/* Threat Intel & Snippet (Describe What Happened) */}
                 <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2">
                   <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
                     <Info className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Threat Intel & Snippet</span>
+                    <span>Threat Intel & Snippet (Describe What Happened)</span>
                   </div>
                   <div className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap bg-slate-900/60 p-3 rounded-lg border border-slate-800/80 text-xs selection:bg-amber-500/30">
                     {selectedDetailRecord.description || 'No detailed snippet provided for this threat entry.'}
@@ -5842,10 +5535,10 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                 </div>
               </div>
             ) : (
-              /* If EDITING: Interactive form directly on the popup box */
+              /* If EDITING: Interactive form directly on the popup box (All Parameters) */
               <div className="space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Phone Number */}
+                  {/* Phone Number & WhatsApp Checkbox */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
                       Phone Number *
@@ -5857,19 +5550,103 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
                       placeholder="+1 (800) 000-0000"
                     />
+                    <label className="flex items-center space-x-2 pt-1 text-[11px] text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={popupEditForm.is_whatsapp}
+                        onChange={(e) => setPopupEditForm((prev) => ({ ...prev, is_whatsapp: e.target.checked }))}
+                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Is this also a WhatsApp number?</span>
+                    </label>
                   </div>
 
-                  {/* Company / Target */}
+                  {/* Scammer's Name (Impersonated Company) */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Company / Target *
+                      Scammer's Name / Impersonated Target *
                     </label>
                     <input
                       type="text"
                       value={popupEditForm.impersonated_company}
                       onChange={(e) => setPopupEditForm((prev) => ({ ...prev, impersonated_company: e.target.value }))}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
-                      placeholder="e.g. Geek Squad, PayPal, Amazon"
+                      placeholder="e.g. Geek Squad, American Cash Award"
+                    />
+                    <span className="text-[10px] text-slate-500">Name they gave, company claimed, or caller identity</span>
+                  </div>
+
+                  {/* Alternate Phone Number 1 (Optional) */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Alternate Phone Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.alt_phone_1}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, alt_phone_1: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. +1 (855) 000-0000"
+                    />
+                    <span className="text-[10px] text-slate-500">Secondary callback number</span>
+                  </div>
+
+                  {/* Second Alternate Phone Number 2 (Optional) + WhatsApp */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Second Alternate Phone Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={popupEditForm.alt_phone_2}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, alt_phone_2: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="e.g. +1 (866) 000-0000"
+                    />
+                    <label className="flex items-center space-x-2 pt-1 text-[11px] text-slate-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={popupEditForm.alt_phone_2_whatsapp}
+                        onChange={(e) => setPopupEditForm((prev) => ({ ...prev, alt_phone_2_whatsapp: e.target.checked }))}
+                        className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+                      />
+                      <span>Is this second number on WhatsApp?</span>
+                    </label>
+                  </div>
+
+                  {/* How Were You Contacted? */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      How Were You Contacted?
+                    </label>
+                    <select
+                      value={popupEditForm.how_contacted}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, how_contacted: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                    >
+                      <option value="Phone Call">Phone Call</option>
+                      <option value="Text Message (SMS)">Text Message (SMS)</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Email">Email</option>
+                      <option value="Website / Pop-up">Website / Pop-up</option>
+                      <option value="Social Media">Social Media</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Financial Loss ($) */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Money Lost ($) (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={popupEditForm.money_lost}
+                      onChange={(e) => setPopupEditForm((prev) => ({ ...prev, money_lost: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                      placeholder="0.00"
                     />
                   </div>
 
@@ -5883,12 +5660,16 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       onChange={(e) => setPopupEditForm((prev) => ({ ...prev, category: e.target.value }))}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
                     >
+                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)</option>
                       <option value="General Tech Support & Refund Scams">General Tech Support & Refund Scams</option>
-                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
                       <option value="Crypto BTC Recovery Scam">Crypto BTC Recovery Scam</option>
-                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
-                      <option value="Lottery & Sweepstakes Scams">Lottery & Sweepstakes Scams</option>
                       <option value="Social Media Prize & Giveaway Scam">Social Media Prize & Giveaway Scam</option>
+                      <option value="Government Impersonation & Warrant Scams">Government Impersonation & Warrant Scams</option>
+                      <option value="Emergency & Grandparent Scams">Emergency & Grandparent Scams</option>
+                      <option value="Spellcaster WhatsApp Extortion">Spellcaster WhatsApp Extortion</option>
+                      <option value="Publishing Chat Scam">Publishing Chat Scam</option>
+                      <option value="Spiritual / Herbal / Fortune Scam">Spiritual / Herbal / Fortune Scam</option>
+                      <option value="Other Scam">Other Scam</option>
                     </select>
                   </div>
 
@@ -5916,7 +5697,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       value={popupEditForm.source_name}
                       onChange={(e) => setPopupEditForm((prev) => ({ ...prev, source_name: e.target.value }))}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
-                      placeholder="e.g. Tech Support United, Scammer.info"
+                      placeholder="e.g. EndScams Direct Report, Scammer.info"
                     />
                   </div>
 
@@ -5952,7 +5733,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   {/* Claimed Amount */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Claimed Amount
+                      Claimed Amount (Optional)
                     </label>
                     <input
                       type="text"
@@ -5966,7 +5747,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                   {/* Invoice ID */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Invoice ID
+                      Invoice ID (Optional)
                     </label>
                     <input
                       type="text"
@@ -5977,17 +5758,17 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                     />
                   </div>
 
-                  {/* Threat Intel & Snippet */}
+                  {/* Threat Intel & Snippet (Describe What Happened) */}
                   <div className="space-y-1 sm:col-span-2">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Threat Intel & Snippet *
+                      Describe What Happened (Threat Intel & Snippet) *
                     </label>
                     <textarea
                       rows={4}
                       value={popupEditForm.description}
                       onChange={(e) => setPopupEditForm((prev) => ({ ...prev, description: e.target.value }))}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-slate-200 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-none leading-relaxed"
-                      placeholder="Enter detailed intelligence and post context..."
+                      placeholder="Provide details on the call or message: What did they say? What did they ask for? Any names or reference numbers..."
                     />
                   </div>
                 </div>
@@ -6319,6 +6100,107 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
           </div>
         </div>
       )}
+
+      {/* J. TRACKER_PASS AUTHENTICATION MODAL (TOPMOST Z-INDEX) */}
+      {/* J. TRACKER_PASS AUTHENTICATION MODAL       */}
+      {/* ========================================== */}
+      {isPasswordModalOpen && (
+        <div
+          className="fixed inset-0 z-[999999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4" style={{ zIndex: 999999 }}
+          onClick={() => {
+            setIsPasswordModalOpen(false);
+            setPendingAction(null);
+            setPasswordError(null);
+          }}
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4" style={{ zIndex: 1000000 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setIsPasswordModalOpen(false);
+                setPendingAction(null);
+                setPasswordError(null);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Administrator Password Required</h2>
+                <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Secured by encrypted Administrator or Bypass credentials (bypass access is strictly limited to editing post details and changing line status).
+            </p>
+
+            {passwordError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyPassword} className="space-y-4">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1 text-xs">
+                  Enter Password or Encrypted Bypass Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswordText ? 'text' : 'password'}
+                    required
+                    autoFocus
+                    placeholder="Enter password..."
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full pl-3 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordText(!showPasswordText)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                  >
+                    {showPasswordText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setPendingAction(null);
+                    setPasswordError(null);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isVerifyingPassword}
+                  className="px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>{isVerifyingPassword ? 'Verifying...' : 'Unlock & Proceed'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
     </div>
   );
 }
