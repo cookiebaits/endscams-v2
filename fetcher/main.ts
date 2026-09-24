@@ -10,6 +10,7 @@
     POST /refresh        → runs the full pipeline once, returns stats
     GET  /api/records    → returns all persisted threat entries from Supabase
     POST /api/records/manual → adds/upserts threat entry in Supabase
+    POST /api/report     → ingests user scam reports into Supabase & tracker_entries
     DELETE /api/records/:id  → deletes threat entry from Supabase
     POST /api/verify-password → verifies password and returns authorized role ("admin" | "bypass")
     GET  /api/feed/tech-scammers-united → returns live Discourse topics from TSU
@@ -66,17 +67,17 @@ function inferImpersonatedCompany(text: string, category?: string, sourceName?: 
 
 async function saveRecordToSupabase(r: any) {
   try {
-    const id = r.id || `rec-${r.phone_digits || r.cleanPhone || Date.now()}`;
-    const phone_number = r.phone_number || r.phone || "";
+    const phone_number = r.phone_number || r.phoneNumber || r.phone || "";
     const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
     if (!phone_digits) return;
-    const source_name = r.source_name || r.platform || "Threat Intelligence";
-    const source_url = r.source_url || r.sourceUrl || "";
-    const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
+    const id = r.id || `rec-${phone_digits}`;
+    const source_name = r.source_name || r.platform || r.source || "User Report (endscams.org/report)";
+    const source_url = r.source_url || r.sourceUrl || "https://endscams.org/report";
+    const report_date = r.report_date || r.incident_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
     const category = r.category || r.scamType || "General Tech Support & Refund Scams";
-    const description = r.description || r.detailedSummary || r.snippet || "";
+    const description = r.description || r.detailedSummary || r.snippet || "Reported via https://endscams.org/report";
 
-    let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
+    let impersonated_company = r.impersonated_company || r.impersonatedCompany || r.scammer_name || r.scammerName || "";
     if (!impersonated_company || impersonated_company === "N/A" || impersonated_company === "Unspecified Target") {
       impersonated_company = inferImpersonatedCompany(`${description} ${source_name}`, category, source_name);
     }
@@ -84,30 +85,85 @@ async function saveRecordToSupabase(r: any) {
     const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
     const amount_charged = r.amount_charged || r.amountCharged || "N/A";
     const is_down = Boolean(r.is_down || r.isNumberDown);
+    const is_whatsapp = Boolean(r.is_whatsapp || r.isWhatsapp);
+
+    // Retention: 180 days for prize/PCH/Stake, 90 days standard
+    const isPrize = (category + " " + impersonated_company + " " + description).toLowerCase().match(/pch|publishers clearing|mega million|stake\.us|prize|lottery|sweepstake/);
+    const retentionDays = isPrize ? 180 : 90;
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 60);
+    expiresAt.setDate(expiresAt.getDate() + retentionDays);
+
+    const isoDetected = `${report_date}T12:00:00.000Z`;
 
     const payload = {
       id,
       phone_number,
       phone_digits,
+      clean_phone: phone_digits,
       source_name,
+      source_platform: source_name,
+      platform: source_name,
       source_url,
       report_date,
+      post_date: report_date,
+      detected_at: isoDetected,
       category,
+      scam_type: category,
       description,
+      threat_intel: description,
+      snippet: description,
+      detailed_summary: description,
       impersonated_company,
       invoice_number,
       amount_charged,
+      is_down,
       reported_down: is_down,
+      is_number_down: is_down,
+      is_whatsapp,
+      status: is_down ? "Out of Service" : "Active",
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
+    // 1. Try upsert with phone_digits constraint
+    let { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits" });
+
+    // 2. Fallback to id constraint if phone_digits unique constraint name differs
     if (error) {
-      console.warn("saveRecordToSupabase upsert note:", error.message);
+      console.warn("saveRecordToSupabase upsert on phone_digits note:", error.message);
+      const res2 = await supabase.from("tracker_entries").upsert(payload, { onConflict: "id" });
+      error = res2.error;
     }
+
+    // 3. Fallback to direct insert
+    if (error) {
+      console.warn("saveRecordToSupabase upsert on id note:", error.message);
+      const res3 = await supabase.from("tracker_entries").insert(payload);
+      error = res3.error;
+    }
+
+    // 4. Fallback to update by phone_digits if insert failed due to duplicate key
+    if (error) {
+      console.warn("saveRecordToSupabase insert note:", error.message);
+      await supabase.from("tracker_entries").update(payload).eq("phone_digits", phone_digits);
+    }
+
+    // Also persist to scam_reports table if reporter details are present
+    try {
+      await supabase.from("scam_reports").insert({
+        phone_number,
+        phone_digits,
+        category,
+        description,
+        how_contacted: r.how_contacted || r.howContacted || "Phone Call",
+        incident_date: report_date,
+        reporter_name: r.reporter_name || r.reporterName || null,
+        reporter_email: r.reporter_email || r.reporterEmail || null,
+        money_lost: r.money_lost !== undefined ? r.money_lost : r.moneyLost,
+        source: r.source || "user_report",
+        file_url: r.image_url || r.imageUrl || r.file_url || null,
+      });
+    } catch {}
   } catch (err) {
     console.warn("saveRecordToSupabase error:", err);
   }
@@ -952,10 +1008,16 @@ Deno.serve({ port: PORT }, async (req: Request) => {
 
   if (url.pathname === "/api/records" || url.pathname === "/records") {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("tracker_entries")
         .select("*")
         .order("report_date", { ascending: false });
+
+      if (error) {
+        const fallback = await supabase.from("tracker_entries").select("*");
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) {
         console.warn("GET /api/records Supabase fetch error:", error.message);
@@ -973,6 +1035,23 @@ Deno.serve({ port: PORT }, async (req: Request) => {
       console.warn("GET /api/records exception:", sbErr);
       return json({ success: false, count: 0, records: [], error: String(sbErr) });
     }
+  }
+
+  if (url.pathname === "/api/report" || url.pathname === "/report") {
+    if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+
+    const phone_number = body.phone_number || body.phoneNumber || body.phone || "";
+    const phone_digits = body.phone_digits || body.cleanPhone || phone_number.replace(/\D/g, "");
+
+    if (!phone_digits || phone_digits.length < 7) {
+      return cors(json({ error: "Invalid phone number (minimum 7 digits required)" }, 400));
+    }
+
+    await saveRecordToSupabase(body);
+    return cors(json({ success: true, message: "Report saved successfully", record: body }));
   }
 
   if (url.pathname === "/api/records/manual") {

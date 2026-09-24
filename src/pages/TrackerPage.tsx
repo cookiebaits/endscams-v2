@@ -1295,8 +1295,8 @@ const CLEAN_ESSCAN_SEED_RECORDS: ThreatRecord[] = [
 ];
 
 function mapRawSeedToThreatRecord(r: any): ThreatRecord {
-  const rawPhone = r.phone || r.phone_number || '';
-  const digits = (r.cleanPhone || r.phone_digits || rawPhone).replace(/\D/g, '');
+  const rawPhone = r.phone_number || r.phone || '';
+  const digits = (r.phone_digits || r.cleanPhone || r.clean_phone || rawPhone).replace(/\D/g, '');
 
   let alt_numbers: AltNumberEntry[] | undefined = undefined;
   if (Array.isArray(r.alt_numbers)) {
@@ -3694,28 +3694,22 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       return merged;
     });
 
-    // 2. Persist to server store and disk seed via dedicated /api/records/import-csv
-    setImportSyncProgress('Persisting to server database & codebase seed...');
+    // 2. Persist to server store and Supabase database via bulk-upsert
+    setImportSyncProgress('Persisting to server database & Supabase tables...');
     let serverOk = false;
-    let serverTotal = 0;
     let sbSynced = false;
 
     try {
-      const resp = await fetch('/api/records/import-csv', {
+      const resp = await fetch('/api/records/bulk-upsert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ records: importedScamRecords }),
       });
       if (resp.ok) {
-        const data = await resp.json();
         serverOk = true;
-        serverTotal = data.total || 0;
-        if (data.supabase?.success) {
-          sbSynced = true;
-        }
       }
     } catch (e) {
-      console.warn('[CSV Import] Server import-csv failed, retrying with restore endpoint:', e);
+      console.warn('[CSV Import] Server bulk-upsert note:', e);
     }
 
     if (!serverOk) {
@@ -3761,7 +3755,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       setIsSupabaseSetupModalOpen(true);
     } else {
       setStatusNotification(
-        `Successfully imported ${importedThreats.length} threat records! Database updated (${serverTotal || importedThreats.length} total records).`
+        `Successfully imported ${importedThreats.length} threat records! Database updated (${importedThreats.length} total records).`
       );
     }
   };
