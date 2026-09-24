@@ -1,64 +1,119 @@
 /**
- * Universal Phone Formatting and Clipboard Operations Utility
- *
- * Rules:
- * 1. US numbers MUST ALWAYS display as: 1 (xxx) xxx-xxxx
- *    Even if provided as +1 (xxx) xxx-xxxx, xxx-xxx-xxxx, 1-xxx-xxx-xxxx, (xxx) xxx-xxxx, or raw 10/11 digits.
- * 2. Copy Button logic:
- *    - For numbers within the USA: copy the 10 digits as xxxxxxxxxx (no parenthesis, no hyphens, no country code 1)
- *    - For international numbers outside USA: always copy +xxxxxxxxxxxx (leading plus with clean digits)
+ * Phone formatting, validation, and country parsing utilities
  */
 
-export function formatDisplayPhone(rawPhone?: string | null, cleanDigits?: string | null): string {
-  if (!rawPhone && !cleanDigits) return '';
-  const raw = String(rawPhone || '').replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
-  const digits = String(cleanDigits || raw).replace(/\D/g, '');
-
-  // US Phone Formatting: 1 (xxx) xxx-xxxx
-  if (digits.length === 10) {
-    return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-  if (digits.length === 11 && digits.startsWith('1')) {
-    return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  }
-
-  // African Nations Formatting
-  if (digits.startsWith('234') && digits.length === 13) {
-    return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
-  }
-  if (digits.startsWith('254') && digits.length === 12) {
-    return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
-  }
-  if (digits.startsWith('27') && digits.length === 11) {
-    return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
-  }
-  if (digits.startsWith('233') && digits.length === 12) {
-    return `+233 ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8)}`;
-  }
-
-  if (raw.startsWith('+')) {
-    return raw;
-  }
-  return `+${digits}`;
+export function getCleanCopyPhone(text: string): string {
+  if (!text) return '';
+  return text.trim();
 }
 
-export function getCleanCopyPhone(phoneInput?: string | null): string {
-  if (!phoneInput) return '';
-  const digits = String(phoneInput).replace(/\D/g, '');
-  if (!digits) return '';
-
-  // Within the USA: 10 digits (or 11 digits starting with 1)
-  if (digits.length === 10) {
-    return digits; // Exactly 10 digits xxxxxxxxxx
+export function isTollFreeNumber(phone: string): boolean {
+  if (!phone || typeof phone !== 'string') return false;
+  const digits = phone.replace(/\D/g, '');
+  const local = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (local.length === 10) {
+    const area = local.slice(0, 3);
+    const tollFreeCodes = ['800', '888', '877', '866', '855', '844', '833'];
+    return tollFreeCodes.includes(area);
   }
-  if (digits.length === 11 && digits.startsWith('1')) {
-    return digits.slice(1); // Strips country code 1, exactly 10 digits xxxxxxxxxx
-  }
-
-  // International numbers outside the USA: always copy +xxxxxxxxxxxx
-  return `+${digits}`;
-}
-
-export function isTollFreeNumber(_phone: string): boolean {
   return false;
+}
+
+export function isFictitiousOrInvalidPhone(phone: string): boolean {
+  if (!phone || typeof phone !== 'string') return true;
+  const clean = phone.replace(/[^0-9+]/g, '');
+  const digits = clean.replace(/\D/g, '');
+
+  if (digits.length < 7 || digits.length > 15) return true;
+  if (digits.includes('555')) return true;
+
+  const usLocal = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (usLocal.length === 10) {
+    const areaCode = usLocal.slice(0, 3);
+    const exchange = usLocal.slice(3, 6);
+    if (areaCode.startsWith('0') || areaCode.startsWith('1')) return true;
+    if (exchange.startsWith('0') || exchange.startsWith('1')) return true;
+  }
+
+  // Repeating 5 or more
+  if (/(\d)\1{4,}/.test(digits)) return true;
+
+  // Sequential pattern
+  if (
+    digits.includes('123456') ||
+    digits.includes('234567') ||
+    digits.includes('345678') ||
+    digits.includes('456789') ||
+    digits.includes('567890') ||
+    digits.includes('654321') ||
+    digits.includes('765432') ||
+    digits.includes('876543') ||
+    digits.includes('987654') ||
+    digits.includes('012345')
+  ) {
+    return true;
+  }
+
+  if (digits === '1234567890' || digits === '0987654321') return true;
+
+  return false;
+}
+
+export function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
+  const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
+  if (cleanDigits.length === 10) {
+    return `1 (${cleanDigits.slice(0, 3)}) ${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6)}`;
+  }
+  if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) {
+    return `1 (${cleanDigits.slice(1, 4)}) ${cleanDigits.slice(4, 7)}-${cleanDigits.slice(7)}`;
+  }
+  if (cleanDigits.startsWith('234') && cleanDigits.length === 13) {
+    return `+234 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
+  }
+  if (cleanDigits.startsWith('254') && cleanDigits.length === 12) {
+    return `+254 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
+  }
+  if (cleanDigits.startsWith('27') && cleanDigits.length === 11) {
+    return `+27 ${cleanDigits.slice(2, 4)} ${cleanDigits.slice(4, 7)} ${cleanDigits.slice(7)}`;
+  }
+  return cleaned.startsWith('+') ? cleaned : `+${cleanDigits}`;
+}
+
+export function deriveCountryInfo(phone: string): { code: string; name: string; isAfrican: boolean; allowed: boolean } {
+  if (!phone || isFictitiousOrInvalidPhone(phone)) {
+    return { code: 'GLOBAL', name: 'International', isAfrican: false, allowed: false };
+  }
+
+  const clean = phone.replace(/[^0-9+]/g, '');
+  const digits = clean.replace(/\D/g, '');
+
+  const africanPrefixes: Record<string, { code: string; name: string }> = {
+    '234': { code: 'NG', name: 'Nigeria' },
+    '254': { code: 'KE', name: 'Kenya' },
+    '233': { code: 'GH', name: 'Ghana' },
+    '27': { code: 'ZA', name: 'South Africa' },
+    '260': { code: 'ZM', name: 'Zambia' },
+    '256': { code: 'UG', name: 'Uganda' },
+    '255': { code: 'TZ', name: 'Tanzania' },
+    '237': { code: 'CM', name: 'Cameroon' },
+    '225': { code: 'CI', name: 'Ivory Coast' },
+    '221': { code: 'SN', name: 'Senegal' },
+    '263': { code: 'ZW', name: 'Zimbabwe' },
+    '250': { code: 'RW', name: 'Rwanda' },
+    '229': { code: 'BJ', name: 'Benin' },
+    '228': { code: 'TG', name: 'Togo' },
+    '241': { code: 'GA', name: 'Gabon' },
+  };
+
+  for (const [prefix, info] of Object.entries(africanPrefixes)) {
+    if (digits.startsWith(prefix)) {
+      return { code: info.code, name: info.name, isAfrican: true, allowed: true };
+    }
+  }
+
+  if (digits.length === 10 || (digits.length === 11 && digits.startsWith('1'))) {
+    return { code: 'US', name: 'United States', isAfrican: false, allowed: true };
+  }
+
+  return { code: 'GLOBAL', name: 'International', isAfrican: false, allowed: true };
 }
