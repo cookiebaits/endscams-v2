@@ -21,18 +21,30 @@ export interface SearchPreset {
   description: string;
 }
 
+export interface AltNumberRecord {
+  phone: string;
+  digits?: string;
+  is_whatsapp?: boolean;
+}
+
 export interface ScamPhoneRecord {
   id: string;
   phone: string;              // e.g. "+1 (656) 556-3016"
   cleanPhone: string;         // Digits only for wa.me link e.g. "16565563016"
   isWhatsapp?: boolean;       // Whether this number is operated as a WhatsApp contact
   altNumbers?: string[];      // Alternate numbers tied to this threat incident (up to 3, max 4 total)
+  altNumbersWithDetails?: AltNumberRecord[]; // Alternate numbers with WhatsApp metadata
   countryCode?: string;       // e.g. "US", "GB", "NG", "IN"
   countryName?: string;       // e.g. "United States", "United Kingdom"
   scamType: ScamCategory | string;
   impersonatedCompany?: string; // e.g. "PayPal", "Apple", "Geek Squad", "Amazon", "Norton"
+  scammerName?: string;         // Scammer's name e.g. "PCH, David Cooper, or Geek Squad"
   invoiceNumber?: string;       // e.g. "INV-49201", "PAY-88219", "N/A"
   amountCharged?: string;       // e.g. "$789.00", "$499.99", "$1,299.00"
+  moneyLost?: number | string;  // Financial loss from report form
+  howContacted?: string;        // Phone Call, Text Message, WhatsApp, Email, etc.
+  reporterName?: string;        // Name or initials of reporter
+  reporterEmail?: string;       // Email of reporter
   detailedSummary?: string;     // Summary of what the scam is, amount charged, remote access tool, etc.
   sourceUrl: string;          // e.g. "https://techscammersunited.com/..."
   sourceDomain: string;       // e.g. "techscammersunited.com"
@@ -47,6 +59,7 @@ export interface ScamPhoneRecord {
   updatedAt?: string;         // Timestamp when record was updated/edited
   notes?: string;
   imageUrl?: string;          // Uploaded or pasted screenshot/evidence image
+  evidenceUrl?: string;       // Direct URL to uploaded proof/evidence
 }
 
 export type SortField = 'scamType' | 'phone' | 'sourceUrl' | 'platform' | 'detectedAt';
