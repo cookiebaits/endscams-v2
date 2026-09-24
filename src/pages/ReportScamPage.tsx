@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import {
   ShieldAlert,
   Shield,
@@ -426,16 +427,15 @@ export default function ReportScamPage({ onNavigateToTracker, isModal = false, o
     removeFile();
   };
 
+  const navigate = useNavigate();
+
   const handleReturnToTracker = () => {
     if (onNavigateToTracker) {
       onNavigateToTracker();
     } else if (onCloseModal) {
       onCloseModal();
     } else {
-      if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
+      navigate('/tracker');
     }
   };
 

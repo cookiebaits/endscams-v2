@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 function resolveSupabaseApiUrl(rawValue: string): string {
+  if (!rawValue) return '';
   const value = rawValue.trim();
+  if (!value) return '';
+
   if (value.startsWith('http://') || value.startsWith('https://')) return value;
 
   const directHost = value.match(/(?:@|db\.)([a-z0-9]+)\.supabase\.co/i);
@@ -10,11 +13,21 @@ function resolveSupabaseApiUrl(rawValue: string): string {
   const poolerHost = value.match(/postgres\.([a-z0-9]+):/i);
   if (poolerHost?.[1]) return `https://${poolerHost[1]}.supabase.co`;
 
+  const genericHost = value.match(/@([^:/]+)/);
+  if (genericHost?.[1] && genericHost[1].includes('supabase')) {
+    const parts = genericHost[1].split('.');
+    if (parts.length >= 3) return `https://${parts[1]}.supabase.co`;
+  }
+
   return '';
 }
 
 const supabaseUrl = resolveSupabaseApiUrl(
-  import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DB || ''
+  import.meta.env.VITE_SUPABASE_URL ||
+  import.meta.env.VITE_DB ||
+  import.meta.env.VITE_DATABASE_URL ||
+  import.meta.env.DATABASE_URL ||
+  ''
 );
 
 const supabaseAnonKey =

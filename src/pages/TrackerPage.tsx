@@ -1776,6 +1776,17 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       };
 
       setRecords((prev) => {
+        const existing = prev.find((r) => r.phone_digits === cleanDigits || r.phone_number === formatted);
+        if (existing) {
+          if (
+            existing.description === description &&
+            existing.category === category &&
+            existing.impersonated_company === impersonatedCompany &&
+            existing.is_down === false
+          ) {
+            return prev;
+          }
+        }
         const withoutOld = prev.filter((r) => r.phone_digits !== cleanDigits && r.phone_number !== rawPhone && r.phone_number !== formatted);
         const updated = purgeExpiredThreatRecords(deduplicateThreatRecordsList([newRecord, ...withoutOld])).sort(compareThreatDatesDesc);
         try {
@@ -1870,6 +1881,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         const ch = new BroadcastChannel(name);
         ch.onmessage = (event) => {
           if (!event.data) return;
+          if (event.data.senderId && event.data.senderId === syncBridge.getInstanceId()) return;
           const data = event.data;
           const type = data.type || data.action || '';
           if (
@@ -1877,10 +1889,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             type === 'INSERT_RECORD' ||
             type === 'USER_REPORT' ||
             type === 'ADD_MANUAL_RECORD' ||
-            type === 'SCAM_REPORT_SUBMITTED' ||
-            data.phone ||
-            data.phone_number ||
-            data.phone_digits
+            type === 'SCAM_REPORT_SUBMITTED'
           ) {
             const payload = data.payload || data.record || data;
             handleIncomingReportRef.current(payload);
@@ -1901,6 +1910,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   useEffect(() => {
     const handleWindowMsg = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') return;
+      if (event.data.senderId && event.data.senderId === syncBridge.getInstanceId()) return;
       const { type, action, payload, record } = event.data;
       const msgType = type || action || '';
       if (
@@ -1908,10 +1918,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         msgType === 'USER_REPORT' ||
         msgType === 'ADD_MANUAL_RECORD' ||
         msgType === 'SCAM_REPORT_SUBMITTED' ||
-        msgType === 'INSERT_RECORD' ||
-        event.data.phone ||
-        event.data.phone_number ||
-        event.data.phone_digits
+        msgType === 'INSERT_RECORD'
       ) {
         handleIncomingReportRef.current(payload || record || event.data);
       }
@@ -1993,13 +2000,14 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   }, [isReportModalOpen]);
 
   // Broadcast to syncBridge whenever records change
+  const prevRecordCountRef = useRef<number>(0);
   useEffect(() => {
-    if (records.length > 0) {
+    if (records.length > 0 && records.length !== prevRecordCountRef.current) {
+      prevRecordCountRef.current = records.length;
       const scamRecords = records.map(threatRecordToScamPhoneRecord);
       syncBridge.broadcastRecords(scamRecords);
-      syncBridge.broadcastCurrentState();
     }
-  }, [records, isScanning]);
+  }, [records.length]);
 
   // Update live Pacific Time clock & Countdown every second
   useEffect(() => {

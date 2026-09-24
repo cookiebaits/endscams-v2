@@ -219,12 +219,13 @@ export type SyncMessageType =
   | 'GET_RECORDS'
   | 'CUSTOM_EVENT';
 
-export interface SyncMessage<T = any> {
+export interface SyncMessage<T = unknown> {
   source: 'END_SCAM_SCAN' | string;
   type: SyncMessageType | string;
   version: string;
   id: string;
   timestamp: string;
+  senderId?: string;
   payload?: T;
   error?: string;
 }
