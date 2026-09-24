@@ -27,6 +27,12 @@ export interface ScamPhoneRecord {
   cleanPhone: string;         // Digits only for wa.me link e.g. "16565563016"
   isWhatsapp?: boolean;       // Whether this number is operated as a WhatsApp contact
   altNumbers?: string[];      // Alternate numbers tied to this threat incident (up to 3, max 4 total)
+  altNumbersWithDetails?: any[];
+  scammerName?: string;
+  moneyLost?: number | string;
+  howContacted?: string;
+  reporterName?: string;
+  reporterEmail?: string;
   countryCode?: string;       // e.g. "US", "GB", "NG", "IN"
   countryName?: string;       // e.g. "United States", "United Kingdom"
   scamType: ScamCategory | string;

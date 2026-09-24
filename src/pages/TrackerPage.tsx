@@ -18,22 +18,17 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   Phone,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
   Award,
   ArrowDown,
   ArrowUp,
@@ -46,7 +41,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
@@ -1429,10 +1424,35 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const targetDigits = target10Digits.replace(/\D/g, '');
+  if (!targetDigits) return false;
+
+  const coreTarget = targetDigits.length > 10 && targetDigits.startsWith('1') ? targetDigits.slice(1) : targetDigits;
+
+  const pDigits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').toString().replace(/\D/g, '');
+  const coreP = pDigits.length > 10 && pDigits.startsWith('1') ? pDigits.slice(1) : pDigits;
+
+  if (coreP && coreTarget && (coreP === coreTarget || pDigits.includes(coreTarget) || coreTarget.includes(coreP))) return true;
+
+  const alts = record.alt_numbers || record.altNumbers || record.altNumbersWithDetails;
+  if (Array.isArray(alts)) {
+    for (const alt of alts) {
+      const altStr = typeof alt === 'string' ? alt : (alt.digits || alt.phone || '');
+      const altDigits = altStr.replace(/\D/g, '');
+      const coreAlt = altDigits.length > 10 && altDigits.startsWith('1') ? altDigits.slice(1) : altDigits;
+      if (coreAlt && coreTarget && (coreAlt === coreTarget || altDigits.includes(coreTarget) || coreTarget.includes(coreAlt))) return true;
+    }
+  }
+
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1534,6 +1554,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
   const [scannerProgress, setScannerProgress] = useState(0);
+  void scannerProgress;
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1583,6 +1604,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     hasTrackerPass: false,
   });
   const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  void isSupabaseConnected;
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1608,6 +1630,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
   const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
   const [clientCountryCode, setClientCountryCode] = useState<string>('');
+  void isGeoAllowed;
+  void clientCountryCode;
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1718,6 +1742,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [quickReportEvidencePreview, setQuickReportEvidencePreview] = useState<string | null>(null);
   const [quickReportSubmitting, setQuickReportSubmitting] = useState(false);
   const [quickReportMessage, setQuickReportMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  void quickReportPhone; void setQuickReportCategory; void setQuickReportHowContacted; void setQuickReportIncidentDate;
+  void quickReportEvidenceFile; void quickReportEvidencePreview; void quickReportSubmitting; void quickReportMessage;
 
   // Ingestion handler for numbers submitted via https://endscams.org/report (BroadcastChannel, Supabase, API, or window postMessage)
   const handleIncomingReport = (rawPayload: any) => {
@@ -1815,6 +1841,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   handleIncomingReportRef.current = handleIncomingReport;
 
   const handleQuickReportSubmit = async (e: React.FormEvent) => {
+    void handleQuickReportSubmit;
     e.preventDefault();
     setQuickReportMessage(null);
     setQuickReportSubmitting(true);
@@ -2344,6 +2371,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
 
   // Edit Monitored Number Handlers
   const handleOpenEditModal = (record: ThreatRecord) => {
+    void handleOpenEditModal;
     setEditingRecord(record);
     setEditForm({
       phone_number: record.phone_number,
@@ -4336,7 +4364,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
