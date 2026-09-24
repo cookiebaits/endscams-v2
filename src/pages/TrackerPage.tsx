@@ -59,6 +59,7 @@ import {
   isBypassAllowedForAction,
   checkClientGeoPermission,
 } from '../utils/security';
+import { getClientVaultSecrets } from '../lib/cryptoVault';
 
 export interface AltNumberEntry {
   phone: string;
@@ -2468,7 +2469,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     syncRecordToSupabase(updated);
   };
 
-  // Bulk Sync Records to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend API
+  // Bulk Sync Records to Supabase Database & Backend API
   const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]): Promise<{ success: boolean; error?: string }> => {
     if (!recs || recs.length === 0) return { success: true };
     try {
@@ -4488,7 +4489,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                       {/* Company Impersonated (Company / Target) */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         <span className="text-slate-200 font-semibold">
-                          {resolveTargetCompany(record.impersonated_company, record.category, record.description)}
+                          {resolveTargetCompany(record.scammer_name || record.impersonated_company, record.category, record.description)}
                         </span>
                       </td>
 
@@ -4864,7 +4865,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   )}
                 </div>
                 <p className="text-xs text-slate-400 font-mono truncate max-w-md">
-                  {supabaseTableStatus?.connectionTarget || supabaseTableStatus?.databaseSource || dokployConfig.supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co'}
+                  {supabaseTableStatus?.connectionTarget || supabaseTableStatus?.databaseSource || dokployConfig.supabaseUrl || getClientVaultSecrets().supabaseUrl}
                 </p>
               </div>
             </div>
@@ -4921,7 +4922,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   <span>How to Initialize in Supabase (1-Minute Setup):</span>
                 </h3>
                 <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-400 leading-relaxed">
-                  <li>Open your <strong className="text-slate-200">Supabase Dashboard</strong> for project <code className="text-amber-300">joxeqlgkuvgvjoshmjqu</code>.</li>
+                  <li>Open your <strong className="text-slate-200">Supabase Dashboard</strong> for project <code className="text-amber-300">{dokployConfig.supabaseUrl ? (dokployConfig.supabaseUrl.replace(/^https?:\/\//, '').split('.')[0]) : getClientVaultSecrets().projectRef}</code>.</li>
                   <li>Click <strong className="text-slate-200">SQL Editor</strong> on the left sidebar.</li>
                   <li>Click <strong className="text-slate-200">"New query"</strong>.</li>
                   <li>Click the button below to copy the SQL schema, paste it into the editor, and click <strong className="text-emerald-300">Run</strong>.</li>
@@ -5138,7 +5139,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                 </div>
                 <h2 className="text-lg font-bold text-slate-100">
                   {resolveTargetCompany(
-                    selectedDetailRecord.impersonated_company,
+                    selectedDetailRecord.scammer_name || selectedDetailRecord.impersonated_company,
                     selectedDetailRecord.category,
                     selectedDetailRecord.description
                   )}
@@ -5308,13 +5309,11 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       <span>Scammer's Name / Target</span>
                     </div>
                     <div className="text-slate-200 font-semibold text-sm">
-                      {selectedDetailRecord.scammer_name && selectedDetailRecord.scammer_name !== 'N/A'
-                        ? selectedDetailRecord.scammer_name
-                        : resolveTargetCompany(
-                            selectedDetailRecord.impersonated_company,
-                            selectedDetailRecord.category,
-                            selectedDetailRecord.description
-                          )}
+                      {resolveTargetCompany(
+                        selectedDetailRecord.scammer_name || selectedDetailRecord.impersonated_company,
+                        selectedDetailRecord.category,
+                        selectedDetailRecord.description
+                      )}
                     </div>
                   </div>
 
