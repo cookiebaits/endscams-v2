@@ -1,1 +1,1 @@
-export * from './tracker/src/types';
+export * from './pages/types';

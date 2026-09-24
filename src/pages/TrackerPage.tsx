@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import databaseSeed from '../data/database_seed.json';
+import databaseSeed from './database_seed.json';
 import {
   Shield,
   Search,
@@ -47,7 +47,7 @@ import {
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
 import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
-import { noSqlDatabase } from '../db/noSqlDatabase';
+import { noSqlDatabase } from '../tracker/db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
 import { resolveTargetCompany } from '../utils/targetUtils';
@@ -1430,7 +1430,26 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const target = target10Digits.replace(/\D/g, '').slice(-10);
+  if (!target) return false;
+
+  const phoneDigits = String(record.phone_digits || record.cleanPhone || record.clean_phone || record.phone || record.phone_number || '').replace(/\D/g, '');
+  if (phoneDigits.slice(-10) === target) return true;
+
+  const alts = record.alt_numbers || record.altNumbers || record.altNumbersWithDetails;
+  if (Array.isArray(alts)) {
+    for (const alt of alts) {
+      const altDigits = (typeof alt === 'string' ? alt : alt.digits || alt.phone || '').replace(/\D/g, '');
+      if (altDigits.slice(-10) === target) return true;
+    }
+  }
+
+  return false;
+}
+
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
@@ -3514,6 +3533,12 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     const statusIdx = headerRow.findIndex((h) =>
       ['status', 'numberstatus', 'isdown', 'state', 'linestatus'].includes(h)
     );
+    const whatsappIdx = headerRow.findIndex((h) =>
+      ['whatsapp', 'iswhatsapp', 'wa'].includes(h)
+    );
+    const altIdx = headerRow.findIndex((h) =>
+      ['altnumbers', 'altphone', 'alternatenumbers', 'altnumberswithdetails', 'altnumber'].includes(h)
+    );
 
     let effectivePhoneIdx = phoneIdx;
     if (effectivePhoneIdx === -1) {
@@ -3583,10 +3608,27 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       const statusVal = statusIdx >= 0 && row[statusIdx] ? row[statusIdx].trim().toLowerCase() : '';
       const isDown = statusVal.includes('down') || statusVal.includes('dead') || statusVal.includes('out of service') || statusVal.includes('disconnected');
 
+      const whatsappVal = whatsappIdx >= 0 && row[whatsappIdx] ? row[whatsappIdx].trim().toLowerCase() : '';
+      const isWhatsapp = whatsappVal === 'yes' || whatsappVal === 'true' || whatsappVal === '1';
+
+      let altNumbers: AltNumberEntry[] | undefined = undefined;
+      if (altIdx >= 0 && row[altIdx] && row[altIdx].trim()) {
+        const altRaw = row[altIdx].trim();
+        const altList = altRaw.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
+        if (altList.length > 0) {
+          altNumbers = altList.map((a) => {
+            const ad = a.replace(/\D/g, '');
+            return { phone: formatDisplayPhone(a, ad), digits: ad, is_whatsapp: false };
+          });
+        }
+      }
+
       const rec: ThreatRecord = {
         id: `import-${Date.now()}-${i}-${digits.slice(-4)}`,
         phone_number: formatDisplayPhone(rawPhone, digits),
         phone_digits: digits,
+        is_whatsapp: isWhatsapp,
+        alt_numbers: altNumbers,
         category: categoryIdx >= 0 && row[categoryIdx] && row[categoryIdx].trim() ? row[categoryIdx].trim() : 'General Tech Support & Refund Scams',
         impersonated_company: resolveTargetCompany(
           companyIdx >= 0 && row[companyIdx] ? row[companyIdx].trim() : '',
@@ -4337,7 +4379,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr
