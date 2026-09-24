@@ -360,7 +360,7 @@ export default function ReportScamPage({ onNavigateToTracker, isModal = false, o
       console.warn('[Report API fetch note]', e);
     }
 
-    // 3. Direct Supabase Ingestion for persistent PostgreSQL (works on endscams.org)
+    // 3. Direct Supabase Ingestion for persistent PostgreSQL
     try {
       await supabase.from('scam_reports').insert({
         phone_number: displayPhone,
@@ -379,26 +379,48 @@ export default function ReportScamPage({ onNavigateToTracker, isModal = false, o
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 90);
 
-      await supabase.from('tracker_entries').upsert(
-        {
-          id: `rec-${digits}`,
+      const trackerPayload = {
+        phone_number: displayPhone,
+        phone_digits: digits,
+        source_name: 'EndScams Report (endscams.org/report)',
+        source_url: 'https://endscams.org/report',
+        report_date: form.incidentDate.slice(0, 10),
+        category: form.category,
+        description: form.description.trim(),
+        impersonated_company: resolvedCompany,
+        amount_charged: amountVal,
+        reported_down: false,
+        expires_at: expiresAt.toISOString(),
+      };
+
+      let { error: sbErr } = await supabase.from('tracker_entries').upsert(trackerPayload, { onConflict: 'phone_digits,source_name' });
+      if (sbErr) {
+        await supabase.from('tracker_entries').upsert(trackerPayload, { onConflict: 'phone_digits' });
+      }
+    } catch (e) {
+      console.warn('[Supabase Direct Sync note]', e);
+    }
+
+    // 4. Backup call to /api/records/manual for service-role backend persistence
+    try {
+      await fetch('/api/records/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           phone_number: displayPhone,
           phone_digits: digits,
           source_name: 'EndScams Report (endscams.org/report)',
           source_url: 'https://endscams.org/report',
-          report_date: form.incidentDate,
+          report_date: form.incidentDate.slice(0, 10),
           category: form.category,
           description: form.description.trim(),
-          threat_intel: form.description.trim(),
           impersonated_company: resolvedCompany,
           amount_charged: amountVal,
           is_down: false,
-          expires_at: expiresAt.toISOString(),
-        },
-        { onConflict: 'phone_digits' }
-      );
+        }),
+      });
     } catch (e) {
-      console.warn('[Supabase Direct Sync note]', e);
+      console.warn('[Backend Manual Endpoint note]', e);
     }
 
     // 4. Create ThreatRecord for local storage & instant live reflection

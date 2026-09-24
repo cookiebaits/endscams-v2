@@ -2505,49 +2505,40 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
           const expiresAt = new Date();
           const retentionDays = getRetentionDays(rec);
           expiresAt.setDate(expiresAt.getDate() + retentionDays);
-          const country = deriveCountryInfo(rec.phone_number);
           const dateNorm = normalizeToNumericalDate(rec.report_date);
-          const isoDetected = `${dateNorm}T12:00:00.000Z`;
+          const isUuid = typeof rec.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rec.id);
 
-          return {
-            id: rec.id || `rec-${rec.phone_digits}`,
+          const rowPayload: Record<string, any> = {
             phone_number: rec.phone_number,
-            phone: rec.phone_number,
             phone_digits: rec.phone_digits,
-            clean_phone: rec.phone_digits,
-            country_code: country.code || 'US',
-            country_name: country.name || 'United States',
+            source_name: rec.source_name || 'Threat Intelligence',
+            source_url: rec.source_url || '',
+            report_date: dateNorm.slice(0, 10),
             category: rec.category || 'General Tech Support & Refund Scams',
-            scam_type: rec.category || 'General Tech Support & Refund Scams',
+            description: rec.description || 'Imported threat intelligence record.',
             impersonated_company: rec.impersonated_company || 'N/A',
             invoice_number: rec.invoice_number || 'N/A',
             amount_charged: rec.amount_charged || 'N/A',
-            source_platform: rec.source_name || 'Threat Intelligence',
-            source_name: rec.source_name || 'Threat Intelligence',
-            platform: rec.source_name || 'Threat Intelligence',
-            source_url: rec.source_url || '',
-            source_domain: rec.source_url && rec.source_url.includes('//') ? rec.source_url.split('/')[2].replace(/^www\./, '') : 'threat-intel',
-            threat_intel: rec.description || 'Imported threat intelligence record.',
-            description: rec.description || 'Imported threat intelligence record.',
-            snippet: rec.description || 'Imported threat intelligence record.',
-            detailed_summary: rec.description || 'Imported threat intelligence record.',
-            detected_at: isoDetected,
-            report_date: dateNorm,
-            post_date: dateNorm,
-            is_down: Boolean(rec.is_down),
-            is_number_down: Boolean(rec.is_down),
-            status: rec.is_down ? 'Out of Service' : 'Active',
+            reported_down: Boolean(rec.is_down),
             expires_at: expiresAt.toISOString(),
             updated_at: new Date().toISOString(),
           };
+
+          if (isUuid) {
+            rowPayload.id = rec.id;
+          }
+
+          return rowPayload;
         });
 
         // Try tracker_entries in batches of 50
         for (let i = 0; i < payloads.length; i += 50) {
           const batch = payloads.slice(i, i + 50);
-          const res = await sb.from('tracker_entries').upsert(batch, { onConflict: 'phone_digits' });
+          let res = await sb.from('tracker_entries').upsert(batch, { onConflict: 'phone_digits,source_name' });
           if (res.error) {
-            // Fallback to scam_records
+            res = await sb.from('tracker_entries').upsert(batch, { onConflict: 'phone_digits' });
+          }
+          if (res.error) {
             await sb.from('scam_records').upsert(batch, { onConflict: 'clean_phone' });
           }
         }

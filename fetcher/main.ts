@@ -70,10 +70,14 @@ async function saveRecordToSupabase(r: any) {
     const phone_number = r.phone_number || r.phoneNumber || r.phone || "";
     const phone_digits = r.phone_digits || r.cleanPhone || phone_number.replace(/\D/g, "");
     if (!phone_digits) return;
-    const id = r.id || `rec-${phone_digits}`;
+
     const source_name = r.source_name || r.platform || r.source || "User Report (endscams.org/report)";
     const source_url = r.source_url || r.sourceUrl || "https://endscams.org/report";
-    const report_date = r.report_date || r.incident_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
+
+    let rawDate = r.report_date || r.incident_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
+    if (typeof rawDate === "string" && rawDate.includes("T")) rawDate = rawDate.split("T")[0];
+    const report_date = String(rawDate).slice(0, 10);
+
     const category = r.category || r.scamType || "General Tech Support & Refund Scams";
     const description = r.description || r.detailedSummary || r.snippet || "Reported via https://endscams.org/report";
 
@@ -85,7 +89,6 @@ async function saveRecordToSupabase(r: any) {
     const invoice_number = r.invoice_number || r.invoiceNumber || "N/A";
     const amount_charged = r.amount_charged || r.amountCharged || "N/A";
     const is_down = Boolean(r.is_down || r.isNumberDown);
-    const is_whatsapp = Boolean(r.is_whatsapp || r.isWhatsapp);
 
     // Retention: 180 days for prize/PCH/Stake, 90 days standard
     const isPrize = (category + " " + impersonated_company + " " + description).toLowerCase().match(/pch|publishers clearing|mega million|stake\.us|prize|lottery|sweepstake/);
@@ -93,56 +96,47 @@ async function saveRecordToSupabase(r: any) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + retentionDays);
 
-    const isoDetected = `${report_date}T12:00:00.000Z`;
+    // Only include ID if it is a valid UUID, otherwise let Postgres DEFAULT gen_random_uuid() handle it
+    const isUuid = typeof r.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id);
 
-    const payload = {
-      id,
+    const payload: Record<string, any> = {
       phone_number,
       phone_digits,
-      clean_phone: phone_digits,
       source_name,
-      source_platform: source_name,
-      platform: source_name,
       source_url,
       report_date,
-      post_date: report_date,
-      detected_at: isoDetected,
       category,
-      scam_type: category,
       description,
-      threat_intel: description,
-      snippet: description,
-      detailed_summary: description,
       impersonated_company,
       invoice_number,
       amount_charged,
-      is_down,
       reported_down: is_down,
-      is_number_down: is_down,
-      is_whatsapp,
-      status: is_down ? "Out of Service" : "Active",
       expires_at: expiresAt.toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Try upsert with phone_digits constraint
-    let { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits" });
+    if (isUuid) {
+      payload.id = r.id;
+    }
 
-    // 2. Fallback to id constraint if phone_digits unique constraint name differs
+    // 1. Try upsert on (phone_digits, source_name) constraint
+    let { error } = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits,source_name" });
+
+    // 2. Fallback to phone_digits alone
     if (error) {
-      console.warn("saveRecordToSupabase upsert on phone_digits note:", error.message);
-      const res2 = await supabase.from("tracker_entries").upsert(payload, { onConflict: "id" });
+      console.warn("saveRecordToSupabase upsert on (phone_digits,source_name) note:", error.message);
+      const res2 = await supabase.from("tracker_entries").upsert(payload, { onConflict: "phone_digits" });
       error = res2.error;
     }
 
-    // 3. Fallback to direct insert
+    // 3. Fallback to insert
     if (error) {
-      console.warn("saveRecordToSupabase upsert on id note:", error.message);
+      console.warn("saveRecordToSupabase upsert on phone_digits note:", error.message);
       const res3 = await supabase.from("tracker_entries").insert(payload);
       error = res3.error;
     }
 
-    // 4. Fallback to update by phone_digits if insert failed due to duplicate key
+    // 4. Fallback to update
     if (error) {
       console.warn("saveRecordToSupabase insert note:", error.message);
       await supabase.from("tracker_entries").update(payload).eq("phone_digits", phone_digits);
