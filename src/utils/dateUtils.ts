@@ -1,1 +1,1 @@
-export * from '../tracker/src/utils/dateUtils';
+export * from '../tracker/utils/dateUtils';

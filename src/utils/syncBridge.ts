@@ -1,1 +1,1 @@
-export * from '../tracker/src/utils/syncBridge';
+export * from '../tracker/utils/syncBridge';

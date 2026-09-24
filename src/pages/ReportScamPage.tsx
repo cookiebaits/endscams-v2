@@ -8,14 +8,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowLeft,
-  Calendar,
-  Phone,
-  DollarSign,
-  User,
-  Mail,
-  FileText,
-  Building2,
-  MessageSquare,
 } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
@@ -78,6 +70,24 @@ const FEDERAL_LINKS = [
   { name: 'CISA — Cybersecurity Threats', sub: 'Cybersecurity & Infrastructure Security Agency', url: 'https://www.cisa.gov/report' },
 ];
 
+export function dispatchPrefillReport(data: any): void {
+  if (typeof window === 'undefined' || !data) return;
+  try {
+    sessionStorage.setItem('endscams_prefill_report', JSON.stringify(data));
+  } catch {}
+
+  try {
+    const customEvent = new CustomEvent('endscams:prefill-report', { detail: data });
+    window.dispatchEvent(customEvent);
+  } catch {}
+
+  try {
+    if (window.parent && window.parent !== window.self) {
+      window.parent.postMessage({ type: 'endscams:prefill-report', payload: data }, '*');
+    }
+  } catch {}
+}
+
 export default function ReportScamPage({ onNavigateToTracker, isModal = false, onCloseModal }: ReportScamPageProps) {
   const [form, setForm] = useState<FormData>({
     phoneNumber: '',
@@ -104,11 +114,61 @@ export default function ReportScamPage({ onNavigateToTracker, isModal = false, o
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync title for browser tab
+  const applyPrefillData = (data: any) => {
+    if (!data || typeof data !== 'object') return;
+    setForm((f) => ({
+      ...f,
+      phoneNumber: data.phoneNumber || data.phone_number || data.phone || data.cleanPhone || f.phoneNumber,
+      scammerName: data.scammerName || data.scammer_name || data.impersonatedCompany || data.impersonated_company || f.scammerName,
+      altPhone1: data.altPhone1 || data.alt_phone_1 || f.altPhone1,
+      altPhone2: data.altPhone2 || data.alt_phone_2 || f.altPhone2,
+      moneyLost: data.moneyLost !== undefined ? String(data.moneyLost) : data.money_lost !== undefined ? String(data.money_lost) : f.moneyLost,
+      category: data.category || data.scamType || f.category,
+      incidentDate: data.incidentDate || data.incident_date || data.reportDate || data.report_date || f.incidentDate,
+      howContacted: data.howContacted || data.how_contacted || f.howContacted,
+      isPrimaryWhatsApp: data.isPrimaryWhatsApp !== undefined ? Boolean(data.isPrimaryWhatsApp) : data.is_whatsapp !== undefined ? Boolean(data.is_whatsapp) : f.isPrimaryWhatsApp,
+      description: data.description || data.snippet || data.detailedSummary || f.description,
+    }));
+  };
+
+  // Sync title for browser tab and handle decoupled event-bus pre-filling
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.title = 'Report a Scam Line | EndScams Live Tracker';
     }
+
+    // 1. Check sessionStorage on mount
+    try {
+      const stored = sessionStorage.getItem('endscams_prefill_report');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        applyPrefillData(parsed);
+      }
+    } catch {}
+
+    // 2. Custom window event listener for endscams:prefill-report
+    const handlePrefillEvent = (event: Event) => {
+      const detail = (event as CustomEvent).detail || (event as any).data;
+      if (detail) {
+        applyPrefillData(detail);
+      }
+    };
+
+    // 3. postMessage listener
+    const handleWindowMsg = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') return;
+      if (event.data.type === 'endscams:prefill-report' || event.data.action === 'prefill-report') {
+        applyPrefillData(event.data.payload || event.data.data || event.data);
+      }
+    };
+
+    window.addEventListener('endscams:prefill-report', handlePrefillEvent);
+    window.addEventListener('message', handleWindowMsg);
+
+    return () => {
+      window.removeEventListener('endscams:prefill-report', handlePrefillEvent);
+      window.removeEventListener('message', handleWindowMsg);
+    };
   }, []);
 
   const update = <K extends keyof FormData>(field: K, value: FormData[K]) => {

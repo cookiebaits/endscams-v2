@@ -1,4 +1,16 @@
-import type { Request, Response, NextFunction } from 'express';
+export interface ExpressRequest {
+  headers: Record<string, string | string[] | undefined>;
+  method?: string;
+}
+
+export interface ExpressResponse {
+  setHeader(name: string, value: string): void;
+  removeHeader(name: string): void;
+  status(code: number): ExpressResponse;
+  end(): void;
+}
+
+export type ExpressNextFunction = () => void;
 
 /**
  * Strict CORS Configuration & Middleware for Scanner Data Source (esscan.ai.studio)
@@ -25,7 +37,7 @@ export function isOriginAllowed(origin?: string | null): boolean {
   if (!origin) return false;
   
   // Custom env override if provided (comma-separated list)
-  const envOrigins = process.env.ALLOWED_ORIGINS 
+  const envOrigins = typeof process !== 'undefined' && process.env && process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()) 
     : [];
 
@@ -76,7 +88,7 @@ export function getStrictCorsHeaders(requestOrigin?: string | null): Record<stri
  * Express Middleware for strict CORS headers on incoming requests.
  * Automatically handles HTTP OPTIONS preflight responses with 204 No Content.
  */
-export function strictCorsMiddleware(req: Request, res: Response, next: NextFunction): void {
+export function strictCorsMiddleware(req: ExpressRequest, res: ExpressResponse, next: ExpressNextFunction): void {
   const requestOrigin = (req.headers.origin || req.headers.referer || '').toString().replace(/\/$/, '');
   let extractedOrigin: string | null = null;
   try {

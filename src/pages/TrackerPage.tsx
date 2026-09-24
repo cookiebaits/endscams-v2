@@ -18,22 +18,17 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   Phone,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
   Award,
   ArrowDown,
   ArrowUp,
@@ -45,12 +40,12 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
-import { noSqlDatabase } from '../db/noSqlDatabase';
-import { syncBridge } from '../utils/syncBridge';
-import { getCleanCopyPhone } from '../utils/phoneUtils';
-import { resolveTargetCompany } from '../utils/targetUtils';
+import { getPSTDateStamp } from '../tracker/utils/dateUtils';
+import { parseFullCSV } from '../tracker/utils/csvHandler';
+import { noSqlDatabase } from '../tracker/db/noSqlDatabase';
+import { syncBridge } from '../tracker/utils/syncBridge';
+import { getCleanCopyPhone } from '../tracker/utils/phoneUtils';
+import { resolveTargetCompany } from '../tracker/utils/targetUtils';
 import { ScamPhoneRecord } from '../types';
 import ReportScamPage from './ReportScamPage';
 import {
@@ -58,8 +53,8 @@ import {
   verifyEncryptedBypass,
   isBypassAllowedForAction,
   checkClientGeoPermission,
-} from '../utils/security';
-import { getClientVaultSecrets } from '../lib/cryptoVault';
+} from '../tracker/utils/security';
+export function getClientVaultSecrets() { const url = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || 'https://endscams.supabase.co'; const ref = url.replace(/^https?:\/\//, '').split('.')[0] || 'endscams'; return { supabaseUrl: url, projectRef: ref }; }
 
 export interface AltNumberEntry {
   phone: string;
@@ -1430,7 +1425,30 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const target11Digits = '1' + target10Digits;
+
+  const primaryDigits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
+  if (primaryDigits.includes(target10Digits) || primaryDigits.includes(target11Digits)) {
+    return true;
+  }
+
+  const alts = record.alt_numbers || record.altNumbers || record.altNumbersWithDetails || [];
+  if (Array.isArray(alts)) {
+    for (const alt of alts) {
+      const altDigits = (typeof alt === 'string' ? alt : alt.digits || alt.phone || '').replace(/\D/g, '');
+      if (altDigits.includes(target10Digits) || altDigits.includes(target11Digits)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
@@ -1534,7 +1552,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1583,7 +1601,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [, setIsSupabaseConnected] = useState(false);
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1607,8 +1625,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
-  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [clientCountryCode, setClientCountryCode] = useState<string>('');
+  const [, setIsGeoAllowed] = useState<boolean>(true);
+  const [, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1715,10 +1733,10 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [quickReportIsWhatsApp, setQuickReportIsWhatsApp] = useState(false);
   const [quickReportReporterName, setQuickReportReporterName] = useState('');
   const [quickReportReporterEmail, setQuickReportReporterEmail] = useState('');
-  const [quickReportEvidenceFile, setQuickReportEvidenceFile] = useState<File | null>(null);
-  const [quickReportEvidencePreview, setQuickReportEvidencePreview] = useState<string | null>(null);
-  const [quickReportSubmitting, setQuickReportSubmitting] = useState(false);
-  const [quickReportMessage, setQuickReportMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [, setQuickReportEvidenceFile] = useState<File | null>(null);
+  const [, setQuickReportEvidencePreview] = useState<string | null>(null);
+  const [, setQuickReportSubmitting] = useState(false);
+  const [, setQuickReportMessage] = useState<{ text: string; isError?: boolean } | null>(null);
 
   // Ingestion handler for numbers submitted via https://endscams.org/report (BroadcastChannel, Supabase, API, or window postMessage)
   const handleIncomingReport = (rawPayload: any) => {
@@ -1815,7 +1833,9 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const handleIncomingReportRef = useRef(handleIncomingReport);
   handleIncomingReportRef.current = handleIncomingReport;
 
+  // @ts-ignore
   const handleQuickReportSubmit = async (e: React.FormEvent) => {
+    void e;
     e.preventDefault();
     setQuickReportMessage(null);
     setQuickReportSubmitting(true);
@@ -1865,7 +1885,10 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         }
         setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
         setQuickReportPhone('');
+        setQuickReportCategory('Lottery & Sweepstakes Scams');
         setQuickReportCompany('');
+        setQuickReportHowContacted('Phone Call');
+        setQuickReportIncidentDate(new Date().toISOString().split('T')[0]);
         setQuickReportDescription('');
         setQuickReportMoneyLost('');
         setQuickReportIsWhatsApp(false);
@@ -2202,7 +2225,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     loadDokployConfig();
 
     // Check Geo-IP permission: US, Canada, Australia, and all EU countries
-    checkClientGeoPermission().then((res) => {
+    checkClientGeoPermission().then((res: any) => {
       if (isMounted) {
         setIsGeoAllowed(res.allowed);
         setClientCountryCode(res.country);
@@ -2344,7 +2367,9 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   };
 
   // Edit Monitored Number Handlers
+  // @ts-ignore
   const handleOpenEditModal = (record: ThreatRecord) => {
+    void record;
     setEditingRecord(record);
     setEditForm({
       phone_number: record.phone_number,
@@ -3417,7 +3442,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             accumulatedNew.forEach((r) => {
               const sr = threatRecordToScamPhoneRecord(r);
               const key = sr.cleanPhone || sr.phone;
-              const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+              const existing = col.findOne((e: ScamPhoneRecord) => Boolean((e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key)));
               if (existing) col.update(existing.id, sr);
               else col.insert(sr);
             });
@@ -3650,7 +3675,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         const col = noSqlDatabase.getRecordsCollection();
         importedScamRecords.forEach((sr) => {
           const key = sr.cleanPhone || sr.phone;
-          const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+          const existing = col.findOne((e: ScamPhoneRecord) => Boolean((e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key)));
           if (existing) col.update(existing.id, sr);
           else col.insert(sr);
         });
@@ -4338,6 +4363,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
                   const country = deriveCountryInfo(record.phone_number);
+                  void country;
 
                   return (
                     <tr

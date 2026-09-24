@@ -1,5 +1,5 @@
 import { ScamPhoneRecord } from '../types';
-import { formatPST, getPSTDateStamp, normalizeToNumericalDate } from './dateUtils';
+import { getPSTDateStamp, normalizeToNumericalDate } from './dateUtils';
 
 export interface CSVParseResult {
   success: boolean;
@@ -29,7 +29,7 @@ export const CSV_EXPORT_HEADERS = [
 /**
  * Robust RFC-compliant CSV line parser handling quotes, commas, and escaped quotes.
  */
-function parseCSVLine(line: string): string[] {
+export function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let cur = '';
   let inQuotes = false;
