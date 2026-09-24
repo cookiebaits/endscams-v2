@@ -51,7 +51,7 @@ services:
       TRACKER_PASS: "${TRACKER_PASS:-${VITE_TRACKER_PASS}}"
       VITE_TRACKER_PASS: "${VITE_TRACKER_PASS:-${TRACKER_PASS}}"
     volumes:
-      - tracker-db-data:/app/data
+      - endscams-data:/app/data
     expose:
       - "8000"
     networks:
@@ -68,4 +68,5 @@ networks:
     external: true
 
 volumes:
-  tracker-db-data:
+  endscams-data:
+    name: endscams-data
