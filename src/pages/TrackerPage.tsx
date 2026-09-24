@@ -18,22 +18,17 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
   Info,
   Clock,
   Globe,
   PhoneCall,
   Phone,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
   Sliders,
   Play,
   Key,
   Trash2,
-  Share2,
   Award,
   ArrowDown,
   ArrowUp,
@@ -46,7 +41,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { getPSTDateStamp } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import { noSqlDatabase } from '../db/noSqlDatabase';
 import { syncBridge } from '../utils/syncBridge';
 import { getCleanCopyPhone } from '../utils/phoneUtils';
@@ -1429,10 +1424,25 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const digits = String(record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
+  if (digits.includes(target10Digits)) return true;
+
+  const alts = record.alt_numbers || record.altNumbers || record.altNumbersWithDetails;
+  if (Array.isArray(alts)) {
+    for (const alt of alts) {
+      const altDigits = typeof alt === 'string' ? alt.replace(/\D/g, '') : (alt.digits || alt.phone || '').replace(/\D/g, '');
+      if (altDigits.includes(target10Digits)) return true;
+    }
+  }
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -1533,7 +1543,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
 
   // Scanner States
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
+  const [_scannerProgress, setScannerProgress] = useState(0);
   const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
   const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
@@ -1582,7 +1592,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     hasSupabase: false,
     hasTrackerPass: false,
   });
-  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
+  const [_isSupabaseConnected, setIsSupabaseConnected] = useState(false);
 
   // Administrative TRACKER_PASS Authentication & Encrypted Bypass
   const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
@@ -1606,8 +1616,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   // Geo-IP Restriction: Only US, Canada, Australia, and all EU countries can add numbers
-  const [isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
-  const [clientCountryCode, setClientCountryCode] = useState<string>('');
+  const [_isGeoAllowed, setIsGeoAllowed] = useState<boolean>(true);
+  const [_clientCountryCode, setClientCountryCode] = useState<string>('');
 
   // Threat Post Details Modal State (Center of Screen Popup)
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
@@ -1703,21 +1713,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [copiedSql, setCopiedSql] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // EndScams.org/report Integration & Modal States
-  const [quickReportPhone, setQuickReportPhone] = useState('');
-  const [quickReportCategory, setQuickReportCategory] = useState('Lottery & Sweepstakes Scams');
-  const [quickReportCompany, setQuickReportCompany] = useState('');
-  const [quickReportHowContacted, setQuickReportHowContacted] = useState('Phone Call');
-  const [quickReportIncidentDate, setQuickReportIncidentDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [quickReportDescription, setQuickReportDescription] = useState('');
-  const [quickReportMoneyLost, setQuickReportMoneyLost] = useState('');
-  const [quickReportIsWhatsApp, setQuickReportIsWhatsApp] = useState(false);
-  const [quickReportReporterName, setQuickReportReporterName] = useState('');
-  const [quickReportReporterEmail, setQuickReportReporterEmail] = useState('');
-  const [quickReportEvidenceFile, setQuickReportEvidenceFile] = useState<File | null>(null);
-  const [quickReportEvidencePreview, setQuickReportEvidencePreview] = useState<string | null>(null);
-  const [quickReportSubmitting, setQuickReportSubmitting] = useState(false);
-  const [quickReportMessage, setQuickReportMessage] = useState<{ text: string; isError?: boolean } | null>(null);
 
   // Ingestion handler for numbers submitted via https://endscams.org/report (BroadcastChannel, Supabase, API, or window postMessage)
   const handleIncomingReport = (rawPayload: any) => {
@@ -1814,71 +1809,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const handleIncomingReportRef = useRef(handleIncomingReport);
   handleIncomingReportRef.current = handleIncomingReport;
 
-  const handleQuickReportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setQuickReportMessage(null);
-    setQuickReportSubmitting(true);
-    try {
-      const res = await fetch('/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone_number: quickReportPhone,
-          category: quickReportCategory,
-          impersonated_company: quickReportCompany,
-          how_contacted: quickReportHowContacted,
-          incident_date: quickReportIncidentDate,
-          description: quickReportDescription || 'Reported via https://endscams.org/report',
-          money_lost: quickReportMoneyLost ? parseFloat(quickReportMoneyLost) : null,
-          is_whatsapp: quickReportIsWhatsApp,
-          reporter_name: quickReportReporterName,
-          reporter_email: quickReportReporterEmail,
-          source: 'user_report',
-          source_url: 'https://endscams.org/report',
-          source_name: 'EndScams Report (endscams.org/report)',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setQuickReportMessage({ text: data.error || 'Failed to submit report.', isError: true });
-      } else {
-        const phone = data.record?.phone || quickReportPhone;
-        const comp = data.record?.impersonatedCompany || quickReportCompany || 'Reported Entity';
-        setQuickReportMessage({
-          text: `Success! Added ${phone} (${comp}) to Tracker Page & persisted to database.`,
-          isError: false,
-        });
-        if (data.record) {
-          handleIncomingReport({
-            phone_number: data.record.phone,
-            phone_digits: data.record.cleanPhone,
-            category: data.record.scamType,
-            impersonated_company: data.record.impersonatedCompany || quickReportCompany,
-            description: data.record.detailedSummary || data.record.snippet || quickReportDescription,
-            incident_date: data.record.postDate || quickReportIncidentDate,
-            source_name: data.record.platform,
-            source_url: data.record.sourceUrl,
-            is_whatsapp: data.record.isWhatsapp,
-            amount_charged: data.record.amountCharged,
-          });
-        }
-        setStatusNotification(`Threat report recorded: ${phone} (${comp})`);
-        setQuickReportPhone('');
-        setQuickReportCompany('');
-        setQuickReportDescription('');
-        setQuickReportMoneyLost('');
-        setQuickReportIsWhatsApp(false);
-        setQuickReportReporterName('');
-        setQuickReportReporterEmail('');
-        setQuickReportEvidenceFile(null);
-        setQuickReportEvidencePreview(null);
-      }
-    } catch (err: any) {
-      setQuickReportMessage({ text: err.message || 'Error submitting report.', isError: true });
-    } finally {
-      setQuickReportSubmitting(false);
-    }
-  };
 
   // Save to localStorage whenever records change
   useEffect(() => {
@@ -2342,28 +2272,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     setStatusNotification('Admin session locked.');
   };
 
-  // Edit Monitored Number Handlers
-  const handleOpenEditModal = (record: ThreatRecord) => {
-    setEditingRecord(record);
-    setEditForm({
-      phone_number: record.phone_number,
-      is_whatsapp: isWhatsAppThreat(record),
-      alt_numbers: (record.alt_numbers || []).map((a) => ({
-        phone: typeof a === 'string' ? a : a.phone,
-        is_whatsapp: typeof a === 'string' ? false : Boolean(a.is_whatsapp),
-      })),
-      category: record.category,
-      impersonated_company: record.impersonated_company && record.impersonated_company !== 'N/A' ? record.impersonated_company : '',
-      source_name: record.source_name,
-      source_url: record.source_url || '',
-      amount_charged: record.amount_charged && record.amount_charged !== 'N/A' ? record.amount_charged : '',
-      invoice_number: record.invoice_number && record.invoice_number !== 'N/A' ? record.invoice_number : '',
-      description: record.description,
-      is_down: Boolean(record.is_down),
-    });
-    setEditError(null);
-    setIsEditModalOpen(true);
-  };
 
   const handleSaveEditRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -3416,7 +3324,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             accumulatedNew.forEach((r) => {
               const sr = threatRecordToScamPhoneRecord(r);
               const key = sr.cleanPhone || sr.phone;
-              const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+              const existing = col.findOne((e) => Boolean((e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key)));
               if (existing) col.update(existing.id, sr);
               else col.insert(sr);
             });
@@ -3649,7 +3557,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         const col = noSqlDatabase.getRecordsCollection();
         importedScamRecords.forEach((sr) => {
           const key = sr.cleanPhone || sr.phone;
-          const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+          const existing = col.findOne((e) => Boolean((e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key)));
           if (existing) col.update(existing.id, sr);
           else col.insert(sr);
         });
@@ -4336,7 +4244,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 filteredRecords.map((record, rIdx) => {
                   const isCopied = copiedId === record.id;
                   const isChecked = selectedIds.includes(record.id);
-                  const country = deriveCountryInfo(record.phone_number);
 
                   return (
                     <tr

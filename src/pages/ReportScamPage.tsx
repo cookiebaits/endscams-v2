@@ -8,14 +8,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowLeft,
-  Calendar,
-  Phone,
-  DollarSign,
-  User,
-  Mail,
-  FileText,
-  Building2,
-  MessageSquare,
 } from 'lucide-react';
 import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
 import Banner from '../components/Banner';
