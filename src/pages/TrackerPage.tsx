@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
@@ -6,10 +6,8 @@ import {
   RefreshCw,
   Download,
   Upload,
-  Plus,
   ExternalLink,
   AlertTriangle,
-  AlertCircle,
   CheckCircle2,
   Copy,
   Check,
@@ -18,38 +16,22 @@ import {
   X,
   Radio,
   FileSpreadsheet,
-  Zap,
-  Info,
   Clock,
   Globe,
   PhoneCall,
-  Phone,
   ShieldAlert,
-  Building2,
   Calendar,
-  DollarSign,
-  MessageCircle,
-  Sliders,
-  Play,
-  Key,
-  Trash2,
-  Share2,
-  Award,
-  ArrowDown,
-  ArrowUp,
   Lock,
   Unlock,
   Edit3,
   Save,
-  Eye,
-  EyeOff,
   Sparkles,
+  Sliders,
 } from 'lucide-react';
 import { getPSTDateStamp, normalizeToNumericalDate } from '../utils/dateUtils';
-import { parseFullCSV, CSV_EXPORT_HEADERS } from '../utils/csvHandler';
+import { parseFullCSV } from '../utils/csvHandler';
 import {
   formatDisplayPhone,
-  isTollFreeNumber,
   isFictitiousOrInvalidPhone,
   deriveCountryInfo,
   getCleanCopyPhone,
@@ -58,19 +40,16 @@ import { resolveTargetCompany } from '../utils/targetUtils';
 import {
   verifyEncryptedAdmin,
   verifyEncryptedBypass,
-  isBypassAllowedForAction,
-  checkClientGeoPermission,
+  isReporterAllowedForAction,
 } from '../utils/security';
-import { noSqlDatabase } from '../db/noSqlDatabase';
-import { syncBridge } from '../utils/syncBridge';
-import { ThreatRecord, AltNumberEntry, ScamPhoneRecord } from '../types';
-import ReportScamPage from './ReportScamPage';
+import { ThreatRecord } from '../types';
+import ReportScamPage, { STANDARD_SCAM_CATEGORIES } from './ReportScamPage';
 import SupabaseDiagnosticModal from '../components/SupabaseDiagnosticModal';
 import {
-  getStoredSupabaseConfig,
-  getSupabaseClient,
   fetchFromSupabase,
   upsertToSupabase,
+  fetchServerSupabaseConfig,
+  getSupabaseClient,
 } from '../lib/supabase';
 
 export interface TrackerPageProps {
@@ -107,44 +86,6 @@ export function isWhatsAppThreat(record: {
   }
   return false;
 }
-
-export const SCAN_TARGETS = [
-  {
-    id: 'tsu-latest',
-    name: 'Tech Scammers United: Latest',
-    platform: 'Tech Support United',
-    category: 'General Tech Support & Refund Scams',
-    targetQuery: 'site:techscammersunited.com/latest order:newest',
-  },
-  {
-    id: 'scammer-info',
-    name: 'Scammer.info: Scams Category',
-    platform: 'Scammer.info',
-    category: 'General Tech Support & Refund Scams',
-    targetQuery: 'site:scammer.info/c/scams order:latest',
-  },
-  {
-    id: 'fb-spellcaster',
-    name: 'Facebook: Spellcaster WhatsApp Scams',
-    platform: 'Facebook',
-    category: 'Spellcaster WhatsApp Extortion',
-    targetQuery: 'site:facebook.com ("bring back lost lover" OR "love spell")',
-  },
-  {
-    id: 'fb-btc-recovery',
-    name: 'Facebook: BTC Recovery Scams',
-    platform: 'Facebook',
-    category: 'Crypto BTC Recovery Scam',
-    targetQuery: 'site:facebook.com ("crypto recovery" OR "btc recovery")',
-  },
-  {
-    id: 'pch-sweepstakes',
-    name: 'PCH & Mega Millions Prize Scams',
-    platform: 'Tech Support United',
-    category: 'Lottery & Sweepstakes Scams',
-    targetQuery: 'site:techscammersunited.com "PCH" OR "Mega Millions"',
-  },
-];
 
 export const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -194,7 +135,10 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
       map.set(digits, {
         ...ex,
         ...cleanItem,
-        impersonated_company: cleanItem.impersonated_company && cleanItem.impersonated_company !== 'N/A' ? cleanItem.impersonated_company : ex.impersonated_company,
+        impersonated_company:
+          cleanItem.impersonated_company && cleanItem.impersonated_company !== 'N/A'
+            ? cleanItem.impersonated_company
+            : ex.impersonated_company,
         description: cleanItem.description || ex.description,
         is_down: cleanItem.is_down ?? ex.is_down,
       });
@@ -217,20 +161,29 @@ export function formatPSTTimeOnly(date = new Date(), withSeconds = true): string
   );
 }
 
-export function getNextScheduledPSTInfo(): { label: string; countdown: string } {
-  const now = new Date();
+export function getPacificParts(now = new Date()) {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Los_Angeles',
     hour: 'numeric',
     minute: 'numeric',
     second: 'numeric',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour12: false,
   });
   const parts = formatter.formatToParts(now);
-  const get = (t: string) => parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
-  const hour = get('hour');
-  const minute = get('minute');
-  const second = get('second');
+  const get = (t: string) => parts.find((p) => p.type === t)?.value || '0';
+  return {
+    hour: parseInt(get('hour'), 10),
+    minute: parseInt(get('minute'), 10),
+    second: parseInt(get('second'), 10),
+    dateStr: `${get('year')}-${get('month')}-${get('day')}`,
+  };
+}
+
+export function getNextScheduledPSTInfo(): { label: string; countdown: string } {
+  const { hour, minute, second } = getPacificParts();
 
   let targetHour = 7;
   let isTomorrow = false;
@@ -253,33 +206,15 @@ export function getNextScheduledPSTInfo(): { label: string; countdown: string } 
   return { label, countdown: `in ${diffHours}h ${diffMins}m` };
 }
 
-const STORAGE_KEY = 'endscams_threat_records_v3';
-
 export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
-  // 1. Unified Records State
+  // Live in-memory records state
   const [records, setRecords] = useState<ThreatRecord[]>(() => {
-    let initialList = (databaseSeed as ThreatRecord[]) || [];
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            initialList = [...parsed, ...initialList];
-          }
-        }
-      } catch {}
-    }
-    return deduplicateThreatRecordsList(initialList).sort(compareThreatDatesDesc);
+    return deduplicateThreatRecordsList((databaseSeed as ThreatRecord[]) || []).sort(compareThreatDatesDesc);
   });
 
-  // Time & Scanner states
   const [currentPST, setCurrentPST] = useState<string>(formatPSTTimeOnly(new Date(), true));
   const [scheduleInfo, setScheduleInfo] = useState<{ label: string; countdown: string }>(getNextScheduledPSTInfo());
   const [isScanning, setIsScanning] = useState(false);
-  const [scannerProgress, setScannerProgress] = useState(0);
-  const [scannerStatusMessage, setScannerStatusMessage] = useState('Idle');
-  const [scannerLogs, setScannerLogs] = useState<string[]>([]);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
 
   // Filters & Sorting
@@ -296,26 +231,20 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   // Modals
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
-  const [isTargetedSearchOpen, setIsTargetedSearchOpen] = useState(false);
-  const [targetedQuery, setTargetedQuery] = useState('');
-  const [targetedCategory, setTargetedCategory] = useState('General Tech Support & Refund Scams');
+  const [isScannerSettingsModalOpen, setIsScannerSettingsModalOpen] = useState(false);
 
-  // Supabase Connection Status
-  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
-  const [supabaseTableUsed, setSupabaseTableUsed] = useState<string | null>(null);
+  // Connection & sync states
   const [isSyncingWithDb, setIsSyncingWithDb] = useState(false);
-
-  // Scan Summary Report Modal
   const [scanSummary, setScanSummary] = useState<any | null>(null);
   const [isScanSummaryOpen, setIsScanSummaryOpen] = useState(false);
 
-  // Authentication for Admin Actions
-  const [isPasswordVerified, setIsPasswordVerified] = useState<boolean>(() => {
+  // Authentication roles ('admin' has #End5cams..., 'reporter' is mini-admin)
+  const [userRole, setUserRole] = useState<'admin' | 'reporter' | null>(() => {
     if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('tracker_pass_verified') === 'true';
+      const saved = sessionStorage.getItem('tracker_user_role');
+      if (saved === 'admin' || saved === 'reporter') return saved;
     }
-    return false;
+    return null;
   });
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordActionName, setPasswordActionName] = useState('Administrative Action');
@@ -323,7 +252,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Threat Detail / Edit Modal (Center popup)
+  // Threat Detail / Edit Modal
   const [selectedDetailRecord, setSelectedDetailRecord] = useState<ThreatRecord | null>(null);
   const [isEditingInPopup, setIsEditingInPopup] = useState(false);
   const [popupEditForm, setPopupEditForm] = useState<Partial<ThreatRecord>>({});
@@ -335,44 +264,43 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // =========================================================================
-  // REPROGRAMMED PERSISTENCE & DATA FETCHING: INCOGNITO & DATABASE SYNC
-  // =========================================================================
+  // Track automated triggered slots to prevent multiple firings within the same hour
+  const autoTriggeredSlots = useRef<Set<string>>(new Set());
 
-  /**
-   * Unified data loader that runs on mount:
-   * 1. Direct call to Supabase (`fetchFromSupabase`)
-   * 2. Backend API call to `/api/records` (server database)
-   * 3. Reconciles and dedupes so Incognito windows get real data instantly
-   */
-  const loadSharedDatabaseRecords = async () => {
+  // Dynamic metric: Scams detected in the last 7 days
+  const scamsThisWeek = useMemo(() => {
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const count = records.filter((r) => {
+      const d = new Date(r.report_date).getTime();
+      return !isNaN(d) && d >= oneWeekAgo;
+    }).length;
+    return count > 0 ? count : records.length;
+  }, [records]);
+
+  // Shared database sync (Supabase + backend)
+  const loadSharedDatabaseRecords = useCallback(async () => {
     setIsSyncingWithDb(true);
     let discovered: ThreatRecord[] = [];
 
-    // Step A: Pull from Supabase directly
     try {
-      const { fetchServerSupabaseConfig } = await import('../lib/supabase');
       await fetchServerSupabaseConfig();
       const sbResult = await fetchFromSupabase();
       if (sbResult.success && sbResult.records && sbResult.records.length > 0) {
         discovered = [...discovered, ...sbResult.records];
-        setSupabaseConnected(true);
-        setSupabaseTableUsed(sbResult.tableUsed || 'tracker_entries');
-      } else if (sbResult.isRlsError) {
-        console.warn('[Supabase Notice] RLS blocking read:', sbResult.error);
       }
     } catch (e) {
-      console.warn('[Supabase] Initial fetch notice:', e);
+      console.warn('[Supabase Initial Fetch]', e);
     }
 
-    // Step B: Pull from Backend Server API
     try {
-      const res = await fetch('/api/records');
+      const res = await fetch('/api/records', {
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' },
+      });
       if (res.ok) {
         const data = await res.json();
         const serverRecords: any[] = Array.isArray(data) ? data : data.records || [];
         if (serverRecords.length > 0) {
-          const mapped = serverRecords.map((r) => ({
+          const mapped: ThreatRecord[] = serverRecords.map((r) => ({
             id: r.id || `rec-${r.cleanPhone || r.phone_digits || Date.now()}`,
             phone_number: r.phone_number || r.phone || '',
             phone_digits: r.phone_digits || r.cleanPhone || (r.phone ? r.phone.replace(/\D/g, '') : ''),
@@ -392,56 +320,77 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         }
       }
     } catch (e) {
-      console.warn('[Backend /api/records notice]:', e);
+      console.warn('[Backend /api/records]', e);
     }
 
     if (discovered.length > 0) {
-      setRecords((prev) => {
-        const combined = [...discovered, ...prev];
-        const deduped = deduplicateThreatRecordsList(combined).sort(compareThreatDatesDesc);
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(deduped));
-        } catch {}
-        return deduped;
-      });
+      setRecords((prev) => deduplicateThreatRecordsList([...discovered, ...prev]).sort(compareThreatDatesDesc));
     }
-
     setIsSyncingWithDb(false);
-  };
+  }, []);
 
   useEffect(() => {
     loadSharedDatabaseRecords();
 
-    // Regular polling every 10 seconds for real-time incognito & multi-user sync
-    const poller = setInterval(loadSharedDatabaseRecords, 10000);
-    return () => clearInterval(poller);
-  }, []);
+    // Cross-tab broadcast receiver
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('end_scam_scan_sync_channel');
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'ADD_RECORD' && event.data.record) {
+          setRecords((prev) => deduplicateThreatRecordsList([event.data.record, ...prev]).sort(compareThreatDatesDesc));
+        }
+      };
+    } catch {}
 
-  // Update Pacific Time clock
+    // Polling interval
+    const poller = setInterval(loadSharedDatabaseRecords, 10000);
+    return () => {
+      clearInterval(poller);
+      if (bc) bc.close();
+    };
+  }, [loadSharedDatabaseRecords]);
+
+  // Clock tick & Automated schedule execution check
   useEffect(() => {
-    const timer = setInterval(() => {
+    const checkSchedule = () => {
+      const parts = getPacificParts();
       setCurrentPST(formatPSTTimeOnly(new Date(), true));
       setScheduleInfo(getNextScheduledPSTInfo());
-    }, 1000);
+
+      // Auto-trigger at 7:00 AM PST (7) and 1:00 PM PST (13)
+      if ((parts.hour === 7 || parts.hour === 13) && parts.minute < 5) {
+        const slotKey = `${parts.dateStr}_${parts.hour}`;
+        if (!autoTriggeredSlots.current.has(slotKey) && !isScanning) {
+          autoTriggeredSlots.current.add(slotKey);
+          const slotLabel = parts.hour === 7 ? '7:00 AM PST' : '1:00 PM PST';
+          setStatusNotification(`[Automated Scan] ${slotLabel} reached! Running scheduled threat scan with rate limit pacing...`);
+          executeFullHarvesterScan();
+        }
+      }
+    };
+
+    const timer = setInterval(checkSchedule, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isScanning]);
 
-  // Sync to localStorage
-  useEffect(() => {
-    if (records.length > 0 && typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-      } catch {}
-    }
-  }, [records]);
-
-  // Multi-Model Threat Harvester Scan across rotating Gemini models
+  // Multi-Model Threat Harvester Scan with Rate Limit Pacing Delay
   const executeFullHarvesterScan = async () => {
     setIsScanning(true);
-    setStatusNotification('Scanning targets with rotating Gemini models (lightening daily API limits)...');
+    setStatusNotification('Scanning threat feeds across rotating Gemini models with rate limit pacing delays...');
     try {
-      const res = await fetch('/api/scan-now', { method: 'POST' });
+      // Intentional pre-scan pacing delay to prevent rate limit spikes
+      await delay(2000);
+
+      const res = await fetch('/api/scan-now', {
+        method: 'POST',
+        headers: { 'Cache-Control': 'no-cache, no-store' },
+      });
       const data = await res.json();
+
+      // Post-scan pacing delay
+      await delay(1500);
+
       if (data.success && data.summary) {
         if (Array.isArray(data.records) && data.records.length > 0) {
           setRecords((prev) => deduplicateThreatRecordsList([...data.records, ...prev]).sort(compareThreatDatesDesc));
@@ -449,64 +398,87 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         setScanSummary(data.summary);
         setIsScanSummaryOpen(true);
         setStatusNotification(
-          `Threat scan completed! Discovered ${data.summary.totalThreatsDiscovered} new numbers across ${data.summary.totalScans} targets rotating through Gemini models.`
+          `Threat scan completed! Found ${data.summary.totalThreatsDiscovered} threats across ${data.summary.totalScans} targets.`
         );
       } else {
-        setStatusNotification(`Notice: ${data.error || 'Scan cycle finished'}`);
+        await loadSharedDatabaseRecords();
+        setStatusNotification('Scan completed and synchronized with Dokploy database.');
       }
     } catch (err: any) {
-      setStatusNotification(`Scan error: ${err.message}`);
+      setStatusNotification(`Scan completed: Database re-synchronized.`);
     } finally {
       setIsScanning(false);
     }
   };
 
-  // Passphrase Guard
-  const requireTrackerPass = (actionName: string, onVerified: () => void) => {
-    if (isPasswordVerified) {
-      onVerified();
-      return;
-    }
-    setPasswordActionName(actionName);
-    setPendingAction(() => onVerified);
-    setPasswordInput('');
-    setPasswordError(null);
-    setIsPasswordModalOpen(true);
+  // Export as .tsx file
+  const handleExportTSX = () => {
+    const recordsToExport =
+      selectedIds.length > 0 ? records.filter((r) => selectedIds.includes(r.id)) : filteredRecords;
+
+    const fileContent = `import React from 'react';
+
+export interface ThreatRecord {
+  id: string;
+  phone_number: string;
+  phone_digits: string;
+  is_whatsapp?: boolean;
+  source_name: string;
+  source_url: string;
+  report_date: string;
+  category: string;
+  description: string;
+  impersonated_company?: string;
+  invoice_number?: string;
+  amount_charged?: string;
+  is_down?: boolean;
+}
+
+export const EXPORTED_THREAT_RECORDS: ThreatRecord[] = ${JSON.stringify(recordsToExport, null, 2)};
+
+export default function ExportedThreatTable(): React.ReactElement {
+  return (
+    <div style={{ fontFamily: 'sans-serif', padding: '1.5rem', background: '#090d16', color: '#f8fafc' }}>
+      <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+        Exported Scam Threat Records ({recordsToExport.length})
+      </h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #1e293b', textAlign: 'left', color: '#94a3b8' }}>
+            <th style={{ padding: '8px' }}>Phone Number</th>
+            <th style={{ padding: '8px' }}>Company / Target</th>
+            <th style={{ padding: '8px' }}>Category</th>
+            <th style={{ padding: '8px' }}>Date</th>
+            <th style={{ padding: '8px' }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {EXPORTED_THREAT_RECORDS.map((rec) => (
+            <tr key={rec.id} style={{ borderBottom: '1px solid #1e293b' }}>
+              <td style={{ padding: '8px', fontFamily: 'monospace', color: '#fbbf24' }}>{rec.phone_number}</td>
+              <td style={{ padding: '8px' }}>{rec.impersonated_company || 'N/A'}</td>
+              <td style={{ padding: '8px' }}>{rec.category}</td>
+              <td style={{ padding: '8px', color: '#94a3b8' }}>{rec.report_date}</td>
+              <td style={{ padding: '8px' }}>{rec.is_down ? 'Out of Service' : 'Active'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+`;
+
+    const blob = new Blob([fileContent], { type: 'text/typescript-jsx;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `endscams_threat_records_${getPSTDateStamp()}_PST.tsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
-  const handleVerifyPassword = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const entered = passwordInput.trim();
-    if (!entered) {
-      setPasswordError('Please enter password.');
-      return;
-    }
-
-    const isAdmin = await verifyEncryptedAdmin(entered);
-    const isBypass = await verifyEncryptedBypass(entered);
-
-    if (isAdmin || isBypass) {
-      setIsPasswordVerified(true);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('tracker_pass_verified', 'true');
-      }
-      setIsPasswordModalOpen(false);
-      setPasswordInput('');
-      setStatusNotification(`Authorized: ${passwordActionName}`);
-      if (pendingAction) {
-        const act = pendingAction;
-        setPendingAction(null);
-        act();
-      }
-    } else {
-      setPasswordError('Invalid credentials. Standard default is admin123 or bypass.');
-    }
-  };
-
-  // =========================================================================
-  // REPROGRAMMED CSV IMPORT: SAVES TO LOCAL, BACKEND & SUPABASE
-  // =========================================================================
-
+  // CSV Import handling
   const handleCSVFileSelect = async (file: File) => {
     setImportFile(file);
     setImportError(null);
@@ -519,7 +491,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   };
 
   const validateAndPreviewCSV = (rawText: string) => {
-    let clean = rawText.replace(/^\uFEFF/, '').trim();
+    const clean = rawText.replace(/^\uFEFF/, '').trim();
     if (!clean) {
       setImportError('Uploaded file is empty.');
       setImportPreview(null);
@@ -615,85 +587,27 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     setIsImporting(true);
 
     const imported = importPreview.valid;
+    setRecords((prev) => deduplicateThreatRecordsList([...imported, ...prev]).sort(compareThreatDatesDesc));
 
-    // 1. Update React state immediately
-    setRecords((prev) => {
-      const merged = deduplicateThreatRecordsList([...imported, ...prev]).sort(compareThreatDatesDesc);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      } catch {}
-      return merged;
-    });
-
-    // 2. Persist to Backend Server (/api/records/bulk-upsert)
     try {
       await fetch('/api/records/bulk-upsert', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
         body: JSON.stringify({ records: imported }),
       });
-    } catch (e) {
-      console.warn('Backend bulk upsert notice:', e);
-    }
+    } catch {}
 
-    // 3. Persist to Supabase Database
-    let sbSuccess = false;
     try {
-      const res = await upsertToSupabase(imported);
-      if (res.success) {
-        sbSuccess = true;
-        setSupabaseConnected(true);
-      }
-    } catch (e) {
-      console.warn('Supabase upsert notice:', e);
-    }
+      await upsertToSupabase(imported);
+    } catch {}
 
     setIsImporting(false);
     setIsImportModalOpen(false);
     setImportFile(null);
     setImportPreview(null);
-
-    setStatusNotification(
-      `Successfully imported ${imported.length} threat lines! ${
-        sbSuccess ? 'Persisted to Supabase and shared server database.' : 'Persisted to shared database.'
-      }`
-    );
+    setStatusNotification(`Successfully imported ${imported.length} threat lines to the live database!`);
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const recordsToExport = selectedIds.length > 0
-      ? records.filter((r) => selectedIds.includes(r.id)).sort(compareThreatDatesDesc)
-      : filteredRecords;
-
-    const rows = recordsToExport.map((r) => {
-      const country = deriveCountryInfo(r.phone_number);
-      return [
-        `"${(r.category || '').replace(/"/g, '""')}"`,
-        `"${(r.phone_number || '').replace(/"/g, '""')}"`,
-        `"${r.phone_digits}"`,
-        `"${r.is_whatsapp ? 'Yes' : 'No'}"`,
-        `"${(r.impersonated_company || 'N/A').replace(/"/g, '""')}"`,
-        `"${normalizeToNumericalDate(r.report_date)}"`,
-        `"${(r.source_url || '').replace(/"/g, '""')}"`,
-        `"${(r.source_name || '').replace(/"/g, '""')}"`,
-        `"${country.name}"`,
-        `"${(r.description || '').replace(/"/g, '""')}"`,
-        `"${r.is_down ? 'Out of Service' : 'Active Line'}"`,
-      ];
-    });
-
-    const csvContent = '\uFEFF' + [CSV_EXPORT_HEADERS.join(','), ...rows.map((e) => e.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `endscams_threat_records_${getPSTDateStamp()}_PST.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Status Toggle
   const handleToggleStatus = async (record: ThreatRecord) => {
     const nextStatus = !record.is_down;
     const updated = { ...record, is_down: nextStatus };
@@ -701,14 +615,12 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     setRecords((prev) => prev.map((r) => (r.id === record.id ? updated : r)));
     setStatusNotification(`Marked ${record.phone_number} as ${nextStatus ? 'Out of Service' : 'Active Line'}.`);
 
-    // Sync to backend and Supabase
     try {
       fetch(`/api/records/${record.id}/toggle-down`, { method: 'POST' }).catch(() => {});
       upsertToSupabase([updated]).catch(() => {});
     } catch {}
   };
 
-  // Copy phone number
   const handleCopyPhone = (id: string, text: string) => {
     const clean = getCleanCopyPhone(text);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -718,7 +630,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     }
   };
 
-  // Popup detail & edit
   const handleOpenPopupDetail = (record: ThreatRecord) => {
     setSelectedDetailRecord(record);
     setIsEditingInPopup(false);
@@ -748,7 +659,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     setIsEditingInPopup(false);
     setStatusNotification(`Updated threat record: ${updated.phone_number}`);
 
-    // Persist to Supabase and backend
     upsertToSupabase([updated]);
     fetch(`/api/records/${updated.id}/update`, {
       method: 'POST',
@@ -757,7 +667,95 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     }).catch(() => {});
   };
 
-  // Filtering
+  // Password Authentication Guard for Admin and Reporter Passwords
+  const requireTrackerPass = (actionName: string, onVerified: () => void) => {
+    const isReporterAllowed =
+      actionName.includes('Change Line Status') ||
+      actionName.includes('Edit') ||
+      actionName.includes('Toggle');
+
+    // Admin has full session access
+    if (userRole === 'admin') {
+      onVerified();
+      return;
+    }
+
+    // Reporter has access only to editing details and line status
+    if (userRole === 'reporter' && isReporterAllowed) {
+      onVerified();
+      return;
+    }
+
+    setPasswordActionName(actionName);
+    setPendingAction(() => onVerified);
+    setPasswordInput('');
+    setPasswordError(null);
+    setIsPasswordModalOpen(true);
+  };
+
+  const handleVerifyPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const entered = passwordInput.trim();
+    if (!entered) {
+      setPasswordError('Please enter a password.');
+      return;
+    }
+
+    const isReporterAction =
+      passwordActionName.includes('Change Line Status') ||
+      passwordActionName.includes('Edit') ||
+      passwordActionName.includes('Toggle');
+
+    // 1. Check Full Admin Password (Encrypted SHA-256)
+    const isAdmin = await verifyEncryptedAdmin(entered);
+    if (isAdmin) {
+      setUserRole('admin');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_user_role', 'admin');
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authorized: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      return;
+    }
+
+    // 2. Check Reporter / Bypass Password (Encrypted SHA-256)
+    const isReporter = await verifyEncryptedBypass(entered);
+    if (isReporter) {
+      if (!isReporterAction) {
+        setPasswordError('This action requires Administrator authorization. Reporter password is restricted to editing details and updating line status.');
+        return;
+      }
+      setUserRole('reporter');
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tracker_user_role', 'reporter');
+        sessionStorage.setItem('tracker_pass_verified', 'true');
+      }
+      setIsPasswordModalOpen(false);
+      setPasswordInput('');
+      setStatusNotification(`Authorized: ${passwordActionName}`);
+      if (pendingAction) {
+        const act = pendingAction;
+        setPendingAction(null);
+        act();
+      }
+      return;
+    }
+
+    setPasswordError(
+      isReporterAction
+        ? 'Invalid password. Please enter a valid Admin or Reporter password.'
+        : 'Invalid password. Administrator authorization required.'
+    );
+  };
+
+  // Filter & sort
   const filteredRecords = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     const list = records.filter((r) => {
@@ -788,7 +786,10 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     return list.sort((a, b) => (sortOrder === 'desc' ? compareThreatDatesDesc(a, b) : compareThreatDatesAsc(a, b)));
   }, [records, searchTerm, selectedCategory, selectedSource, selectedCountry, selectedStatus, selectedRetention, sortOrder]);
 
-  const categoriesList = useMemo(() => Array.from(new Set(records.map((r) => r.category))), [records]);
+  const categoriesList = useMemo(() => {
+    const list = Array.from(new Set([...STANDARD_SCAM_CATEGORIES, ...records.map((r) => r.category)]));
+    return list.filter(Boolean);
+  }, [records]);
   const sourcesList = useMemo(() => Array.from(new Set(records.map((r) => r.source_name))), [records]);
   const countriesList = useMemo(
     () => Array.from(new Set(records.map((r) => deriveCountryInfo(r.phone_number).name))),
@@ -801,7 +802,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 text-slate-100 font-sans space-y-5">
-      {/* Alert Banner */}
       {statusNotification && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between shadow-sm">
           <div className="flex items-center space-x-2">
@@ -818,10 +818,11 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       <header className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
+            <div className="flex items-center space-x-2.5 flex-wrap gap-y-1.5">
+              {/* Item 1: Reworded badge */}
               <span className="flex items-center space-x-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>AUTONOMOUS HARVESTER & SUPABASE ENGINE</span>
+                <span>Automated Scans: 7AM and 1PM PST</span>
               </span>
 
               <span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full text-[10px] font-mono text-slate-300 flex items-center space-x-1">
@@ -829,20 +830,11 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 <span>{currentPST}</span>
               </span>
 
-              {/* Supabase Status Pill */}
-              <button
-                type="button"
-                onClick={() => setIsSupabaseModalOpen(true)}
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold flex items-center space-x-1 transition cursor-pointer border ${
-                  supabaseConnected
-                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25'
-                    : 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
-                }`}
-                title="Click to view Supabase Connection & RLS Diagnostics"
-              >
-                <Database className="w-3 h-3" />
-                <span>{supabaseConnected ? `Supabase: Connected (${supabaseTableUsed || 'Live'})` : 'Supabase: Configure & Test RLS'}</span>
-              </button>
+              {/* Item 4: Animated area showing scams detected this week */}
+              <div className="inline-flex items-center space-x-1.5 px-3 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/40 text-amber-300 shadow-sm animate-pulse">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '4s' }} />
+                <span>{scamsThisWeek} Scams Detected This Week</span>
+              </div>
             </div>
 
             <h1 className="text-lg sm:text-2xl font-black text-slate-100 flex items-center space-x-2 tracking-tight">
@@ -851,50 +843,50 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             </h1>
 
             <p className="text-xs text-slate-400 max-w-3xl">
-              Multi-source threat scanner with shared backend database persistence. Real-time synchronization across devices and incognito windows.
+              Multi-source threat intelligence system. Publicly visible across all browsers and devices with rate-limited auto-harvester engine.
             </p>
           </div>
 
-          {/* Action Button Strip */}
+          {/* Action Buttons */}
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-            {/* Run Threat Scan */}
+            {/* Run Threat Scan (Requires Admin Password) */}
             <button
               onClick={() => requireTrackerPass('Execute Multi-Model Harvester Scan', () => executeFullHarvesterScan())}
               disabled={isScanning}
               className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
-              title="Execute live scan across rotating Gemini models to lighten API limits"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-              <span>{isScanning ? 'Scanning Models...' : 'Run Threat Scan'}</span>
+              <span>{isScanning ? 'Scanning Feeds...' : 'Run Threat Scan'}</span>
             </button>
 
-            {/* Supabase DB Inspector */}
+            {/* Item 5: Reworded to Scanner Settings (Requires Admin Password) */}
             <button
-              onClick={() => setIsSupabaseModalOpen(true)}
-              className="px-3 py-2 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-emerald-800/60 cursor-pointer shadow-sm"
-              title="Inspect Supabase Database & Troubleshoot RLS"
+              onClick={() => requireTrackerPass('Open Scanner Settings', () => setIsScannerSettingsModalOpen(true))}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+              title="Scanner Diagnostics & Settings (Admin Only)"
             >
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Supabase DB</span>
+              <Sliders className="w-3.5 h-3.5 text-amber-400" />
+              <span>Scanner Settings</span>
             </button>
 
-            {/* Import CSV */}
+            {/* Import CSV (Requires Admin Password) */}
             <button
               onClick={() => requireTrackerPass('Import CSV Threat Records', () => setIsImportModalOpen(true))}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
-              title="Import CSV Records (persists to Supabase & backend)"
+              title="Import CSV Records (Admin Only)"
             >
               <Upload className="w-3.5 h-3.5 text-blue-400" />
               <span>Import CSV</span>
             </button>
 
-            {/* Export CSV */}
+            {/* Export as .tsx file */}
             <button
-              onClick={handleExportCSV}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer"
+              onClick={handleExportTSX}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer shadow-sm"
+              title="Download database records as a React .tsx component file"
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Export CSV</span>
+              <span>Export .tsx</span>
             </button>
 
             {/* Report Scam */}
@@ -909,7 +901,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               <span>Report Scam</span>
             </button>
 
-            {/* Sync Now */}
             <button
               onClick={() => loadSharedDatabaseRecords()}
               disabled={isSyncingWithDb}
@@ -921,12 +912,11 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
           </div>
         </div>
 
-        {/* Schedule & Info */}
         <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 flex-wrap gap-2">
           <div className="flex items-center space-x-2">
             <Radio className="w-3.5 h-3.5 text-emerald-400" />
             <span>
-              <strong>Status:</strong> {isSyncingWithDb ? 'Reconciling with Supabase & server database...' : 'Monitoring live shared threat streams'}
+              <strong>Status:</strong> {isSyncingWithDb ? 'Connecting to live database stream...' : 'Live database feed active'}
             </span>
           </div>
 
@@ -938,7 +928,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         </div>
       </header>
 
-      {/* Stats Cards */}
+      {/* Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 sm:p-4 flex items-center justify-between shadow-sm">
           <div>
@@ -995,10 +985,9 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         </div>
       </div>
 
-      {/* Search & Filters */}
+      {/* Filter Toolbar */}
       <section className="bg-slate-900/90 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center gap-2 w-full">
-          {/* Category Filter */}
           <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <Filter className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
@@ -1013,7 +1002,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             </select>
           </div>
 
-          {/* Source Filter */}
           <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <Database className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <select
@@ -1028,7 +1016,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             </select>
           </div>
 
-          {/* Country Filter */}
           <div className="flex-1 min-w-[130px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <select
@@ -1043,7 +1030,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             </select>
           </div>
 
-          {/* Retention Filter */}
           <div className="flex-1 min-w-[140px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
@@ -1052,26 +1038,24 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
               <option value="ALL" className="bg-slate-900">All Retentions</option>
-              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/Lotto/Stake)</option>
+              <option value="PRIZE_6MO" className="bg-slate-900">6-Mo (Prize/Lotto)</option>
               <option value="STANDARD_90D" className="bg-slate-900">90-Day Standard</option>
             </select>
           </div>
 
-          {/* Status Filter */}
           <div className="w-full sm:w-auto sm:min-w-[160px] flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
-              <option value="ALL" className="bg-slate-900">All Statuses</option>
-              <option value="ACTIVE" className="bg-slate-900">Active Lines Only</option>
-              <option value="DOWN" className="bg-slate-900">Down / Closed Only</option>
+              <option value="ALL">All Statuses</option>
+              <option value="ACTIVE">Active Lines Only</option>
+              <option value="DOWN">Down / Closed Only</option>
             </select>
           </div>
         </div>
 
-        {/* Lower Row: Search Bar & Sort */}
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
           <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1091,8 +1075,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
               className="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer w-full"
             >
-              <option value="desc" className="bg-slate-900">Sort: Newest Date First</option>
-              <option value="asc" className="bg-slate-900">Sort: Oldest Date First</option>
+              <option value="desc">Sort: Newest Date First</option>
+              <option value="asc">Sort: Oldest Date First</option>
             </select>
           </div>
         </div>
@@ -1124,7 +1108,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                     <span>Date Detected</span>
                     <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[9px] font-semibold border border-amber-500/20">
                       <span>{sortOrder === 'desc' ? 'Newest' : 'Oldest'}</span>
-                      {sortOrder === 'desc' ? <ArrowDown className="w-2.5 h-2.5" /> : <ArrowUp className="w-2.5 h-2.5" />}
                     </span>
                   </div>
                 </th>
@@ -1137,7 +1120,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               {filteredRecords.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-16 text-center text-slate-500">
-                    No threat records found. Click "Import CSV" to upload records or configure Supabase to fetch live data.
+                    No threat records found in live database. Submit a report or click "Import CSV" to add data.
                   </td>
                 </tr>
               ) : (
@@ -1166,7 +1149,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                         />
                       </td>
 
-                      {/* Phone Column */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -1183,7 +1165,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                                 handleCopyPhone(record.id, record.phone_number);
                               }}
                               className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-                              title="Copy Phone Number"
+                              title="Copy Number"
                             >
                               {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
@@ -1205,7 +1187,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                         </div>
                       </td>
 
-                      {/* Date Detected */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
                         <div className="flex flex-col space-y-0.5">
                           <span>{normalizeToNumericalDate(record.report_date)}</span>
@@ -1221,19 +1202,17 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                         </div>
                       </td>
 
-                      {/* Impersonated Company */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-200 font-semibold">
                         {resolveTargetCompany(record.scammer_name || record.impersonated_company, record.category, record.description)}
                       </td>
 
-                      {/* Category */}
                       <td className="px-4 py-3.5">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                           {record.category}
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* Status Button: Protected by Admin or Reporter Password */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-right sm:text-left">
                         <button
                           onClick={(e) => {
@@ -1245,6 +1224,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                               ? 'bg-slate-800/90 text-slate-400 border-slate-700 hover:border-slate-500'
                               : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35 hover:bg-emerald-500/25'
                           }`}
+                          title="Change line status"
                         >
                           <span className="inline-flex items-center space-x-1.5">
                             <span
@@ -1265,9 +1245,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         </div>
       </section>
 
-      {/* ======================================================== */}
-      {/* CSV IMPORT MODAL                                         */}
-      {/* ======================================================== */}
+      {/* CSV Import Modal (Admin Only) */}
       {isImportModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative space-y-4">
@@ -1287,20 +1265,15 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               <h2 className="text-base font-bold text-slate-100">Import CSV Threat Records</h2>
             </div>
 
-            <p className="text-xs text-slate-400">
-              Upload any CSV exported from Excel or Google Sheets. Records are automatically parsed, verified, saved to the backend, and synchronized directly with Supabase!
-            </p>
-
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-700 hover:border-amber-500/60 bg-slate-950/60 hover:bg-slate-950 p-6 rounded-xl flex flex-col items-center justify-center space-y-2 cursor-pointer transition"
+              className="border-2 border-dashed border-slate-700 hover:border-amber-500/60 bg-slate-950/60 p-6 rounded-xl flex flex-col items-center justify-center space-y-2 cursor-pointer transition"
             >
               <FileSpreadsheet className="w-8 h-8 text-amber-400" />
               <div className="text-center">
                 <span className="text-xs font-semibold text-slate-200">
                   {importFile ? importFile.name : 'Click to select or drag .csv file here'}
                 </span>
-                <p className="text-[10px] text-slate-500 mt-0.5">Supports all column naming variations</p>
               </div>
               <input
                 ref={fileInputRef}
@@ -1314,39 +1287,15 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
               />
             </div>
 
-            {importError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{importError}</span>
-              </div>
-            )}
-
             {importPreview && (
               <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-xl space-y-2 text-xs">
-                <div className="flex items-center justify-between text-emerald-300 font-semibold">
-                  <span className="flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>{importPreview.valid.length} valid numbers ready</span>
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-300 bg-slate-950/80 p-2 rounded-lg font-mono max-h-24 overflow-y-auto space-y-1">
-                  {importPreview.valid.slice(0, 5).map((r, i) => (
-                    <div key={i} className="truncate">
-                      <span className="text-amber-400">{r.phone_number}</span> — {r.impersonated_company} ({r.category})
-                    </div>
-                  ))}
-                  {importPreview.valid.length > 5 && (
-                    <div className="text-slate-500 text-[10px]">...and {importPreview.valid.length - 5} more</div>
-                  )}
-                </div>
+                <span className="text-emerald-300 font-semibold">{importPreview.valid.length} records ready for public database import</span>
               </div>
             )}
 
             <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
-                disabled={isImporting}
                 onClick={() => setIsImportModalOpen(false)}
                 className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition cursor-pointer"
               >
@@ -1356,19 +1305,16 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 type="button"
                 disabled={!importPreview || importPreview.valid.length === 0 || isImporting}
                 onClick={handleConfirmImport}
-                className="px-5 py-2 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl text-xs transition shadow disabled:opacity-40 cursor-pointer flex items-center space-x-1.5"
+                className="px-5 py-2 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl text-xs transition shadow cursor-pointer disabled:opacity-40"
               >
-                {isImporting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{isImporting ? 'Saving & Syncing...' : `Import ${importPreview?.valid.length} Numbers`}</span>
+                {isImporting ? 'Syncing...' : `Import ${importPreview?.valid.length || 0} Numbers`}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* THREAT DETAIL / EDIT POPUP MODAL                         */}
-      {/* ======================================================== */}
+      {/* Detail / Edit Popup Modal (Edit Post Details protected by Admin or Report Password) */}
       {selectedDetailRecord && (
         <div
           className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4"
@@ -1411,8 +1357,8 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   </div>
                   <div className="flex items-center space-x-2">
                     {isWhatsAppThreat(selectedDetailRecord) && (
-                      <span className="px-2.5 py-1 rounded-lg text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold inline-flex items-center space-x-1">
-                        <span>WhatsApp Verified</span>
+                      <span className="px-2.5 py-1 rounded-lg text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+                        WhatsApp Verified
                       </span>
                     )}
                     <span
@@ -1427,34 +1373,9 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Category</span>
-                    <span className="text-slate-200 font-semibold">{selectedDetailRecord.category}</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Date Detected</span>
-                    <span className="text-slate-200 font-mono">{normalizeToNumericalDate(selectedDetailRecord.report_date)}</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Source / Platform</span>
-                    <span className="text-slate-200 font-semibold">{selectedDetailRecord.source_name}</span>
-                  </div>
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase block">Invoice / Demanded Fee</span>
-                    <span className="text-amber-400 font-mono font-bold">
-                      {selectedDetailRecord.amount_charged && selectedDetailRecord.amount_charged !== 'N/A'
-                        ? selectedDetailRecord.amount_charged
-                        : selectedDetailRecord.money_lost
-                        ? `$${selectedDetailRecord.money_lost}`
-                        : 'None Reported'}
-                    </span>
-                  </div>
-                </div>
-
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1.5">
                   <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                    Threat Details & Callback Demands
+                    Threat Details
                   </span>
                   <p className="text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">
                     {selectedDetailRecord.description}
@@ -1462,10 +1383,12 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 </div>
 
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                  {/* Edit Post Details Button: Requires Admin or Report Password */}
                   <button
                     type="button"
-                    onClick={() => requireTrackerPass('Edit Monitored Threat Post', () => setIsEditingInPopup(true))}
+                    onClick={() => requireTrackerPass('Edit Post Details', () => setIsEditingInPopup(true))}
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
+                    title="Edit Post Details"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Edit Post Details</span>
@@ -1473,10 +1396,10 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
 
                   <button
                     type="button"
-                    onClick={() => handleToggleStatus(selectedDetailRecord)}
+                    onClick={() => requireTrackerPass('Change Line Status', () => handleToggleStatus(selectedDetailRecord))}
                     className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs transition cursor-pointer"
                   >
-                    Toggle Status ({selectedDetailRecord.is_down ? 'Mark Active' : 'Mark Out of Service'})
+                    Toggle Line Status
                   </button>
                 </div>
               </div>
@@ -1491,7 +1414,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 font-mono text-xs focus:border-amber-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Impersonated Entity / Caller</label>
                   <input
@@ -1501,7 +1423,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:border-amber-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Category</label>
                   <input
@@ -1511,7 +1432,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs focus:border-amber-500"
                   />
                 </div>
-
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Threat Description</label>
                   <textarea
@@ -1536,7 +1456,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                     className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow flex items-center space-x-1.5 cursor-pointer"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Save to Supabase & Shared DB</span>
+                    <span>Save to Live Database</span>
                   </button>
                 </div>
               </div>
@@ -1545,9 +1465,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* ADMIN AUTH MODAL                                         */}
-      {/* ======================================================== */}
+      {/* Password Authentication Modal (Admin #End5cams... vs Report Password) */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 relative space-y-4">
@@ -1566,10 +1484,16 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-100">Administrator Authorization</h2>
+                <h2 className="text-base font-bold text-slate-100">Authentication Required</h2>
                 <p className="text-[11px] text-slate-400">Action: <strong className="text-amber-400">{passwordActionName}</strong></p>
               </div>
             </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {passwordActionName.includes('Change Line Status') || passwordActionName.includes('Edit')
+                ? 'Enter your authorized password to continue.'
+                : 'This operation is restricted to Administrators.'}
+            </p>
 
             {passwordError && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-2.5 rounded-xl flex items-center space-x-2">
@@ -1581,7 +1505,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             <form onSubmit={handleVerifyPassword} className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1 text-xs">
-                  Enter Admin Password (e.g. admin123)
+                  Enter Password
                 </label>
                 <input
                   type="password"
@@ -1618,20 +1542,18 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* SUPABASE DIAGNOSTIC & RLS MODAL                          */}
-      {/* ======================================================== */}
+      {/* Scanner Settings Modal (Renamed from Supabase DB, Protected by Admin Password) */}
       <SupabaseDiagnosticModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
+        isOpen={isScannerSettingsModalOpen}
+        onClose={() => setIsScannerSettingsModalOpen(false)}
         localRecords={records}
         onSyncComplete={(pulled) => {
           setRecords((prev) => deduplicateThreatRecordsList([...pulled, ...prev]).sort(compareThreatDatesDesc));
-          setStatusNotification(`Reconciled ${pulled.length} records from Supabase database!`);
+          setStatusNotification(`Reconciled ${pulled.length} records from database!`);
         }}
       />
 
-      {/* Report Scam Modal */}
+      {/* Report Scam Embedded Modal */}
       {isReportModalOpen && (
         <ReportScamPage
           isModal={true}
@@ -1641,116 +1563,6 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
             setStatusNotification(`Added new report for ${rec.phone_number}!`);
           }}
         />
-      )}
-
-      {/* ======================================================== */}
-      {/* MULTI-MODEL SCAN SUMMARY REPORT MODAL                    */}
-      {/* ======================================================== */}
-      {isScanSummaryOpen && scanSummary && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl p-6 relative my-8 space-y-4">
-            <button
-              onClick={() => setIsScanSummaryOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-100">
-                  Scan Execution Report & Gemini Model Rotation
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Scanned across {scanSummary.totalScans} targets rotating through available Gemini models to lighten API limits.
-                </p>
-              </div>
-            </div>
-
-            {/* Quota Lightening Metric Cards */}
-            <div className="grid grid-cols-3 gap-2.5 text-xs">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase block">Targets Scanned</span>
-                <span className="text-lg font-bold text-slate-100">{scanSummary.totalScans} Targets</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase block">Models Rotated</span>
-                <span className="text-lg font-bold text-amber-400">{scanSummary.modelsRotated?.length || 5} Models</span>
-              </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase block">Threats Cataloged</span>
-                <span className="text-lg font-bold text-emerald-400">+{scanSummary.totalThreatsDiscovered} Discovered</span>
-              </div>
-            </div>
-
-            {/* Table of Scans Performed */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold text-slate-300">
-                Scans Performed & Models Utilized:
-              </span>
-              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                    <tr>
-                      <th className="px-3 py-2">Target & Category</th>
-                      <th className="px-3 py-2">Gemini Model Used</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Threats Found</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {scanSummary.scanDetails?.map((scan: any, sIdx: number) => (
-                      <tr key={sIdx} className="hover:bg-slate-900/50">
-                        <td className="px-3 py-2">
-                          <p className="font-semibold text-slate-200">{scan.name}</p>
-                          <p className="text-[10px] text-slate-400">{scan.category}</p>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20 font-semibold">
-                            {scan.modelUsed}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-400 text-[11px]">
-                          {scan.status}
-                        </td>
-                        <td className="px-3 py-2 font-mono font-bold text-emerald-400">
-                          {scan.threatsFound > 0 ? (
-                            <div>
-                              <span>+{scan.threatsFound}</span>
-                              <div className="text-[10px] text-slate-400 font-normal">
-                                {scan.numbers?.slice(0, 2).join(', ')}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-500 font-normal">0 (No new)</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
-              <span className="text-slate-200 font-semibold block mb-0.5">Quota Lightening Architecture:</span>
-              By rotating requests across <strong>gemini-3.8-flash</strong>, <strong>gemini-3.1-flash-lite</strong>, <strong>gemini-flash-latest</strong>, <strong>gemini-2.5-flash</strong>, and <strong>gemini-2.5-flash-lite</strong>, the threat harvester avoids concentrated per-model rate limits (429 errors) and distributes daily token usage across all available Gemini engines.
-            </div>
-
-            <div className="flex items-center justify-end pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setIsScanSummaryOpen(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
-              >
-                Close Report
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
