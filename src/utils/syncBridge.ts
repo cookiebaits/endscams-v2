@@ -18,6 +18,10 @@ class SyncBridge {
     this.config = config;
   }
 
+  getConfig(): SyncBridgeConfig {
+    return this.config;
+  }
+
   destroy() {
     this.config = {};
   }

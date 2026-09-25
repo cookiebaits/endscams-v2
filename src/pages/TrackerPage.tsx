@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import databaseSeed from '../data/database_seed.json';
 import {
-  Shield,
-  Search,
   RefreshCw,
   Download,
   Upload,
@@ -27,6 +25,8 @@ import {
   Save,
   Sparkles,
   Sliders,
+  Shield,
+  Search,
 } from 'lucide-react';
 import { getPSTDateStamp, normalizeToNumericalDate } from '../utils/dateUtils';
 import { parseFullCSV } from '../utils/csvHandler';
@@ -40,7 +40,6 @@ import { resolveTargetCompany } from '../utils/targetUtils';
 import {
   verifyEncryptedAdmin,
   verifyEncryptedBypass,
-  isReporterAllowedForAction,
 } from '../utils/security';
 import { ThreatRecord } from '../types';
 import ReportScamPage, { STANDARD_SCAM_CATEGORIES } from './ReportScamPage';
@@ -49,7 +48,6 @@ import {
   fetchFromSupabase,
   upsertToSupabase,
   fetchServerSupabaseConfig,
-  getSupabaseClient,
 } from '../lib/supabase';
 
 export interface TrackerPageProps {
@@ -93,8 +91,6 @@ export function isPrizeOrExtendedRetention(record: Partial<ThreatRecord> | null 
   if (!record) return false;
   const company = (record.impersonated_company || '').toLowerCase();
   const category = (record.category || '').toLowerCase();
-  const desc = (record.description || '').toLowerCase();
-  const text = `${company} ${category} ${desc}`;
 
   if (company.includes('pch') || company.includes('publishers clearing') || category.includes('pch')) return true;
   if (company.includes('mega million') || company.includes('megamillion') || category.includes('mega million')) return true;
@@ -147,6 +143,21 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
     }
   }
   return Array.from(map.values());
+}
+
+export const MASTER_SEED_RECORDS: ThreatRecord[] = deduplicateThreatRecordsList((databaseSeed as ThreatRecord[]) || []);
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const digits = (record.phone_digits || record.phone_number || record.phone || record.cleanPhone || '').replace(/\D/g, '');
+  if (digits.includes(target10Digits)) return true;
+  if (Array.isArray(record.alt_numbers)) {
+    for (const alt of record.alt_numbers) {
+      const altDigits = (typeof alt === 'string' ? alt : alt.phone_digits || alt.phone_number || '').replace(/\D/g, '');
+      if (altDigits.includes(target10Digits)) return true;
+    }
+  }
+  return false;
 }
 
 export function formatPSTTimeOnly(date = new Date(), withSeconds = true): string {
@@ -814,6 +825,18 @@ export default function ExportedThreatTable(): React.ReactElement {
         </div>
       )}
 
+      {isScanSummaryOpen && scanSummary && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Scan Summary: Discovered {scanSummary.totalThreatsDiscovered || 0} threats across {scanSummary.totalScans || 0} feeds.</span>
+          </div>
+          <button onClick={() => setIsScanSummaryOpen(false)} className="text-amber-400 hover:text-amber-200 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <header className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1254,6 +1277,7 @@ export default function ExportedThreatTable(): React.ReactElement {
                 setIsImportModalOpen(false);
                 setImportFile(null);
                 setImportPreview(null);
+                setImportError(null);
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-100 cursor-pointer"
             >
@@ -1286,6 +1310,12 @@ export default function ExportedThreatTable(): React.ReactElement {
                 }}
               />
             </div>
+
+            {importError && (
+              <div className="bg-red-500/10 border border-red-500/30 p-3.5 rounded-xl space-y-2 text-xs text-red-300">
+                <span>{importError}</span>
+              </div>
+            )}
 
             {importPreview && (
               <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-xl space-y-2 text-xs">

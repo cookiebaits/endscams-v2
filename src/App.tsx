@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import TrackerPage from './pages/TrackerPage';
 import ReportScamPage from './pages/ReportScamPage';
-import { ShieldAlert, PhoneCall, PlusCircle, Database, HelpCircle, ExternalLink } from 'lucide-react';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'tracker' | 'report'>('tracker');

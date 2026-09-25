@@ -5,12 +5,9 @@ import {
   AlertTriangle,
   RefreshCw,
   Copy,
-  ExternalLink,
   Shield,
   Key,
-  Layers,
   X,
-  Server,
   Sparkles,
 } from 'lucide-react';
 import {

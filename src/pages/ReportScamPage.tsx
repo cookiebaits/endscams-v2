@@ -4,20 +4,12 @@ import {
   ArrowLeft,
   CheckCircle2,
   AlertTriangle,
-  Calendar,
-  Building2,
-  DollarSign,
-  Phone,
-  MessageSquare,
-  FileText,
-  Send,
   X,
   Download,
   Upload,
   Sparkles,
   ExternalLink,
   Shield,
-  Radio,
   Image as ImageIcon,
   Check,
 } from 'lucide-react';
@@ -57,7 +49,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
   onNavigateToTracker,
   onRecordCreated,
 }) => {
-  // Form State matching Image 2 Template
+  // Form State
   const [phoneNumber, setPhoneNumber] = useState('');
   const [scammerName, setScammerName] = useState('');
   const [altNumber1, setAltNumber1] = useState('');
@@ -409,7 +401,7 @@ export default function ExportedScamReportCard(): React.ReactElement {
         </div>
       )}
 
-      {/* Main Form Container Matching Image 2 Template */}
+      {/* Main Form Container */}
       <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5 text-slate-100 font-sans relative">
         {/* Header Strip */}
         <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-800/80">
@@ -727,7 +719,7 @@ export default function ExportedScamReportCard(): React.ReactElement {
             />
           </div>
 
-          {/* Footer Action Strip Matching Image 2 Template */}
+          {/* Footer Action Strip */}
           <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-slate-800/80">
             <div className="flex items-center space-x-2 text-[11px] text-slate-400">
               <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />

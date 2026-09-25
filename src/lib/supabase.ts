@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { ThreatRecord } from '../types';
-import { formatDisplayPhone } from '../utils/phoneUtils';
+import { formatDisplayPhone, isTollFreeNumber } from '../utils/phoneUtils';
 import { normalizeToNumericalDate } from '../utils/dateUtils';
 
 let supabaseInstance: SupabaseClient | null = null;
@@ -80,6 +80,31 @@ export function getSupabaseClient(): SupabaseClient | null {
     return null;
   }
 }
+
+/**
+ * Dynamic proxy export for modules directly importing `supabase`
+ */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseClient();
+    if (client) {
+      const val = (client as any)[prop];
+      return typeof val === 'function' ? val.bind(client) : val;
+    }
+    const fallback = createClient('https://placeholder.supabase.co', 'placeholder-key');
+    const val = (fallback as any)[prop];
+    return typeof val === 'function' ? val.bind(fallback) : val;
+  },
+});
+
+export const formatPhoneDisplay = (rawPhone: string, cleanDigits?: string) => {
+  const digits = cleanDigits || rawPhone.replace(/\D/g, '');
+  return formatDisplayPhone(rawPhone, digits);
+};
+
+export const normalizePhone = (phone: string) => (phone || '').replace(/\D/g, '');
+
+export const isTollFree = isTollFreeNumber;
 
 export interface SupabaseSyncResult {
   success: boolean;
