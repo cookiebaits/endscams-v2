@@ -337,7 +337,7 @@ export default function HomePage() {
       }
 
       // 2. Check local Master Seed Records (used on /tracker page)
-      MASTER_SEED_RECORDS.forEach((s) => {
+      (MASTER_SEED_RECORDS as any[]).forEach((s: any) => {
         if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
           seenIds.add(s.id);
           trackerEntries.push({

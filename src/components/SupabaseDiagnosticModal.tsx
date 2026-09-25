@@ -5,12 +5,9 @@ import {
   AlertTriangle,
   RefreshCw,
   Copy,
-  ExternalLink,
   Shield,
   Key,
-  Layers,
   X,
-  Server,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -150,13 +147,8 @@ export const SupabaseDiagnosticModal: React.FC<SupabaseDiagnosticModalProps> = (
           id: testId,
           phone_number: '1 (800) 000-0000',
           phone_digits: `ping${Date.now()}`,
-          clean_phone: `ping${Date.now()}`,
           category: 'Diagnostic Ping',
-          scam_type: 'Diagnostic Ping',
-          source_name: 'Diagnostic Tool',
-          source_platform: 'Diagnostic Tool',
           description: 'Self-deleting test row',
-          detected_at: new Date().toISOString(),
         };
 
         const { error: insertErr } = await client.from(tableFound).insert([testRow]);
@@ -302,8 +294,18 @@ CREATE POLICY "Allow public delete tracker_entries"
   TO anon, authenticated 
   USING (true);
 
--- Enable Supabase Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tracker_entries;
+-- Safe, idempotent Supabase Realtime publication setup
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+    AND schemaname = 'public'
+    AND tablename = 'tracker_entries'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.tracker_entries;
+  END IF;
+END $$;
 `;
 
   if (!isOpen) return null;
@@ -320,15 +322,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.tracker_entries;
 
         {/* Header */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
             <Database className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-100">
-              Supabase Database Connection & RLS Diagnostics
+              Table Settings & Database Connection
             </h2>
             <p className="text-xs text-slate-400">
-              Diagnose why records don't persist in incognito and configure real-time Supabase sync.
+              Manage database settings, table schema diagnostics, and real-time data persistence.
             </p>
           </div>
         </div>

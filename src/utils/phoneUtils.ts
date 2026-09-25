@@ -59,24 +59,29 @@ export function isFictitiousOrInvalidPhone(phone: string): boolean {
   return false;
 }
 
-export function formatDisplayPhone(rawPhone: string, cleanDigits: string): string {
-  const cleaned = rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim();
-  if (cleanDigits.length === 10) {
-    return `1 (${cleanDigits.slice(0, 3)}) ${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6)}`;
+export function formatDisplayPhone(rawPhone: string, cleanDigits?: string): string {
+  const digits = cleanDigits || (rawPhone ? rawPhone.replace(/\D/g, '') : '');
+  const cleaned = rawPhone ? rawPhone.replace(/^=\+?/, '').replace(/^"/, '').replace(/"$/, '').trim() : '';
+  if (digits.length === 10) {
+    return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
-  if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) {
-    return `1 (${cleanDigits.slice(1, 4)}) ${cleanDigits.slice(4, 7)}-${cleanDigits.slice(7)}`;
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
-  if (cleanDigits.startsWith('234') && cleanDigits.length === 13) {
-    return `+234 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
+  if (digits.startsWith('234') && digits.length === 13) {
+    return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
   }
-  if (cleanDigits.startsWith('254') && cleanDigits.length === 12) {
-    return `+254 ${cleanDigits.slice(3, 6)} ${cleanDigits.slice(6, 9)} ${cleanDigits.slice(9)}`;
+  if (digits.startsWith('254') && digits.length === 12) {
+    return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
   }
-  if (cleanDigits.startsWith('27') && cleanDigits.length === 11) {
-    return `+27 ${cleanDigits.slice(2, 4)} ${cleanDigits.slice(4, 7)} ${cleanDigits.slice(7)}`;
+  if (digits.startsWith('27') && digits.length === 11) {
+    return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
   }
-  return cleaned.startsWith('+') ? cleaned : `+${cleanDigits}`;
+  return cleaned.startsWith('+') ? cleaned : `+${digits}`;
+}
+
+export function formatPhoneDisplay(rawPhone: string, cleanDigits?: string): string {
+  return formatDisplayPhone(rawPhone, cleanDigits);
 }
 
 export function deriveCountryInfo(phone: string): { code: string; name: string; isAfrican: boolean; allowed: boolean } {

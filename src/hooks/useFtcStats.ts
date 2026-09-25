@@ -34,7 +34,7 @@ export function useFtcStats() {
       .select('*')
       .eq('id', 1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: any }) => {
         if (data) {
           setStats({
             total_loss: data.total_loss ?? DEFAULTS.total_loss,
