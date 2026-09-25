@@ -21,6 +21,7 @@ import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib
 import Banner from '../components/Banner';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 import { isUserCountryAllowed } from '../utils/geoIp';
+import { noSqlDatabase } from '../db/noSqlDatabase';
 
 export interface ReportScamPageProps {
   onNavigateToTracker?: () => void;
@@ -387,13 +388,35 @@ export default function ReportScamPage({ onNavigateToTracker, isModal = false, o
       bc2.close();
     } catch {}
 
-    // 6. Direct localStorage updates for TrackerPage
+    // 6. Direct localStorage and NoSQL database updates for TrackerPage
     try {
       const raw = localStorage.getItem('esscan_threat_records_v2') || '[]';
       const existing = JSON.parse(raw);
       const filtered = Array.isArray(existing) ? existing.filter((r: any) => r.phone_digits !== digits) : [];
       filtered.unshift(newThreatRecord);
       localStorage.setItem('esscan_threat_records_v2', JSON.stringify(filtered));
+    } catch {}
+
+    try {
+      const col = noSqlDatabase.getRecordsCollection();
+      const sr = {
+        id: newThreatRecord.id,
+        phone: newThreatRecord.phone_number,
+        cleanPhone: newThreatRecord.phone_digits,
+        scamType: newThreatRecord.category,
+        company: newThreatRecord.impersonated_company,
+        dateAdded: newThreatRecord.report_date,
+        sourceUrl: newThreatRecord.source_url,
+        platform: newThreatRecord.source_name,
+        country: 'US',
+        snippet: newThreatRecord.description,
+        status: 'Active Scam Line'
+      };
+      const key = sr.cleanPhone || sr.phone;
+      const existing = col.findOne((e) => (e.cleanPhone && e.cleanPhone === key) || (e.phone && e.phone === key));
+      if (existing) col.update(existing.id, sr as any);
+      else col.insert(sr as any);
+      noSqlDatabase.persist();
     } catch {}
 
     try {

@@ -59,7 +59,6 @@ import {
   isBypassAllowedForAction,
   checkClientGeoPermission,
 } from '../utils/security';
-import { getClientVaultSecrets } from '../lib/cryptoVault';
 
 export interface AltNumberEntry {
   phone: string;
@@ -1430,10 +1429,22 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const pDigits = (record.phone_digits || record.phoneNumber || record.phone_number || record.phone || '').replace(/\D/g, '');
+  if (pDigits.includes(target10Digits)) return true;
+  if (record.alt_phone_digits && String(record.alt_phone_digits).replace(/\D/g, '').includes(target10Digits)) return true;
+  if (record.alt_phone_number && String(record.alt_phone_number).replace(/\D/g, '').includes(target10Digits)) return true;
+  if (Array.isArray(record.alt_numbers)) {
+    return record.alt_numbers.some((alt: any) => (alt.digits || alt.phone || '').replace(/\D/g, '').includes(target10Digits));
+  }
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';
@@ -2469,7 +2480,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
     syncRecordToSupabase(updated);
   };
 
-  // Bulk Sync Records to Supabase Database & Backend API
+  // Bulk Sync Records to Supabase Database (https://joxeqlgkuvgvjoshmjqu.supabase.co) & Backend API
   const syncThreatRecordsToSupabase = async (recs: ThreatRecord[]): Promise<{ success: boolean; error?: string }> => {
     if (!recs || recs.length === 0) return { success: true };
     try {
@@ -3470,7 +3481,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
   };
 
   const validateAndPreviewCSV = (rawText: string) => {
-    let clean = rawText.replace(/^\uFEFF/, '').trim();
+    const clean = rawText.replace(/^\uFEFF/, '').trim();
     if (!clean) {
       setImportError('Uploaded file is empty.');
       setImportPreview(null);
@@ -4489,7 +4500,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                       {/* Company Impersonated (Company / Target) */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-300 font-medium">
                         <span className="text-slate-200 font-semibold">
-                          {resolveTargetCompany(record.scammer_name || record.impersonated_company, record.category, record.description)}
+                          {resolveTargetCompany(record.impersonated_company, record.category, record.description)}
                         </span>
                       </td>
 
@@ -4865,7 +4876,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   )}
                 </div>
                 <p className="text-xs text-slate-400 font-mono truncate max-w-md">
-                  {supabaseTableStatus?.connectionTarget || supabaseTableStatus?.databaseSource || dokployConfig.supabaseUrl || getClientVaultSecrets().supabaseUrl}
+                  {supabaseTableStatus?.connectionTarget || supabaseTableStatus?.databaseSource || dokployConfig.supabaseUrl || 'https://joxeqlgkuvgvjoshmjqu.supabase.co'}
                 </p>
               </div>
             </div>
@@ -4922,7 +4933,7 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
                   <span>How to Initialize in Supabase (1-Minute Setup):</span>
                 </h3>
                 <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-400 leading-relaxed">
-                  <li>Open your <strong className="text-slate-200">Supabase Dashboard</strong> for project <code className="text-amber-300">{dokployConfig.supabaseUrl ? (dokployConfig.supabaseUrl.replace(/^https?:\/\//, '').split('.')[0]) : getClientVaultSecrets().projectRef}</code>.</li>
+                  <li>Open your <strong className="text-slate-200">Supabase Dashboard</strong> for project <code className="text-amber-300">joxeqlgkuvgvjoshmjqu</code>.</li>
                   <li>Click <strong className="text-slate-200">SQL Editor</strong> on the left sidebar.</li>
                   <li>Click <strong className="text-slate-200">"New query"</strong>.</li>
                   <li>Click the button below to copy the SQL schema, paste it into the editor, and click <strong className="text-emerald-300">Run</strong>.</li>
@@ -5139,7 +5150,7 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                 </div>
                 <h2 className="text-lg font-bold text-slate-100">
                   {resolveTargetCompany(
-                    selectedDetailRecord.scammer_name || selectedDetailRecord.impersonated_company,
+                    selectedDetailRecord.impersonated_company,
                     selectedDetailRecord.category,
                     selectedDetailRecord.description
                   )}
@@ -5309,11 +5320,13 @@ CREATE POLICY "Allow anon and auth update scam_records" ON public.scam_records F
                       <span>Scammer's Name / Target</span>
                     </div>
                     <div className="text-slate-200 font-semibold text-sm">
-                      {resolveTargetCompany(
-                        selectedDetailRecord.scammer_name || selectedDetailRecord.impersonated_company,
-                        selectedDetailRecord.category,
-                        selectedDetailRecord.description
-                      )}
+                      {selectedDetailRecord.scammer_name && selectedDetailRecord.scammer_name !== 'N/A'
+                        ? selectedDetailRecord.scammer_name
+                        : resolveTargetCompany(
+                            selectedDetailRecord.impersonated_company,
+                            selectedDetailRecord.category,
+                            selectedDetailRecord.description
+                          )}
                     </div>
                   </div>
 

@@ -1,6 +1,6 @@
 /**
  * Universal Phone Formatting and Clipboard Operations Utility
- * 
+ *
  * Rules:
  * 1. US numbers MUST ALWAYS display as: 1 (xxx) xxx-xxxx
  *    Even if provided as +1 (xxx) xxx-xxxx, xxx-xxx-xxxx, 1-xxx-xxx-xxxx, (xxx) xxx-xxxx, or raw 10/11 digits.

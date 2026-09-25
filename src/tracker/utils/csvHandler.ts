@@ -262,8 +262,13 @@ function deriveCountry(cleanPhone: string): { code: string; name: string } {
  * Checks if a phone number is a North American toll-free number.
  * Toll-free prefixes: 800, 888, 877, 866, 855, 844, 833
  */
-export function isTollFreeNumber(_phone: string): boolean {
-  return false;
+export function isTollFreeNumber(phone: string): boolean {
+  if (!phone) return false;
+  const digits = phone.replace(/\D/g, '');
+  const coreDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+  if (coreDigits.length !== 10) return false;
+  const areaCode = coreDigits.slice(0, 3);
+  return ['800', '833', '844', '855', '866', '877', '888'].includes(areaCode);
 }
 
 /**
