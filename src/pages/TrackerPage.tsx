@@ -462,11 +462,30 @@ export function parseFullCSV(csvContent: string): {
   return { valid, rejectedBad };
 }
 
+import seedData from '../data/database_seed.json';
+
 // ============================================================================
-// 6. DEFAULT DATABASE SEED RECORDS
+// 6. DEFAULT DATABASE SEED RECORDS & RE-EXPORTS
 // ============================================================================
 
-const DEFAULT_SEED_RECORDS: ThreatRecord[] = [];
+export const MASTER_SEED_RECORDS: ThreatRecord[] = seedData as ThreatRecord[];
+
+export function isRecordMatch(record: ThreatRecord, target10Digits: string): boolean {
+  if (!target10Digits) return false;
+  const digits = target10Digits.replace(/\D/g, '');
+  if (!digits) return false;
+  if (record.phone_digits && record.phone_digits.includes(digits)) return true;
+  if (record.phone_number && record.phone_number.replace(/\D/g, '').includes(digits)) return true;
+  if (record.alt_numbers) {
+    for (const alt of record.alt_numbers) {
+      if (alt.digits && alt.digits.includes(digits)) return true;
+      if (alt.phone && alt.phone.replace(/\D/g, '').includes(digits)) return true;
+    }
+  }
+  return false;
+}
+
+const DEFAULT_SEED_RECORDS: ThreatRecord[] = MASTER_SEED_RECORDS;
 
 // Helper: Deduplication
 function deduplicateRecords(records: ThreatRecord[]): ThreatRecord[] {
@@ -535,6 +554,36 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
     });
 
     loadSharedRecords();
+  }, []);
+
+  // BroadcastChannel Listener for Instant Live Report Sync from /report
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('end_scam_scan_sync_channel');
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === 'ADD_RECORD' && event.data.record) {
+          const newRec: ThreatRecord = event.data.record;
+          setRecords((prev) => {
+            const exists = prev.some(
+              (r) => r.id === newRec.id || (r.phone_digits && r.phone_digits === newRec.phone_digits)
+            );
+            if (exists) {
+              return prev.map((r) =>
+                r.id === newRec.id || r.phone_digits === newRec.phone_digits ? { ...r, ...newRec } : r
+              );
+            }
+            return [newRec, ...prev];
+          });
+          setStatusNotification(`New threat report for ${newRec.phone_number} live synced!`);
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel sync error:', e);
+    }
+    return () => {
+      if (bc) bc.close();
+    };
   }, []);
 
   const loadSharedRecords = async () => {

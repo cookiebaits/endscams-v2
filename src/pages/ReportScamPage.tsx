@@ -13,6 +13,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
+import Banner from '../components/Banner';
 
 export interface AltNumberEntry {
   phone: string;
@@ -870,8 +871,21 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4">
-      {formCard}
+    <div className="w-full space-y-4">
+      <Banner
+        variant="info"
+        id="report_privacy_notice"
+        dismissible
+        center
+        message={
+          <span>
+            <strong>Privacy Notice:</strong> Verified scam phone numbers and incident details are cataloged on the public Scam Tracker for 90 days to protect the community. Do not include your personal banking credentials.
+          </span>
+        }
+      />
+      <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-2">
+        {formCard}
+      </div>
     </div>
   );
 };
