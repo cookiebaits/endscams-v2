@@ -253,7 +253,7 @@ export function getStoredSupabaseConfig(): { url: string; key: string } {
     (typeof process !== 'undefined' && process.env?.SUPABASE_URL) ||
     (import.meta as any).env?.SUPABASE_URL ||
     (import.meta as any).env?.VITE_SUPABASE_URL ||
-    '';
+    'https://joxeqlgkuvgvjoshmjqu.supabase.co';
 
   let key =
     (typeof process !== 'undefined' && (process.env?.SUPABASE_KEY || process.env?.SUPABASE_ANON_KEY)) ||
@@ -992,27 +992,24 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
               <span>Export .tsx</span>
             </button>
 
-            {onNavigateToReport ? (
-              <button
-                onClick={onNavigateToReport}
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-red-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-red-900/60 cursor-pointer shadow-sm"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                <span>Report Scam (endscams.org)</span>
-                <ExternalLink className="w-3 h-3 text-slate-400 ml-0.5" />
-              </button>
-            ) : (
-              <a
-                href="https://endscams.org"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-red-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-red-900/60 shadow-sm"
-              >
-                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                <span>Report Scam (endscams.org)</span>
-                <ExternalLink className="w-3 h-3 text-slate-400 ml-0.5" />
-              </a>
-            )}
+            <button
+              onClick={() => {
+                if (onNavigateToReport) {
+                  onNavigateToReport();
+                } else {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('page', 'report');
+                  window.history.pushState({ page: 'report' }, '', url.toString());
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-red-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-red-900/60 cursor-pointer shadow-sm"
+              title="Navigate to Scam Report submission page"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+              <span>Report Scam (endscams.org)</span>
+              <ExternalLink className="w-3 h-3 text-slate-400 ml-0.5" />
+            </button>
 
             <button
               onClick={() => requireAdminAuth('Open Database Settings', () => setIsSettingsModalOpen(true))}
@@ -1711,22 +1708,28 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  PostgreSQL / Supabase Project URL (Dokploy override)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">
+                    SUPABASE_URL <span className="text-slate-500 font-normal">(Dokploy Environment)</span>
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-mono">SUPABASE_URL</span>
+                </div>
                 <input
                   type="text"
                   value={supabaseUrlInput}
                   onChange={(e) => setSupabaseUrlInput(e.target.value)}
-                  placeholder="https://xyzcompany.supabase.co"
+                  placeholder="https://joxeqlgkuvgvjoshmjqu.supabase.co"
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 text-xs font-mono focus:outline-none focus:border-amber-500"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Database Anon / Service Role Key
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-300 font-semibold">
+                    SUPABASE_KEY / ANON_KEY <span className="text-slate-500 font-normal">(Dokploy Environment)</span>
+                  </label>
+                  <span className="text-[10px] text-amber-400 font-mono">SUPABASE_KEY</span>
+                </div>
                 <input
                   type="password"
                   value={supabaseKeyInput}
