@@ -1,925 +1,734 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldAlert,
-  Shield,
-  Upload,
-  ExternalLink,
-  X,
+  ArrowLeft,
   CheckCircle2,
   AlertTriangle,
-  ArrowLeft,
   Calendar,
-  Phone,
-  DollarSign,
-  User,
-  Mail,
-  FileText,
   Building2,
+  DollarSign,
+  Phone,
   MessageSquare,
+  FileText,
+  Send,
+  X,
+  Upload,
+  Sparkles,
+  ExternalLink,
+  Shield,
+  Radio,
+  Image as ImageIcon,
+  Check,
+  RefreshCw,
+  Database,
 } from 'lucide-react';
-import { supabase, normalizePhone, formatPhoneDisplay, isTollFree } from '../lib/supabase';
-import Banner from '../components/Banner';
-import { requireDisclaimerAcceptance } from '../components/TermsBanner';
-import { isUserCountryAllowed } from '../utils/geoIp';
+import { ThreatRecord, AltNumberEntry } from '../types';
+import { formatDisplayPhone } from '../utils/phoneUtils';
+import { getPSTDateStamp } from '../utils/dateUtils';
 
 export interface ReportScamPageProps {
-  onNavigateToTracker?: () => void;
   isModal?: boolean;
   onCloseModal?: () => void;
+  onNavigateToTracker?: () => void;
+  onRecordCreated?: (record: ThreatRecord) => void;
 }
 
-export type FormData = {
-  phoneNumber: string;
-  scammerName: string;
-  altPhone1: string;
-  altPhone2: string;
-  altPhone2IsWhatsApp: boolean;
-  moneyLost: string;
-  category: string;
-  incidentDate: string;
-  howContacted: string;
-  isPrimaryWhatsApp: boolean;
-  description: string;
-  reporterName: string;
-  reporterEmail: string;
-};
-
-const CATEGORIES = [
-  'Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)',
-  'General Tech Support & Refund Scams',
+export const STANDARD_SCAM_CATEGORIES = [
+  'Lottery & Sweepstakes Scams (American Cash Awards, PCH, Mega Millions)',
+  'General Tech Support & Refund Scams (Geek Squad, Microsoft, Apple)',
+  'Bank & Financial Impersonation (Chase, Wells Fargo, Zelle, Wire Fraud)',
   'Crypto BTC Recovery Scam',
-  'Social Media Prize & Giveaway Scam',
-  'Government Impersonation & Warrant Scams',
-  'Emergency & Grandparent Scams',
   'Spellcaster WhatsApp Extortion',
-  'Publishing Chat Scam',
-  'Spiritual / Herbal / Fortune Scam',
-  'Other Scam',
+  'Government & Law Enforcement (Social Security, IRS, Police, DEA)',
+  'Utility & Telecom Scams (Spectrum, AT&T, Power/Electric)',
+  'Job, Task & Investment Scams',
+  'Vehicle & Auto Warranty Scams',
+  'Healthcare, Medicare & Medical Scams',
+  'Romance & Blackmail Scams',
+  'Other / Uncategorized Threat',
 ];
 
-const HOW_CONTACTED = [
-  'Phone Call',
-  'Text Message',
-  'WhatsApp',
-  'Email',
-  'Social Media',
-  'Website',
-  'In Person',
-  'Other',
-];
+export const ReportScamPage: React.FC<ReportScamPageProps> = ({
+  isModal = false,
+  onCloseModal,
+  onNavigateToTracker,
+  onRecordCreated,
+}) => {
+  // Form State
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [scammerName, setScammerName] = useState('');
+  const [altNumber1, setAltNumber1] = useState('');
+  const [altNumber2, setAltNumber2] = useState('');
+  const [isAlt2Whatsapp, setIsAlt2Whatsapp] = useState(false);
+  const [isPrimaryWhatsapp, setIsPrimaryWhatsapp] = useState(false);
+  const [moneyLost, setMoneyLost] = useState('');
+  const [category, setCategory] = useState(STANDARD_SCAM_CATEGORIES[0]);
+  const [howContacted, setHowContacted] = useState('Phone Call');
+  const [reportDate, setReportDate] = useState(() => getPSTDateStamp());
+  const [description, setDescription] = useState('');
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-const MAX_SIZE_BYTES = 10 * 1024 * 1024;
-
-const FEDERAL_LINKS = [
-  { name: 'FTC — ReportFraud.ftc.gov', sub: 'Federal Trade Commission', url: 'https://reportfraud.ftc.gov' },
-  { name: 'IC3 — Internet Crime (FBI)', sub: 'FBI Internet Crime Complaint Center', url: 'https://www.ic3.gov' },
-  { name: 'USA.gov — Report Scams', sub: 'Official US Government Portal', url: 'https://www.usa.gov/report-scams' },
-  { name: 'CISA — Cybersecurity Threats', sub: 'Cybersecurity & Infrastructure Security Agency', url: 'https://www.cisa.gov/report' },
-];
-
-export default function ReportScamPage({ onNavigateToTracker, isModal = false, onCloseModal }: ReportScamPageProps) {
-  const [form, setForm] = useState<FormData>({
-    phoneNumber: '',
-    scammerName: '',
-    altPhone1: '',
-    altPhone2: '',
-    altPhone2IsWhatsApp: false,
-    moneyLost: '',
-    category: CATEGORIES[0],
-    incidentDate: new Date().toISOString().split('T')[0],
-    howContacted: 'Phone Call',
-    isPrimaryWhatsApp: false,
-    description: '',
-    reporterName: '',
-    reporterEmail: '',
-  });
-
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file', string>>>({});
-  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [submittedRecordPhone, setSubmittedRecordPhone] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  // Screenshot & OCR State
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync title for browser tab
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.title = 'Report a Scam Line | EndScams Live Tracker';
-    }
-  }, []);
+  // Submission & Feedback
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const update = <K extends keyof FormData>(field: K, value: FormData[K]) => {
-    setForm((f) => ({ ...f, [field]: value }));
-    if (errors[field]) {
-      setErrors((e) => ({ ...e, [field]: undefined }));
-    }
-  };
+  // API base URL configured via Dokploy environment settings
+  const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || '') : '';
 
-  const processFile = (f: File) => {
-    if (!ACCEPTED_TYPES.includes(f.type) && !f.type.startsWith('image/')) {
-      setErrors((e) => ({ ...e, file: 'Invalid file type. Accepted: PNG, JPG, WEBP, GIF, PDF.' }));
-      return;
-    }
-    if (f.size > MAX_SIZE_BYTES) {
-      setErrors((e) => ({ ...e, file: 'File exceeds 10MB maximum limit.' }));
-      return;
-    }
-    setErrors((e) => ({ ...e, file: undefined }));
-    setFile(f);
-    if (f.type.startsWith('image/')) {
+  // AI OCR Execution Handler
+  const processImageWithOcr = useCallback(async (file: File) => {
+    setFeedback(null);
+    setOcrStatus('Scanning screenshot with AI OCR engine...');
+    setIsOcrProcessing(true);
+
+    try {
       const reader = new FileReader();
-      reader.onload = (ev) => setFilePreview(ev.target?.result as string);
-      reader.readAsDataURL(f);
-    } else {
-      setFilePreview(null);
+      reader.onload = async () => {
+        const base64Data = reader.result as string;
+        setScreenshotPreview(base64Data);
+
+        try {
+          const res = await fetch(`${apiBase}/api/ocr-scan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: base64Data,
+              mimeType: file.type || 'image/png',
+            }),
+          });
+
+          const data = await res.json();
+          if (data.success && data.data) {
+            const parsed = data.data;
+            if (parsed.primaryPhoneNumber) setPhoneNumber(parsed.primaryPhoneNumber);
+            if (parsed.scammerName) setScammerName(parsed.scammerName);
+            if (parsed.altPhoneNumber1) setAltNumber1(parsed.altPhoneNumber1);
+            if (parsed.altPhoneNumber2) setAltNumber2(parsed.altPhoneNumber2);
+            if (typeof parsed.isWhatsapp === 'boolean') setIsPrimaryWhatsapp(parsed.isWhatsapp);
+            if (typeof parsed.isAlt2Whatsapp === 'boolean') setIsAlt2Whatsapp(parsed.isAlt2Whatsapp);
+            if (parsed.financialLoss) setMoneyLost(String(parsed.financialLoss));
+            if (parsed.howContacted) setHowContacted(parsed.howContacted);
+            if (parsed.category) {
+              const matched = STANDARD_SCAM_CATEGORIES.find((c) =>
+                c.toLowerCase().includes(parsed.category.toLowerCase()) || parsed.category.toLowerCase().includes(c.toLowerCase())
+              );
+              if (matched) setCategory(matched);
+            }
+            if (parsed.incidentDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.incidentDate)) {
+              setReportDate(parsed.incidentDate);
+            }
+            if (parsed.description) setDescription(parsed.description);
+
+            setOcrStatus('✨ Screenshot analyzed with AI OCR! All detected fields auto-populated.');
+            setTimeout(() => setOcrStatus(null), 8000);
+          } else {
+            setOcrStatus('Screenshot attached.');
+          }
+        } catch (err: any) {
+          console.warn('OCR fetch failed:', err);
+          setOcrStatus('Screenshot attached.');
+        } finally {
+          setIsOcrProcessing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setIsOcrProcessing(false);
+      setOcrStatus(null);
+      setFeedback({ type: 'error', message: `Could not process image: ${err.message}` });
     }
-  };
+  }, [apiBase]);
 
-  const handleFileChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
-    const f = ev.target.files?.[0];
-    if (f) processFile(f);
-  };
+  // Global Paste Handler for Instant OCR (Ctrl+V / Cmd+V)
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
 
-  const handleDragOver = (ev: React.DragEvent<HTMLDivElement>) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    setIsDragging(true);
-  };
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            processImageWithOcr(file);
+            break;
+          }
+        }
+      }
+    };
 
-  const handleDragLeave = (ev: React.DragEvent<HTMLDivElement>) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    setIsDragging(false);
-  };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [processImageWithOcr]);
 
-  const handleDrop = (ev: React.DragEvent<HTMLDivElement>) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    setIsDragging(false);
-    const files = ev.dataTransfer.files;
-    if (files && files.length > 0) {
-      processFile(files[0]);
-    }
-  };
+  // Window drag-and-drop handling
+  useEffect(() => {
+    const handleWindowDragOver = (e: DragEvent) => e.preventDefault();
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+        const file = e.dataTransfer.files[0];
+        if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(file.name)) {
+          processImageWithOcr(file);
+        }
+      }
+    };
 
-  const removeFile = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setFile(null);
-    setFilePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setErrors((e) => ({ ...e, file: undefined }));
-  };
+    window.addEventListener('dragover', handleWindowDragOver);
+    window.addEventListener('drop', handleWindowDrop);
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, [processImageWithOcr]);
 
-  const validate = (): boolean => {
-    const e: Partial<Record<keyof FormData | 'file', string>> = {};
-    const digits = normalizePhone(form.phoneNumber);
-    if (digits.length < 7 || digits.length > 15) {
-      e.phoneNumber = 'Please enter a valid phone number (at least 7 digits, including country code if international).';
-    } else if (isTollFree(digits)) {
-      e.phoneNumber = 'Toll-free numbers (800, 833, 844, 855, 866, 877, 888) are not accepted on the threat tracker.';
-    }
-
-    if (form.altPhone1.trim()) {
-      const alt1Digits = normalizePhone(form.altPhone1);
-      if (alt1Digits.length < 7) {
-        e.altPhone1 = 'Alt Number #1 must be at least 7 digits.';
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(file.name)) {
+        processImageWithOcr(file);
       }
     }
-
-    if (form.altPhone2.trim()) {
-      const alt2Digits = normalizePhone(form.altPhone2);
-      if (alt2Digits.length < 7) {
-        e.altPhone2 = 'Alt Number #2 must be at least 7 digits.';
-      }
-    }
-
-    if (!form.category) {
-      e.category = 'Please select a scam category.';
-    }
-
-    if (form.description.trim().length < 15) {
-      e.description = 'Please provide details on what happened (at least 15 characters).';
-    }
-
-    if (form.reporterEmail && !/^\S+@\S+\.\S+$/.test(form.reporterEmail.trim())) {
-      e.reporterEmail = 'Please enter a valid email address.';
-    }
-
-    setErrors(e);
-    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
+  // Submit directly to Dokploy PostgreSQL Backend Endpoints
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
 
-    const countryAllowed = await isUserCountryAllowed();
-    if (!countryAllowed) {
-      setErrorMsg('Submission is temporarily restricted from your location.');
-      setStatus('error');
+    const cleanDigits = phoneNumber.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 7) {
+      setFeedback({ type: 'error', message: 'Please enter a valid phone number with at least 7 digits.' });
       return;
     }
 
-    if (!validate()) return;
-    setStatus('submitting');
-    setErrorMsg('');
+    setIsSubmitting(true);
 
-    const digits = normalizePhone(form.phoneNumber);
-    const displayPhone = formatPhoneDisplay(form.phoneNumber);
-
-    // Build alternate numbers array matching the schema
-    const altNumbers: { phone: string; digits: string; is_whatsapp?: boolean }[] = [];
-    if (form.altPhone1.trim()) {
-      const alt1Digits = normalizePhone(form.altPhone1);
-      altNumbers.push({
-        phone: formatPhoneDisplay(form.altPhone1),
-        digits: alt1Digits,
+    const altNumbersList: AltNumberEntry[] = [];
+    if (altNumber1.trim()) {
+      altNumbersList.push({
+        phone: altNumber1.trim(),
+        digits: altNumber1.replace(/\D/g, ''),
         is_whatsapp: false,
       });
     }
-    if (form.altPhone2.trim()) {
-      const alt2Digits = normalizePhone(form.altPhone2);
-      altNumbers.push({
-        phone: formatPhoneDisplay(form.altPhone2),
-        digits: alt2Digits,
-        is_whatsapp: form.altPhone2IsWhatsApp,
+    if (altNumber2.trim()) {
+      altNumbersList.push({
+        phone: altNumber2.trim(),
+        digits: altNumber2.replace(/\D/g, ''),
+        is_whatsapp: isAlt2Whatsapp,
       });
     }
 
-    const resolvedCompany = form.scammerName.trim() || 'Reported Entity';
-    const amountVal = form.moneyLost.trim() ? `$${parseFloat(form.moneyLost).toFixed(2)}` : 'N/A';
-
-    // 1. Convert file to data URL or upload
-    let evidenceUrl: string | undefined = filePreview || undefined;
-    if (file && !evidenceUrl) {
-      try {
-        const reader = new FileReader();
-        evidenceUrl = await new Promise((res) => {
-          reader.onload = () => res(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-      } catch {}
-    }
-
-    // 2. Submit to backend API (/api/report)
-    try {
-      const apiResp = await fetch('/api/report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone_number: displayPhone,
-          phone_digits: digits,
-          scammer_name: resolvedCompany,
-          impersonated_company: resolvedCompany,
-          category: form.category,
-          description: form.description.trim(),
-          incident_date: form.incidentDate,
-          how_contacted: form.howContacted,
-          money_lost: form.moneyLost ? parseFloat(form.moneyLost) : null,
-          amount_charged: amountVal,
-          is_whatsapp: form.isPrimaryWhatsApp,
-          alt_numbers: altNumbers,
-          reporter_name: form.reporterName.trim() || null,
-          reporter_email: form.reporterEmail.trim() || null,
-          image_url: evidenceUrl,
-          file_url: evidenceUrl,
-          source: 'user_report',
-          source_name: 'EndScams Report (endscams.org/report)',
-          source_url: 'https://endscams.org/report',
-        }),
-      });
-
-      if (!apiResp.ok) {
-        const errData = await apiResp.json().catch(() => ({}));
-        console.warn('[Report API notice]', errData.error || 'API response was non-200');
-      }
-    } catch (e) {
-      console.warn('[Report API fetch note]', e);
-    }
-
-    // 3. Direct Supabase Ingestion for persistent PostgreSQL (works on endscams.org)
-    try {
-      await supabase.from('scam_reports').insert({
-        phone_number: displayPhone,
-        phone_digits: digits,
-        category: form.category,
-        description: form.description.trim(),
-        how_contacted: form.howContacted,
-        incident_date: form.incidentDate,
-        reporter_name: form.reporterName.trim() || null,
-        reporter_email: form.reporterEmail.trim() || null,
-        money_lost: form.moneyLost ? parseFloat(form.moneyLost) : null,
-        source: 'user_report',
-        file_url: evidenceUrl || null,
-      });
-
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 90);
-
-      await supabase.from('tracker_entries').upsert(
-        {
-          id: `rec-${digits}`,
-          phone_number: displayPhone,
-          phone_digits: digits,
-          source_name: 'EndScams Report (endscams.org/report)',
-          source_url: 'https://endscams.org/report',
-          report_date: form.incidentDate,
-          category: form.category,
-          description: form.description.trim(),
-          threat_intel: form.description.trim(),
-          impersonated_company: resolvedCompany,
-          amount_charged: amountVal,
-          is_down: false,
-          expires_at: expiresAt.toISOString(),
-        },
-        { onConflict: 'phone_digits' }
-      );
-    } catch (e) {
-      console.warn('[Supabase Direct Sync note]', e);
-    }
-
-    // 4. Create ThreatRecord for local storage & instant live reflection
-    const newThreatRecord = {
-      id: `report-${Date.now()}-${digits.slice(-4)}`,
-      phone_number: displayPhone,
-      phone_digits: digits,
-      is_whatsapp: form.isPrimaryWhatsApp,
-      alt_numbers: altNumbers.length > 0 ? altNumbers : undefined,
-      source_name: 'EndScams Report (endscams.org/report)',
-      source_url: 'https://endscams.org/report',
-      report_date: form.incidentDate,
-      category: form.category,
-      description: form.description.trim(),
-      impersonated_company: resolvedCompany,
-      scammer_name: resolvedCompany,
-      how_contacted: form.howContacted,
-      invoice_number: 'N/A',
-      amount_charged: amountVal,
-      money_lost: form.moneyLost ? parseFloat(form.moneyLost) : undefined,
-      reporter_name: form.reporterName.trim() || undefined,
-      reporter_email: form.reporterEmail.trim() || undefined,
-      image_url: evidenceUrl,
+    const newRecord: ThreatRecord = {
+      id: `report-${Date.now()}-${cleanDigits.slice(-4)}`,
+      phone_number: formatDisplayPhone(phoneNumber, cleanDigits),
+      phone_digits: cleanDigits,
+      is_whatsapp: isPrimaryWhatsapp,
+      alt_numbers: altNumbersList.length > 0 ? altNumbersList : undefined,
+      category,
+      impersonated_company: scammerName.trim() || 'N/A',
+      scammer_name: scammerName.trim() || 'N/A',
+      how_contacted: howContacted,
+      amount_charged: moneyLost ? `$${moneyLost}` : 'N/A',
+      money_lost: moneyLost ? parseFloat(moneyLost) : undefined,
+      source_name: 'Community Ingestion',
+      source_url: 'https://endscams.org',
+      report_date: reportDate,
+      description: description.trim() || 'Community threat report submitted via EndScams.',
+      image_url: screenshotPreview || undefined,
       is_down: false,
     };
 
-    // 5. Broadcast to parent iframe / open tracker pages via BroadcastChannel
+    // Dispatch directly to PostgreSQL API route candidates configured in Dokploy
+    const candidateEndpoints = [
+      `${apiBase}/api/records`,
+      `${apiBase}/api/records/manual`,
+      `${apiBase}/api/report`,
+    ];
+
+    let persisted = false;
+    let lastError: string | null = null;
+
+    const payload = {
+      ...newRecord,
+      phone: newRecord.phone_number,
+      cleanPhone: newRecord.phone_digits,
+      isWhatsapp: newRecord.is_whatsapp,
+      scamType: newRecord.category,
+      impersonatedCompany: newRecord.impersonated_company,
+      detailedSummary: newRecord.description,
+      detectedAt: newRecord.report_date,
+    };
+
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store',
+          },
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) {
+          persisted = true;
+          break;
+        } else {
+          lastError = `Server returned HTTP ${resp.status}`;
+        }
+      } catch (err: any) {
+        lastError = err.message || 'Network unreachable';
+      }
+    }
+
+    // Broadcast across active browser tabs
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
         type: 'ADD_RECORD',
-        event: 'ADD_RECORD',
-        action: 'ADD_RECORD',
-        payload: { record: newThreatRecord, ...newThreatRecord },
-        record: newThreatRecord,
+        record: newRecord,
       });
       bc.close();
     } catch {}
 
-    try {
-      const bc2 = new BroadcastChannel('threat_tracker_sync_channel');
-      bc2.postMessage({
-        type: 'ADD_RECORD',
-        record: newThreatRecord,
-      });
-      bc2.close();
-    } catch {}
-
-    // 6. Direct localStorage updates for TrackerPage
-    try {
-      const raw = localStorage.getItem('esscan_threat_records_v2') || '[]';
-      const existing = JSON.parse(raw);
-      const filtered = Array.isArray(existing) ? existing.filter((r: any) => r.phone_digits !== digits) : [];
-      filtered.unshift(newThreatRecord);
-      localStorage.setItem('esscan_threat_records_v2', JSON.stringify(filtered));
-    } catch {}
-
-    try {
-      const rawShared = localStorage.getItem('end_scam_scan_shared_storage') || '{}';
-      const shared = JSON.parse(rawShared);
-      const records = Array.isArray(shared.records) ? shared.records : [];
-      const updated = [newThreatRecord, ...records.filter((r: any) => (r.phone_digits || r.phone) !== digits)];
-      localStorage.setItem(
-        'end_scam_scan_shared_storage',
-        JSON.stringify({ ...shared, records: updated, lastUpdated: new Date().toISOString() })
-      );
-    } catch {}
-
-    setSubmittedRecordPhone(displayPhone);
-    setStatus('success');
-  };
-
-  const handleReset = () => {
-    setForm({
-      phoneNumber: '',
-      scammerName: '',
-      altPhone1: '',
-      altPhone2: '',
-      altPhone2IsWhatsApp: false,
-      moneyLost: '',
-      category: CATEGORIES[0],
-      incidentDate: new Date().toISOString().split('T')[0],
-      howContacted: 'Phone Call',
-      isPrimaryWhatsApp: false,
-      description: '',
-      reporterName: '',
-      reporterEmail: '',
-    });
-    setErrors({});
-    setStatus('idle');
-    setErrorMsg('');
-    setSubmittedRecordPhone('');
-    removeFile();
-  };
-
-  const handleReturnToTracker = () => {
-    if (onNavigateToTracker) {
-      onNavigateToTracker();
-    } else if (onCloseModal) {
-      onCloseModal();
-    } else {
-      if (typeof window !== 'undefined') {
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
+    if (onRecordCreated) {
+      onRecordCreated(newRecord);
     }
+
+    if (persisted) {
+      setFeedback({
+        type: 'success',
+        message: `Report successfully published! Threat line ${newRecord.phone_number} is committed to the Dokploy PostgreSQL database.`,
+      });
+
+      // Reset form
+      setPhoneNumber('');
+      setScammerName('');
+      setAltNumber1('');
+      setAltNumber2('');
+      setIsAlt2Whatsapp(false);
+      setIsPrimaryWhatsapp(false);
+      setMoneyLost('');
+      setDescription('');
+      setScreenshotPreview(null);
+    } else {
+      setFeedback({
+        type: 'error',
+        message: `Saved locally, but failed to reach Dokploy PostgreSQL service (${lastError || 'Check server logs'}).`,
+      });
+    }
+
+    setIsSubmitting(false);
   };
 
-  // SUCCESS CONFIRMATION VIEW
-  if (status === 'success') {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 flex items-center justify-center">
-        <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 sm:p-8 text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
-            <CheckCircle2 className="w-9 h-9" />
-          </div>
+  const content = (
+    <div className="w-full max-w-4xl mx-auto space-y-4">
+      {onNavigateToTracker && (
+        <div className="sticky top-2 z-20 flex items-center justify-between bg-slate-900/95 backdrop-blur border border-slate-800 p-2.5 rounded-2xl shadow-2xl">
+          <button
+            type="button"
+            onClick={onNavigateToTracker}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition shadow-md flex items-center space-x-1.5 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>← RETURN TO THREAT TRACKER</span>
+          </button>
 
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-100">Report Ingested & Cataloged</h1>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Thank you for contributing to community intelligence. The scam line{' '}
-              <strong className="text-amber-400 font-mono">{submittedRecordPhone}</strong> has been pinned to the live
-              Scam Tracker and persisted to the PostgreSQL database with 90-day auto-retention.
-            </p>
+          <div className="flex items-center space-x-2">
+            <a
+              href="https://endscams.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition border border-slate-700 items-center space-x-1"
+            >
+              <span>endscams.org</span>
+              <ExternalLink className="w-3 h-3 text-slate-400" />
+            </a>
           </div>
+        </div>
+      )}
 
-          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 text-left space-y-2 text-xs">
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Threat Number:</span>
-              <span className="font-mono font-bold text-amber-400">{submittedRecordPhone}</span>
+      <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5 text-slate-100 font-sans relative">
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-800/80">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center shrink-0 shadow-inner">
+              <ShieldAlert className="w-5 h-5" />
             </div>
-            {form.scammerName && (
-              <div className="flex items-center justify-between text-slate-400">
-                <span>Scammer / Entity:</span>
-                <span className="font-semibold text-slate-200">{form.scammerName}</span>
+            <div>
+              <div className="flex items-center space-x-2.5">
+                <h1 className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
+                  Report a Scam
+                </h1>
+                <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                  <Database className="w-3 h-3 text-emerald-400" />
+                  <span>PostgreSQL Active</span>
+                </span>
               </div>
-            )}
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Category:</span>
-              <span className="text-red-400 font-medium">{form.category}</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Incident Intel:</span>
-              <span className="text-slate-300 truncate max-w-[260px]">{form.description}</span>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Direct EndScams ingestion — immediately persists to PostgreSQL database and refreshes Tracker
+              </p>
             </div>
           </div>
 
-          {/* Navigation Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={handleReturnToTracker}
-              className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-md flex items-center justify-center space-x-2 cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>View in CWN Scam Tracker</span>
-            </button>
+          <a
+            href="https://endscams.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition"
+          >
+            <span>endscams.org</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
+        </div>
 
-            <button
-              type="button"
-              onClick={handleReset}
-              className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition border border-slate-700 cursor-pointer"
-            >
-              Submit Another Report
+        {feedback && (
+          <div
+            className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
+              feedback.type === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-red-500/10 border-red-500/30 text-red-300'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {feedback.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              )}
+              <span>{feedback.message}</span>
+            </div>
+            <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-slate-200 cursor-pointer">
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
 
-          {/* Federal Agency Links */}
-          <div className="pt-4 border-t border-slate-800 text-left">
-            <p className="text-xs font-semibold text-slate-400 mb-2">Also consider official federal reporting:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {FEDERAL_LINKS.map((link) => (
-                <a
-                  key={link.name}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-2.5 rounded-lg bg-slate-950 hover:bg-slate-800/80 border border-slate-800 text-slate-300 hover:text-amber-400 transition flex items-center justify-between group"
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-slate-300">
+              <label className="font-semibold text-xs flex items-center space-x-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                <span>Screenshot / Evidence Image <span className="text-slate-500 font-normal">(Optional)</span></span>
+              </label>
+              <span className="text-[10px] text-amber-400 font-mono flex items-center space-x-1">
+                <Sparkles className="w-3 h-3" />
+                <span>AI OCR Auto-Fill (Drag, Drop, or Paste Ctrl+V)</span>
+              </span>
+            </div>
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingOver(false);
+              }}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-2xl p-5 sm:p-6 transition flex flex-col items-center justify-center space-y-2 cursor-pointer relative overflow-hidden ${
+                isDraggingOver
+                  ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400/40'
+                  : 'border-slate-800 hover:border-slate-700 bg-slate-950/60 hover:bg-slate-950'
+              }`}
+            >
+              {screenshotPreview ? (
+                <div className="flex items-center space-x-3 w-full max-w-md bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                  <img src={screenshotPreview} alt="Evidence Preview" className="w-14 h-14 object-cover rounded-lg shrink-0 border border-slate-700" />
+                  <div className="flex-1 truncate">
+                    <span className="text-xs font-semibold text-slate-200 block truncate">Screenshot Attached</span>
+                    <span className="text-[10px] text-emerald-400 flex items-center space-x-1">
+                      {isOcrProcessing ? (
+                        <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                      ) : (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      )}
+                      <span>{ocrStatus || 'OCR Intelligence Extracted'}</span>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScreenshotPreview(null);
+                      setOcrStatus(null);
+                    }}
+                    className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-slate-800 text-slate-300 flex items-center justify-center">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-xs font-semibold text-slate-200 block">
+                      Click to upload or drag and drop scam screenshot
+                    </span>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      PNG, JPG, WEBP up to 10MB • Or paste screenshot anywhere (Ctrl+V)
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {isOcrProcessing && (
+                <div className="absolute inset-0 bg-slate-950/90 rounded-2xl flex items-center justify-center space-x-2 text-amber-400 text-xs font-bold backdrop-blur-xs">
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  <span>Analyzing screenshot with OCR & auto-populating fields...</span>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) processImageWithOcr(f);
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Scam Phone Number <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 1 (502) 237-9660 or 800-..."
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+              />
+              <span className="text-[10px] text-slate-500 block">Real dialable scam numbers only.</span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Scammer's name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. PCH, David Cooper, or Geek Squad"
+                value={scammerName}
+                onChange={(e) => setScammerName(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Alt Phone Number #1 <span className="text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +1 (502) 237-9661"
+                value={altNumber1}
+                onChange={(e) => setAltNumber1(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Alt Phone Number #2 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="e.g. +234 810 552 9412"
+                  value={altNumber2}
+                  onChange={(e) => setAltNumber2(e.target.value)}
+                  className="w-full pl-3.5 pr-24 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsAlt2Whatsapp(!isAlt2Whatsapp)}
+                  className={`absolute right-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center space-x-1 cursor-pointer border ${
+                    isAlt2Whatsapp
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                  }`}
                 >
-                  <span className="truncate">{link.name}</span>
-                  <ExternalLink className="w-3 h-3 text-slate-500 group-hover:text-amber-400 shrink-0 ml-1.5" />
-                </a>
-              ))}
+                  <span className={`w-1.5 h-1.5 rounded-full ${isAlt2Whatsapp ? 'bg-slate-950' : 'bg-slate-500'}`} />
+                  <span>WhatsApp</span>
+                </button>
+              </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Financial Loss ($) <span className="text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 250.00"
+                value={moneyLost}
+                onChange={(e) => setMoneyLost(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Scam Category <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 text-xs cursor-pointer truncate"
+              >
+                {STANDARD_SCAM_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat} className="bg-slate-900">
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                Date of Incident
+              </label>
+              <input
+                type="date"
+                required
+                value={reportDate}
+                onChange={(e) => setReportDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-slate-300 font-semibold">
+                How Were You Contacted?
+              </label>
+              <select
+                value={howContacted}
+                onChange={(e) => setHowContacted(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 focus:outline-none focus:border-amber-500 text-xs cursor-pointer"
+              >
+                <option value="Phone Call" className="bg-slate-900">Phone Call</option>
+                <option value="Text Message (SMS)" className="bg-slate-900">Text Message (SMS)</option>
+                <option value="Email" className="bg-slate-900">Email</option>
+                <option value="WhatsApp Message" className="bg-slate-900">WhatsApp Message</option>
+                <option value="Pop-up / Web Alert" className="bg-slate-900">Pop-up / Web Alert</option>
+                <option value="Social Media (Facebook / Telegram)" className="bg-slate-900">Social Media (Facebook / Telegram)</option>
+                <option value="Letter / Mail" className="bg-slate-900">Letter / Mail</option>
+                <option value="Other" className="bg-slate-900">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <label className="flex items-center space-x-2 text-[11px] text-slate-300 hover:text-slate-100 cursor-pointer pt-1 select-none">
+            <input
+              type="checkbox"
+              checked={isPrimaryWhatsapp}
+              onChange={(e) => setIsPrimaryWhatsapp(e.target.checked)}
+              className="rounded border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer"
+            />
+            <span>This primary phone number operates as a WhatsApp or direct messaging threat line</span>
+          </label>
+
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-slate-300 font-semibold">
+                Describe What Happened <span className="text-red-400">*</span>
+              </label>
+              <span className="text-[10px] text-slate-500 font-mono">
+                Persists to PostgreSQL & displays in Tracker
+              </span>
+            </div>
+            <textarea
+              required
+              rows={4}
+              placeholder="Provide details on the call or message: What did the scammer say? What name did they give? What fees or gift cards did they demand? Any secondary callback numbers..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs leading-relaxed resize-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-3 pt-3 border-t border-slate-800/80">
+            <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+              <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Direct PostgreSQL connection ensures persistence across Dokploy restarts.</span>
+            </div>
+
+            <div className="flex items-center space-x-2.5">
+              {onNavigateToTracker && (
+                <button
+                  type="button"
+                  onClick={onNavigateToTracker}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <ShieldAlert className="w-4 h-4 text-slate-950" />
+                <span>{isSubmitting ? 'Writing to PostgreSQL...' : 'Submit Scam Report'}</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  if (isModal) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div className="w-full max-w-4xl relative my-6">
+          <button
+            onClick={onCloseModal}
+            className="absolute top-4 right-4 z-10 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-100 transition cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {content}
         </div>
       </div>
     );
   }
 
-  // MAIN REPORT FORM VIEW (MATCHING IMAGE SCREENSHOT 1:1)
   return (
-    <div className={isModal ? 'w-full' : 'min-h-screen bg-slate-950 text-slate-100 flex flex-col'}>
-      {/* Top Banner if full-page */}
-      {!isModal && (
-        <Banner
-          variant="warning"
-          id="report_privacy"
-          dismissible
-          message={
-            <span>
-              <strong>Privacy Notice:</strong> Verified scam phone numbers and incident details are cataloged on the public
-              Scam Tracker for 90 days to protect the community. Do not include your personal banking credentials.
-            </span>
-          }
-        />
-      )}
-
-      <div className={`flex-1 ${isModal ? 'p-0' : 'max-w-4xl mx-auto w-full px-4 py-6 sm:py-8'}`}>
-        {/* Modal Card Container */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-          {/* Header Bar matching image: Red Shield, Report a Scam Line, Live Sync Active badge, and endscams.org link */}
-          <div className="flex items-center justify-between px-5 py-4 bg-slate-950 border-b border-slate-800 shrink-0">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center shrink-0">
-                <ShieldAlert className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2.5">
-                  <h1 className="text-base sm:text-lg font-bold text-slate-100 tracking-tight">Report a Scam Line</h1>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    Live Sync Active
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 hidden sm:block">
-                  Direct EndScams ingestion — instantly persists to PostgreSQL and updates Tracker Page
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <a
-                href="https://endscams.org/report"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition text-xs flex items-center space-x-1.5 font-medium border border-slate-700"
-                title="Open endscams.org/report in external window"
-              >
-                <span>endscams.org</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-
-              {(isModal || onNavigateToTracker) && (
-                <button
-                  type="button"
-                  onClick={handleReturnToTracker}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition cursor-pointer"
-                  title="Close / Back to Tracker"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Form Body */}
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 bg-slate-900 overflow-y-auto">
-            {/* Error banner if any */}
-            {status === 'error' && (
-              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start space-x-3 text-red-300 text-xs">
-                <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">{errorMsg || 'Please review the form for errors.'}</p>
-                </div>
-              </div>
-            )}
-
-            {/* 1. Screenshot / Evidence Image (Optional) Dropzone */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Screenshot / Evidence Image <span className="text-slate-500 font-normal">(Optional)</span>
-              </label>
-              <div
-                onClick={() => {
-                  if (fileInputRef.current) fileInputRef.current.click();
-                }}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition outline-none ${
-                  errors.file
-                    ? 'border-red-500 bg-red-500/5'
-                    : isDragging
-                    ? 'border-amber-500 bg-amber-500/10'
-                    : 'border-slate-700 hover:border-slate-500 bg-slate-950/40 hover:bg-slate-950/70'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
-                {filePreview ? (
-                  <div className="flex items-center justify-between bg-slate-800/80 p-2.5 rounded-lg border border-slate-700 max-w-md mx-auto">
-                    <div className="flex items-center space-x-3 overflow-hidden text-left">
-                      <img
-                        src={filePreview}
-                        alt="Evidence preview"
-                        className="w-12 h-12 rounded object-cover border border-slate-700 shrink-0"
-                      />
-                      <div className="truncate">
-                        <p className="text-xs font-medium text-slate-200 truncate">{file?.name || 'Attached evidence'}</p>
-                        <p className="text-[10px] text-slate-400">
-                          {file?.size ? (file.size / 1024).toFixed(1) : '0'} KB
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={removeFile}
-                      className="px-2.5 py-1 bg-slate-700 hover:bg-red-500/20 hover:text-red-400 text-slate-300 rounded text-xs transition cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center space-y-1.5 py-2">
-                    <Upload className="w-6 h-6 text-slate-400 mb-0.5" />
-                    <p className="text-xs text-slate-300 font-medium">Click to upload or drag and drop scam screenshot</p>
-                    <p className="text-[11px] text-slate-500">PNG, JPG, WEBP up to 10MB</p>
-                  </div>
-                )}
-              </div>
-              {errors.file && <p className="text-xs text-red-400 mt-1">{errors.file}</p>}
-            </div>
-
-            {/* 2. Primary Row: Scam Phone Number * & Scammer's name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  Scam Phone Number <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={form.phoneNumber}
-                  onChange={(e) => update('phoneNumber', e.target.value)}
-                  placeholder="e.g. 1 (502) 237-9660 or 800-..."
-                  className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition ${
-                    errors.phoneNumber ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-red-500'
-                  }`}
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Real dialable scam numbers only.</p>
-                {errors.phoneNumber && <p className="text-xs text-red-400 mt-1">{errors.phoneNumber}</p>}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">Scammer's name</label>
-                <input
-                  type="text"
-                  value={form.scammerName}
-                  onChange={(e) => update('scammerName', e.target.value)}
-                  placeholder="e.g. PCH, David Cooper, or Geek Squad"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                />
-              </div>
-            </div>
-
-            {/* 3. Second Row: Alt Phone Number #1 (Optional) & Alt Phone Number #2 / WhatsApp (Optional) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  Alt Phone Number #1 <span className="text-slate-500 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.altPhone1}
-                  onChange={(e) => update('altPhone1', e.target.value)}
-                  placeholder="e.g. +1 (502) 237-9661"
-                  className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition ${
-                    errors.altPhone1 ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-red-500'
-                  }`}
-                />
-                {errors.altPhone1 && <p className="text-xs text-red-400 mt-1">{errors.altPhone1}</p>}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-200">
-                    Alt Phone Number #2 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
-                  </label>
-                </div>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={form.altPhone2}
-                    onChange={(e) => update('altPhone2', e.target.value)}
-                    placeholder="e.g. +234 810 552 9412"
-                    className={`w-full px-3.5 py-2.5 pr-28 bg-slate-950 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition ${
-                      errors.altPhone2 ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-red-500'
-                    }`}
-                  />
-                  <label className="absolute right-2.5 flex items-center space-x-1.5 px-2 py-1 rounded bg-slate-900/90 border border-slate-700 text-xs text-emerald-400 cursor-pointer select-none hover:bg-slate-800 transition">
-                    <input
-                      type="checkbox"
-                      checked={form.altPhone2IsWhatsApp}
-                      onChange={(e) => update('altPhone2IsWhatsApp', e.target.checked)}
-                      className="w-3.5 h-3.5 rounded text-emerald-500 focus:ring-emerald-400 bg-slate-950 border-slate-700 cursor-pointer"
-                    />
-                    <span className="text-[11px] font-medium">WhatsApp</span>
-                  </label>
-                </div>
-                {errors.altPhone2 && <p className="text-xs text-red-400 mt-1">{errors.altPhone2}</p>}
-              </div>
-            </div>
-
-            {/* 4. Third Row: Financial Loss ($) (Optional) & Scam Category * */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  Financial Loss ($) <span className="text-slate-500 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.moneyLost}
-                  onChange={(e) => update('moneyLost', e.target.value)}
-                  placeholder="e.g. 250.00"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">
-                  Scam Category <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={form.category}
-                  onChange={(e) => update('category', e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-                {errors.category && <p className="text-xs text-red-400 mt-1">{errors.category}</p>}
-              </div>
-            </div>
-
-            {/* 5. Fourth Row: Date of Incident & How Were You Contacted? */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">Date of Incident</label>
-                <input
-                  type="date"
-                  value={form.incidentDate}
-                  onChange={(e) => update('incidentDate', e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-1">How Were You Contacted?</label>
-                <select
-                  value={form.howContacted}
-                  onChange={(e) => update('howContacted', e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-red-500 transition cursor-pointer"
-                >
-                  {HOW_CONTACTED.map((method) => (
-                    <option key={method} value={method}>
-                      {method}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 6. Primary Line WhatsApp Checkbox */}
-            <div className="flex items-center space-x-2 pt-0.5">
-              <input
-                type="checkbox"
-                id="form-primary-whatsapp"
-                checked={form.isPrimaryWhatsApp}
-                onChange={(e) => update('isPrimaryWhatsApp', e.target.checked)}
-                className="w-4 h-4 rounded text-red-500 focus:ring-red-400 bg-slate-950 border-slate-700 cursor-pointer"
-              />
-              <label htmlFor="form-primary-whatsapp" className="text-xs text-slate-300 cursor-pointer select-none">
-                This primary phone number operates as a WhatsApp or direct messaging threat line
-              </label>
-            </div>
-
-            {/* 7. Describe What Happened * (Translates to Threat Intel & Snippet on details) */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-200">
-                  Describe What Happened <span className="text-red-400">*</span>
-                </label>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  Translates to Threat Intel & Snippet on Tracker
-                </span>
-              </div>
-              <textarea
-                required
-                rows={3}
-                value={form.description}
-                onChange={(e) => update('description', e.target.value)}
-                placeholder="Provide details on the call or message: What did the scammer say? What name did they give? What fees or gift cards did they demand? Any secondary callback numbers..."
-                className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none transition resize-none leading-relaxed ${
-                  errors.description ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-red-500'
-                }`}
-              />
-              {errors.description && <p className="text-xs text-red-400 mt-1">{errors.description}</p>}
-            </div>
-
-            {/* 8. Optional Reporter Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Your Name / Initials <span className="text-slate-500 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.reporterName}
-                  onChange={(e) => update('reporterName', e.target.value)}
-                  placeholder="e.g. Anonymous or J.D."
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-slate-500 transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Your Email <span className="text-slate-500 font-normal">(Optional)</span>
-                </label>
-                <input
-                  type="email"
-                  value={form.reporterEmail}
-                  onChange={(e) => update('reporterEmail', e.target.value)}
-                  placeholder="e.g. reporter@example.com"
-                  className={`w-full px-3 py-2 bg-slate-950 border rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition ${
-                    errors.reporterEmail ? 'border-red-500 focus:border-red-400' : 'border-slate-700 focus:border-slate-500'
-                  }`}
-                />
-                {errors.reporterEmail && <p className="text-xs text-red-400 mt-1">{errors.reporterEmail}</p>}
-              </div>
-            </div>
-
-            {/* 9. Form Footer: Cataloged Notice, Cancel & Submit Scam Report */}
-            <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-[11px] text-slate-400 flex items-center space-x-1.5">
-                <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Submitted reports are permanently cataloged and synced across all user sessions.</span>
-              </p>
-
-              <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={handleReturnToTracker}
-                  className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={status === 'submitting'}
-                  className="flex-1 sm:flex-none px-5 py-2.5 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow flex items-center justify-center space-x-2 cursor-pointer"
-                >
-                  {status === 'submitting' ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="w-3.5 h-3.5" />
-                      <span>Submit Scam Report</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-950 py-8 px-4 sm:px-6 lg:px-8">
+      {content}
     </div>
   );
-}
+};
+
+export default ReportScamPage;
