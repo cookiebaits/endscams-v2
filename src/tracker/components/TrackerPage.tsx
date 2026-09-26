@@ -1429,10 +1429,31 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const cleanTarget = target10Digits.replace(/\D/g, '');
+  if (!cleanTarget) return false;
+
+  const phoneDigits = (record.phone_digits || record.phoneNumber || record.phone || '').replace(/\D/g, '');
+  if (phoneDigits.includes(cleanTarget) || cleanTarget.includes(phoneDigits)) return true;
+
+  if (record.alt_numbers && Array.isArray(record.alt_numbers)) {
+    for (const alt of record.alt_numbers) {
+      const altDigits = (alt.digits || alt.phone || '').replace(/\D/g, '');
+      if (altDigits && (altDigits.includes(cleanTarget) || cleanTarget.includes(altDigits))) return true;
+    }
+  }
+
+  const altDigits = (record.alt_phone_digits || record.altPhone || '').replace(/\D/g, '');
+  if (altDigits && (altDigits.includes(cleanTarget) || cleanTarget.includes(altDigits))) return true;
+
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';

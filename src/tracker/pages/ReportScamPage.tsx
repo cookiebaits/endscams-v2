@@ -44,7 +44,7 @@ export type FormData = {
   reporterEmail: string;
 };
 
-const CATEGORIES = [
+export const CATEGORIES = [
   'Lottery & Sweepstakes Scams (American Cash Award, PCH, etc.)',
   'General Tech Support & Refund Scams',
   'Crypto BTC Recovery Scam',
@@ -56,6 +56,7 @@ const CATEGORIES = [
   'Spiritual / Herbal / Fortune Scam',
   'Other Scam',
 ];
+export const STANDARD_SCAM_CATEGORIES = CATEGORIES;
 
 const HOW_CONTACTED = [
   'Phone Call',
