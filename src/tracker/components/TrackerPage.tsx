@@ -1429,10 +1429,23 @@ export function deduplicateThreatRecordsList(records: ThreatRecord[]): ThreatRec
   return result;
 }
 
-const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (() => {
   const allSeeds = [...DATABASE_SEED_RECORDS, ...CLEAN_ESSCAN_SEED_RECORDS.filter((r) => !isThreatRecordExpired(r))];
   return purgeExpiredThreatRecords(deduplicateThreatRecordsList(allSeeds)).sort(compareThreatDatesDesc);
 })();
+
+export function isRecordMatch(rec: { phone_digits?: string; alt_numbers?: { digits?: string }[] } | null | undefined, target10Digits: string): boolean {
+  if (!rec || !target10Digits) return false;
+  const digits = (rec.phone_digits || '').replace(/\D/g, '');
+  if (digits && (digits.endsWith(target10Digits) || target10Digits.endsWith(digits))) return true;
+  if (rec.alt_numbers && Array.isArray(rec.alt_numbers)) {
+    return rec.alt_numbers.some((alt) => {
+      const altD = (alt.digits || '').replace(/\D/g, '');
+      return altD && (altD.endsWith(target10Digits) || target10Digits.endsWith(altD));
+    });
+  }
+  return false;
+}
 
 const STORAGE_KEY = 'esscan_threat_records_v2';
 const GEMINI_KEY_STORAGE = 'esscan_gemini_api_key';

@@ -19,20 +19,22 @@ export default function GlobalBanner() {
   };
 
   return (
-    <div className="bg-red-600 text-white px-4 py-2 flex items-center justify-between text-sm font-medium z-50 relative">
-      <div className="flex items-center gap-2 max-w-7xl mx-auto flex-1 justify-center">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-        <span>
-          <strong>ALERT:</strong> Active threat bulletin. Multiple reports of scams targeting vulnerable users, see Scam Tracker for more details.
-        </span>
+    <div className="bg-red-600 text-white px-4 py-2.5 sm:py-3 text-xs sm:text-sm md:text-base font-medium z-50 relative">
+      <div className="max-w-7xl mx-auto flex items-center justify-center relative min-h-[1.75rem]">
+        <div className="flex items-center justify-center gap-2 text-center max-w-5xl px-6 sm:px-8">
+          <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+          <span className="leading-snug text-center">
+            <strong>ALERT:</strong> Active threat bulletin. Multiple reports of scams targeting vulnerable users, see Scam Tracker for more details.
+          </span>
+        </div>
+        <button
+          onClick={handleDismiss}
+          className="p-1 hover:bg-red-700 rounded-lg transition-colors absolute right-0 top-1/2 -translate-y-1/2"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-      <button
-        onClick={handleDismiss}
-        className="p-1 hover:bg-red-700 rounded-lg transition-colors absolute right-4"
-        aria-label="Dismiss"
-      >
-        <X className="w-4 h-4" />
-      </button>
     </div>
   );
 }

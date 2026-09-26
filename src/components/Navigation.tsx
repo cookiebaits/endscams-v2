@@ -50,43 +50,43 @@ export default function Navigation() {
         <div className="flex items-center justify-between h-20">
 
           {/* Left section: Logo */}
-          <div className="flex flex-1 justify-start items-center h-full">
-            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[198px] md:w-[242px] lg:w-[308px] xl:w-[374px] 2xl:w-[462px] shrink-0 h-20">
-              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-[5px] left-0 h-[4.95rem] md:h-[6.05rem] lg:h-[7.15rem] xl:h-[8.25rem] 2xl:h-[9.35rem] max-w-none drop-shadow-md origin-top-left object-contain" />
+          <div className="flex items-center shrink-0 min-w-0">
+            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity relative z-50 w-[180px] md:w-[220px] lg:w-[280px] xl:w-[340px] 2xl:w-[420px] shrink-0 h-20">
+              <img src="/logo.png" alt="Cyberscam Watchdog Logo" className="absolute -top-[5px] left-0 h-[4.5rem] md:h-[5.5rem] lg:h-[6.5rem] xl:h-[7.5rem] 2xl:h-[8.5rem] max-w-none drop-shadow-md origin-top-left object-contain" />
             </Link>
           </div>
 
           {/* Center section: Nav Links */}
-          <div className="hidden md:flex items-center justify-center gap-0.5 lg:gap-1 xl:gap-2 flex-nowrap shrink whitespace-nowrap">
+          <div className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 shrink whitespace-nowrap">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`flex items-center gap-1 lg:gap-1.5 px-1.5 lg:px-2 xl:px-3 py-2 rounded-lg font-medium text-[11px] lg:text-sm xl:text-base transition-all ${
+                className={`flex items-center gap-1.5 px-2 xl:px-3 py-2 rounded-lg font-medium text-xs xl:text-sm 2xl:text-base transition-all shrink-0 whitespace-nowrap ${
                   isActive(link.to)
                     ? 'bg-brand-500 text-white'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                {link.icon && <link.icon className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />}
-                <span className="hidden 2xl:inline">{link.label}</span>
-                <span className="2xl:hidden">{link.shortLabel}</span>
+                {link.icon && <link.icon className="w-4 h-4 shrink-0" />}
+                <span className="hidden xl:inline">{link.label}</span>
+                <span className="xl:hidden">{link.shortLabel}</span>
               </Link>
             ))}
           </div>
 
           {/* Right section: Actions */}
-          <div className="flex flex-1 justify-end items-center gap-1 lg:gap-2 shrink-0">
+          <div className="flex items-center justify-end gap-1.5 lg:gap-2.5 shrink-0 whitespace-nowrap">
             <Link
               to="/shutdown"
-              className="hidden md:flex items-center justify-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm animate-pulse-slow"
+              className="hidden md:inline-flex items-center justify-center gap-1.5 px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm animate-pulse-slow shrink-0 flex-shrink-0 whitespace-nowrap"
             >
-              <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
-              Been Scammed? Click here
+              <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
+              <span>Been Scammed? Click here</span>
             </Link>
             <a
               href="https://endscams.org/donate"
-              className="hidden md:flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm"
+              className="hidden md:inline-flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm shrink-0 flex-shrink-0 whitespace-nowrap"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -94,7 +94,7 @@ export default function Navigation() {
             </a>
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 xl:p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-1.5 xl:p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               aria-label="Toggle dark mode"
             >
               {darkMode ? (
@@ -106,7 +106,7 @@ export default function Navigation() {
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? (
@@ -121,7 +121,7 @@ export default function Navigation() {
 
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+        <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
           <div className="px-4 py-3 space-y-1">
             {navLinks.map((link) => (
               <Link

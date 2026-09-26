@@ -33,25 +33,27 @@ export default function Banner({ variant = 'info', id, dismissible = true, messa
       : 'bg-blue-500/10 border-blue-500/30 text-blue-200';
 
   return (
-    <div className={`w-full border-b px-4 py-2.5 text-xs flex items-center justify-between gap-3 ${bgClasses}`}>
-      <div className="flex items-center gap-2 max-w-5xl mx-auto">
-        {variant === 'warning' ? (
-          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-        ) : (
-          <Info className="w-4 h-4 text-blue-400 flex-shrink-0" />
+    <div className={`w-full border-b px-4 py-2.5 sm:py-3 text-xs sm:text-sm md:text-base font-medium transition-colors relative z-30 ${bgClasses}`}>
+      <div className="max-w-7xl mx-auto flex items-center justify-center relative min-h-[1.75rem]">
+        <div className="flex items-center justify-center gap-2 text-center max-w-5xl px-6 sm:px-8">
+          {variant === 'warning' ? (
+            <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
+          ) : (
+            <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 shrink-0" />
+          )}
+          <div className="leading-snug text-center">{message}</div>
+        </div>
+        {dismissible && (
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="text-slate-400 hover:text-slate-200 p-1 rounded transition cursor-pointer absolute right-0 top-1/2 -translate-y-1/2"
+            title="Dismiss banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
         )}
-        <div className="leading-snug">{message}</div>
       </div>
-      {dismissible && (
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="text-slate-400 hover:text-slate-200 p-1 rounded transition cursor-pointer"
-          title="Dismiss banner"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      )}
     </div>
   );
 }
