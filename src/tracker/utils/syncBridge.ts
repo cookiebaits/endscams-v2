@@ -51,6 +51,7 @@ export function formatRecordForTrackerSync(r: ScamPhoneRecord): any {
 }
 
 class SyncBridgeManager {
+  private instanceId = `bridge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   private callbacks: SyncBridgeCallbacks = {};
   private logs: SyncLogEntry[] = [];
   private maxLogs = 150;
@@ -175,6 +176,11 @@ class SyncBridgeManager {
   private handleIncomingRawMessage(data: any, channel: SyncLogEntry['channel'], origin?: string) {
     if (!data || typeof data !== 'object') return;
 
+    // Reject self-emitted messages to prevent infinite message loop cycles
+    if (data.senderId === this.instanceId || data.senderInstanceId === this.instanceId) {
+      return;
+    }
+
     // Support both structured END_SCAM_SCAN messages and generic message schemas
     const messageType = data.type || data.action || data.event || data.topic || '';
     if (!messageType && !data.request) return;
@@ -295,8 +301,9 @@ class SyncBridgeManager {
       version: SYNC_VERSION,
       id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       timestamp: new Date().toISOString(),
+      senderId: this.instanceId,
       payload,
-    };
+    } as any;
   }
 
   private addLog(entry: SyncLogEntry) {
@@ -374,6 +381,7 @@ class SyncBridgeManager {
             isScanning: (payload as any).isScanning,
             lastScanTime: (payload as any).lastScanTime,
             timestamp: message.timestamp,
+            senderId: this.instanceId,
           }, '*');
 
           // Secondary event formats supported by TrackerPage
@@ -429,6 +437,7 @@ class SyncBridgeManager {
             records: formattedRecords,
             payload: { records: formattedRecords },
             data: formattedRecords,
+            senderId: this.instanceId,
           });
         }
       } catch (err) {

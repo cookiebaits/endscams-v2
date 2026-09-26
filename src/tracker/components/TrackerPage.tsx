@@ -1802,6 +1802,14 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       };
 
       setRecords((prev) => {
+        const exists = prev.some((r) => r.phone_digits === cleanDigits || r.phone_number === rawPhone || r.phone_number === formatted);
+        if (exists) {
+          // Check if record details match existing to prevent redundant re-renders
+          const match = prev.find((r) => r.phone_digits === cleanDigits || r.phone_number === rawPhone || r.phone_number === formatted);
+          if (match && match.description === newRecord.description && match.category === newRecord.category && Boolean(match.is_down) === Boolean(newRecord.is_down)) {
+            return prev;
+          }
+        }
         const withoutOld = prev.filter((r) => r.phone_digits !== cleanDigits && r.phone_number !== rawPhone && r.phone_number !== formatted);
         const updated = purgeExpiredThreatRecords(deduplicateThreatRecordsList([newRecord, ...withoutOld])).sort(compareThreatDatesDesc);
         try {
@@ -1962,6 +1970,10 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
         ch.onmessage = (event) => {
           if (!event.data) return;
           const data = event.data;
+          // Ignore state sync updates broadcasted from syncBridge or self to prevent infinite loops
+          if (data.type === 'TRACKER_RECORDS_UPDATED' || data.type === 'SYNC_DATA' || data.type === 'SYNC_RECORDS' || data.event === 'TRACKER_RECORDS_UPDATED') {
+            return;
+          }
           const type = data.type || data.action || '';
           if (
             type === 'ADD_RECORD' ||
@@ -1994,15 +2006,16 @@ export function TrackerPage({ onNavigateToReport }: TrackerPageProps = {}) {
       if (!event.data || typeof event.data !== 'object') return;
       const { type, action, payload, record } = event.data;
       const msgType = type || action || '';
+      // Ignore broadcast state updates to prevent re-entrant loops
+      if (msgType === 'TRACKER_RECORDS_UPDATED' || msgType === 'SYNC_DATA' || msgType === 'SYNC_RECORDS' || event.data.event === 'TRACKER_RECORDS_UPDATED') {
+        return;
+      }
       if (
         msgType === 'ADD_RECORD' ||
         msgType === 'USER_REPORT' ||
         msgType === 'ADD_MANUAL_RECORD' ||
         msgType === 'SCAM_REPORT_SUBMITTED' ||
-        msgType === 'INSERT_RECORD' ||
-        event.data.phone ||
-        event.data.phone_number ||
-        event.data.phone_digits
+        msgType === 'INSERT_RECORD'
       ) {
         handleIncomingReportRef.current(payload || record || event.data);
       }
