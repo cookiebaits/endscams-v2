@@ -105,7 +105,7 @@ export function getStoredSupabaseConfig(): { url: string; key: string } {
     (typeof process !== 'undefined' && process.env?.SUPABASE_URL) ||
     (import.meta as any).env?.SUPABASE_URL ||
     (import.meta as any).env?.VITE_SUPABASE_URL ||
-    '';
+    'https://joxeqlgkuvgvjoshmjqu.supabase.co';
 
   let key =
     (typeof process !== 'undefined' && (process.env?.SUPABASE_KEY || process.env?.SUPABASE_ANON_KEY)) ||
@@ -124,6 +124,26 @@ export function getStoredSupabaseConfig(): { url: string; key: string } {
   }
 
   return { url: url.trim(), key: key.trim() };
+}
+
+export async function fetchServerSupabaseConfig(): Promise<{ url: string; key: string }> {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.supabaseUrl && data.supabaseKey) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('endscams_supabase_url', data.supabaseUrl);
+          localStorage.setItem('endscams_supabase_key', data.supabaseKey);
+        }
+        supabaseInstance = null;
+        activeUrl = '';
+        activeKey = '';
+        return { url: data.supabaseUrl, key: data.supabaseKey };
+      }
+    }
+  } catch {}
+  return getStoredSupabaseConfig();
 }
 
 export function getSupabaseClient(): SupabaseClient | null {
@@ -225,6 +245,11 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
   // Submission & Feedback
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Load server-side Supabase credentials on mount
+  useEffect(() => {
+    fetchServerSupabaseConfig();
+  }, []);
 
   // OCR Execution Handler
   const processImageWithOcr = useCallback(async (file: File) => {

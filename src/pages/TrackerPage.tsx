@@ -33,7 +33,51 @@ import {
   EyeOff,
   Clipboard,
 } from 'lucide-react';
-import ReportScamPage, { STANDARD_SCAM_CATEGORIES, ThreatRecord, AltNumberEntry } from './ReportScamPage';
+
+export interface AltNumberEntry {
+  phone: string;
+  digits: string;
+  is_whatsapp?: boolean;
+}
+
+export interface ThreatRecord {
+  id: string;
+  phone_number: string;
+  phone_digits: string;
+  is_whatsapp?: boolean;
+  alt_numbers?: AltNumberEntry[];
+  source_name: string;
+  source_url: string;
+  report_date: string;
+  category: string;
+  description: string;
+  impersonated_company?: string;
+  scammer_name?: string;
+  invoice_number?: string;
+  amount_charged?: string;
+  money_lost?: number | string;
+  how_contacted?: string;
+  reporter_name?: string;
+  reporter_email?: string;
+  image_url?: string;
+  evidence_url?: string;
+  is_down?: boolean;
+}
+
+export const STANDARD_SCAM_CATEGORIES = [
+  'Lottery & Sweepstakes Scams (American Cash Awards, PCH, Mega Millions)',
+  'General Tech Support & Refund Scams (Geek Squad, Microsoft, Apple)',
+  'Bank & Financial Impersonation (Chase, Wells Fargo, Zelle, Wire Fraud)',
+  'Crypto BTC Recovery Scam',
+  'Spellcaster WhatsApp Extortion',
+  'Government & Law Enforcement (Social Security, IRS, Police, DEA)',
+  'Utility & Telecom Scams (Spectrum, AT&T, Power/Electric)',
+  'Job, Task & Investment Scams',
+  'Vehicle & Auto Warranty Scams',
+  'Healthcare, Medicare & Medical Scams',
+  'Romance & Blackmail Scams',
+  'Other / Uncategorized Threat',
+];
 
 // ============================================================================
 // 1. EMBEDDED PHONE & COUNTRY UTILITIES
@@ -248,6 +292,13 @@ export function saveSupabaseConfig(url: string, key: string) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('endscams_supabase_url', url.trim());
     localStorage.setItem('endscams_supabase_key', key.trim());
+    try {
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supabaseUrl: url.trim(), supabaseKey: key.trim() }),
+      }).catch(() => {});
+    } catch {}
   }
   trackerSupabaseInstance = null;
   trackerActiveUrl = '';
@@ -661,54 +712,53 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
     setStatusNotification(`Successfully imported ${imported.length} threat records!`);
   };
 
-  // Export .tsx Card
-  const handleExportTSX = () => {
-    const tsxCode = `import React from 'react';
-
-export const EXPORTED_THREAT_RECORDS = ${JSON.stringify(records, null, 2)};
-
-export default function ThreatTrackerTable(): React.ReactElement {
-  return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: '1100px', margin: '2rem auto', padding: '1.5rem', background: '#090d16', color: '#f8fafc', borderRadius: '1rem', border: '1px solid #1e293b' }}>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', marginBottom: '1rem' }}>
-        EndScams Active Threat Records ({EXPORTED_THREAT_RECORDS.length})
-      </h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid #334155', textAlign: 'left' }}>
-            <th style={{ padding: '0.75rem' }}>Phone Number</th>
-            <th style={{ padding: '0.75rem' }}>Category</th>
-            <th style={{ padding: '0.75rem' }}>Target Entity</th>
-            <th style={{ padding: '0.75rem' }}>Date Detected</th>
-            <th style={{ padding: '0.75rem' }}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {EXPORTED_THREAT_RECORDS.map((r) => (
-            <tr key={r.id} style={{ borderBottom: '1px solid #1e293b' }}>
-              <td style={{ padding: '0.75rem', fontWeight: 600 }}>{r.phone_number}</td>
-              <td style={{ padding: '0.75rem' }}>{r.category}</td>
-              <td style={{ padding: '0.75rem' }}>{r.impersonated_company}</td>
-              <td style={{ padding: '0.75rem' }}>{r.report_date}</td>
-              <td style={{ padding: '0.75rem', color: r.is_down ? '#94a3b8' : '#34d399' }}>
-                {r.is_down ? 'Out of Service' : 'Active'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-`;
-
-    const blob = new Blob([tsxCode], { type: 'text/typescript-jsx;charset=utf-8;' });
+  // Export CSV Data
+  const handleExportCSV = () => {
+    const headers = ['Phone Number', 'Clean Digits', 'Category', 'Target Entity', 'Invoice Number', 'Amount Charged', 'Source', 'Source URL', 'Date Detected', 'Status', 'Description'];
+    const rows = records.map((r) => [
+      `"${(r.phone_number || '').replace(/"/g, '""')}"`,
+      `"${(r.phone_digits || '').replace(/"/g, '""')}"`,
+      `"${(r.category || '').replace(/"/g, '""')}"`,
+      `"${(r.impersonated_company || '').replace(/"/g, '""')}"`,
+      `"${(r.invoice_number || '').replace(/"/g, '""')}"`,
+      `"${(r.amount_charged || '').replace(/"/g, '""')}"`,
+      `"${(r.source_name || '').replace(/"/g, '""')}"`,
+      `"${(r.source_url || '').replace(/"/g, '""')}"`,
+      `"${(r.report_date || '').replace(/"/g, '""')}"`,
+      `"${r.is_down ? 'Out of Service' : 'Active Line'}"`,
+      `"${(r.description || '').replace(/"/g, '""')}"`,
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `threat_tracker_export_${getPSTDateStamp()}.tsx`;
+    link.download = `cwn_threat_records_${getPSTDateStamp()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    setStatusNotification(`Successfully exported ${records.length} records to CSV!`);
+  };
+
+  // Export Full TrackerPage.tsx Source File
+  const handleExportTSX = async () => {
+    try {
+      const res = await fetch('/src/pages/TrackerPage.tsx');
+      if (res.ok) {
+        const sourceCode = await res.text();
+        const blob = new Blob([sourceCode], { type: 'text/typescript-jsx;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `TrackerPage.tsx`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setStatusNotification('Full TrackerPage.tsx component exported successfully!');
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not fetch source directly, downloading CSV fallback:', err);
+    }
+    handleExportCSV();
   };
 
   // Selected rows for bulk operations
@@ -925,12 +975,21 @@ export default function ThreatTrackerTable(): React.ReactElement {
             </button>
 
             <button
-              onClick={handleExportTSX}
+              onClick={handleExportCSV}
               className="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700 text-emerald-400 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer shadow-sm"
-              title="Export records as CSV/TSX"
+              title="Export all database threat records as CSV"
             >
               <Download className="w-3.5 h-3.5 text-emerald-400" />
               <span>Export CSV</span>
+            </button>
+
+            <button
+              onClick={handleExportTSX}
+              className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer shadow-sm"
+              title="Export full TrackerPage.tsx React Component"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-400" />
+              <span>Export .tsx</span>
             </button>
 
             {onNavigateToReport ? (
