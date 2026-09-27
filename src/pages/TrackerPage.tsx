@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import databaseSeed from '../data/database_seed.json';
 import {
   Shield,
   Search,
@@ -15,7 +16,6 @@ import {
   Database,
   X,
   Radio,
-  FileSpreadsheet,
   FileText,
   Clock,
   Globe,
@@ -25,10 +25,7 @@ import {
   Lock,
   Unlock,
   Edit3,
-  Save,
-  Sparkles,
   Sliders,
-  ChevronDown,
   Eye,
   EyeOff,
   Clipboard,
@@ -62,6 +59,56 @@ export interface ThreatRecord {
   image_url?: string;
   evidence_url?: string;
   is_down?: boolean;
+}
+
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (databaseSeed as ThreatRecord[]) || [];
+
+export function isRecordMatch(record: any, target10Digits: string): boolean {
+  if (!record || !target10Digits) return false;
+  const digits = record.phone_digits || record.cleanPhone || (record.phone_number || record.phone || '').replace(/\D/g, '');
+  if (digits.includes(target10Digits)) return true;
+  if (record.alt_numbers && Array.isArray(record.alt_numbers)) {
+    return record.alt_numbers.some((alt: any) => (alt.digits || alt.phone || '').replace(/\D/g, '').includes(target10Digits));
+  }
+  return false;
+}
+
+export function getLocalReports(): ThreatRecord[] {
+  if (typeof window === 'undefined') return [];
+  const reports: ThreatRecord[] = [];
+  const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state'];
+  storageKeys.forEach((key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
+        items.forEach((item: any) => {
+          if (item && (item.phone_number || item.phone_digits || item.phone)) {
+            reports.push({
+              id: item.id || `local-${item.phone_digits || Date.now()}`,
+              phone_number: item.phone_number || item.phone || '',
+              phone_digits: item.phone_digits || (item.phone_number || item.phone || '').replace(/\D/g, ''),
+              is_whatsapp: Boolean(item.is_whatsapp),
+              alt_numbers: item.alt_numbers,
+              category: item.category || 'General Tech Support & Refund Scams',
+              impersonated_company: item.impersonated_company || item.company || 'N/A',
+              scammer_name: item.scammer_name || item.impersonated_company || 'N/A',
+              invoice_number: item.invoice_number || 'N/A',
+              amount_charged: item.amount_charged || 'N/A',
+              source_name: item.source_name || 'Community Scam Report',
+              source_url: item.source_url || 'https://endscams.org',
+              report_date: item.report_date || item.incident_date || getPSTDateStamp(),
+              description: item.description || 'Community threat report',
+              image_url: item.image_url || item.screenshotPreview,
+              is_down: Boolean(item.is_down),
+            });
+          }
+        });
+      }
+    } catch {}
+  });
+  return reports;
 }
 
 export const STANDARD_SCAM_CATEGORIES = [
@@ -509,7 +556,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
   // CSV Import Modal
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importMode, setImportMode] = useState<'upload' | 'paste'>('upload');
-  const [importFile, setImportFile] = useState<File | null>(null);
+  const [, setImportFile] = useState<File | null>(null);
   const [pastedCsvText, setPastedCsvText] = useState('');
   const [importPreview, setImportPreview] = useState<{ valid: ThreatRecord[]; rejectedBad: any[] } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -527,7 +574,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
   const [dbTestResult, setDbTestResult] = useState<string | null>(null);
   const [isTestingDb, setIsTestingDb] = useState(false);
 
-  // Initial Load & Dokploy / Supabase Fetch
+  // Initial Load & Real-time Sync Listeners
   useEffect(() => {
     fetchServerSupabaseConfig().then(({ url, key }) => {
       setSupabaseUrlInput(url);
@@ -535,42 +582,98 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
     });
 
     loadSharedRecords();
+
+    // 1. BroadcastChannel real-time sync for newly submitted reports
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('end_scam_scan_sync_channel');
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === 'ADD_RECORD' && event.data.record) {
+          const newRec: ThreatRecord = event.data.record;
+          setRecords((prev) => {
+            if (prev.some((r) => r.id === newRec.id || r.phone_digits === newRec.phone_digits)) return prev;
+            return [newRec, ...prev];
+          });
+        }
+      };
+    } catch (e) {
+      console.warn('[Tracker] BroadcastChannel setup warning:', e);
+    }
+
+    // 2. Custom window event listener
+    const handleNewReportEvent = (e: Event) => {
+      const customEv = e as CustomEvent<ThreatRecord>;
+      if (customEv.detail) {
+        const newRec = customEv.detail;
+        setRecords((prev) => {
+          if (prev.some((r) => r.id === newRec.id || r.phone_digits === newRec.phone_digits)) return prev;
+          return [newRec, ...prev];
+        });
+      }
+    };
+    window.addEventListener('endscams:new-report', handleNewReportEvent);
+
+    // 3. Storage event listener across tabs
+    const handleStorageEvent = () => {
+      loadSharedRecords();
+    };
+    window.addEventListener('storage', handleStorageEvent);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('endscams:new-report', handleNewReportEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    };
   }, []);
 
   const loadSharedRecords = async () => {
     setIsSyncingWithDb(true);
+    let fetchedRecords: ThreatRecord[] = [];
+
     try {
       // 1. Direct Supabase fetch as 100% authoritative primary source
       const sb = await fetchFromSupabase();
       if (sb.success && Array.isArray(sb.records) && sb.records.length > 0) {
-        setRecords(sb.records.sort(compareThreatDatesDesc));
-        setIsSyncingWithDb(false);
-        return;
+        fetchedRecords = sb.records;
+      } else {
+        // 2. Server backend fallback
+        const res = await fetch('/api/records');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.records) && data.records.length > 0) {
+            fetchedRecords = data.records.map((r: any) => ({
+              id: r.id || `rec-${r.phone_digits || r.phone}`,
+              phone_number: r.phone_number || r.phone,
+              phone_digits: r.phone_digits || r.cleanPhone || (r.phone_number || '').replace(/\D/g, ''),
+              is_whatsapp: Boolean(r.is_whatsapp || r.isWhatsapp),
+              category: r.category || r.scamType || 'General Tech Support & Refund Scams',
+              impersonated_company: r.impersonated_company || r.impersonatedCompany || 'N/A',
+              scammer_name: r.scammer_name || r.impersonated_company || 'N/A',
+              invoice_number: r.invoice_number || 'N/A',
+              amount_charged: r.amount_charged || 'N/A',
+              source_name: r.source_name || r.platform || 'Threat Intel',
+              source_url: r.source_url || '',
+              report_date: normalizeToNumericalDate(r.report_date || r.postDate || r.detectedAt),
+              description: r.description || r.snippet || 'Live threat feed record',
+              is_down: Boolean(r.is_down || r.isNumberDown),
+            }));
+          }
+        }
       }
 
-      // 2. Server backend fallback
-      const res = await fetch('/api/records');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.records) && data.records.length > 0) {
-          const mapped = data.records.map((r: any) => ({
-            id: r.id || `rec-${r.phone_digits || r.phone}`,
-            phone_number: r.phone_number || r.phone,
-            phone_digits: r.phone_digits || r.cleanPhone || (r.phone_number || '').replace(/\D/g, ''),
-            is_whatsapp: Boolean(r.is_whatsapp || r.isWhatsapp),
-            category: r.category || r.scamType || 'General Tech Support & Refund Scams',
-            impersonated_company: r.impersonated_company || r.impersonatedCompany || 'N/A',
-            scammer_name: r.scammer_name || r.impersonated_company || 'N/A',
-            invoice_number: r.invoice_number || 'N/A',
-            amount_charged: r.amount_charged || 'N/A',
-            source_name: r.source_name || r.platform || 'Threat Intel',
-            source_url: r.source_url || '',
-            report_date: normalizeToNumericalDate(r.report_date || r.postDate || r.detectedAt),
-            description: r.description || r.snippet || 'Live threat feed record',
-            is_down: Boolean(r.is_down || r.isNumberDown),
-          }));
-          setRecords(mapped.sort(compareThreatDatesDesc));
+      // Merge local storage user-submitted records & seed records
+      const localStored = getLocalReports();
+      const combinedMap = new Map<string, ThreatRecord>();
+
+      [...MASTER_SEED_RECORDS, ...fetchedRecords, ...localStored].forEach((r) => {
+        if (r && r.id) {
+          combinedMap.set(r.id, r);
         }
+      });
+
+      const mergedList = Array.from(combinedMap.values());
+      if (mergedList.length > 0) {
+        setRecords(mergedList.sort(compareThreatDatesDesc));
       }
     } catch (err) {
       console.warn('[Tracker] Error loading records:', err);
@@ -613,7 +716,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
     try {
       const res = await fetch('/api/scan-now', { method: 'POST' });
       if (res.ok) {
-        const data = await res.json();
+        await res.json();
         setStatusNotification(`Threat scan complete! Harvested updates from intelligence feeds.`);
         loadSharedRecords();
       }
@@ -930,6 +1033,13 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
               <span className="bg-amber-500/15 border border-amber-500/30 px-3 py-1 rounded-full text-[10px] font-bold text-amber-300 flex items-center space-x-1.5 uppercase tracking-wider">
                 <span>DAILY SCHEDULE: 7:00 AM & 1:00 PM PST</span>
               </span>
+
+              {isSyncingWithDb && (
+                <span className="bg-blue-500/15 border border-blue-500/30 px-3 py-1 rounded-full text-[10px] font-bold text-blue-400 flex items-center space-x-1.5 uppercase tracking-wider animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Syncing...</span>
+                </span>
+              )}
             </div>
 
             <div className="flex items-center space-x-2.5 pt-1">

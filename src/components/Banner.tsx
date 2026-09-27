@@ -11,7 +11,7 @@ interface BannerProps {
   center?: boolean;
 }
 
-export default function Banner({ variant = 'info', message, dismissible = false, id, center = false }: BannerProps) {
+export default function Banner({ variant = 'info', message, dismissible = false, id, center = true }: BannerProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -76,8 +76,8 @@ export default function Banner({ variant = 'info', message, dismissible = false,
     <div className={`w-full px-4 py-3 border-b ${styles.bg} ${styles.border} ${styles.text} transition-colors relative z-30`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between relative">
         <div className={`flex items-start sm:items-center gap-3 ${center ? 'mx-auto justify-center w-full' : ''}`}>
-          <div className="mt-0.5 sm:mt-0">{styles.icon}</div>
-          <div className={`font-medium leading-tight sm:leading-normal pr-6 ${center ? 'text-center' : ''}`}>
+          <div className="mt-0.5 sm:mt-0 shrink-0">{styles.icon}</div>
+          <div className={`font-medium text-sm sm:text-base leading-tight sm:leading-normal ${dismissible ? 'pr-8 sm:pr-10' : ''} ${center ? 'text-center' : ''}`}>
             {message}
           </div>
         </div>

@@ -19,9 +19,9 @@ export default function GlobalBanner() {
   };
 
   return (
-    <div className="bg-red-600 text-white px-4 py-2 flex items-center justify-between text-sm font-medium z-50 relative">
-      <div className="flex items-center gap-2 max-w-7xl mx-auto flex-1 justify-center">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+    <div className="bg-red-600 text-white px-4 py-2.5 flex items-center justify-between text-sm sm:text-base font-medium z-50 relative">
+      <div className="flex items-center gap-2 max-w-7xl mx-auto flex-1 justify-center text-center px-6">
+        <AlertTriangle className="w-4 h-4 flex-shrink-0 shrink-0" />
         <span>
           <strong>ALERT:</strong> Active threat bulletin. Multiple reports of scams targeting vulnerable users, see Scam Tracker for more details.
         </span>

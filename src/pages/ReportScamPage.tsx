@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import Banner from '../components/Banner';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -455,7 +456,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       } catch {}
     }
 
-    // 3. Broadcast cross-tab
+    // 3. Broadcast cross-tab & dispatch events
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
@@ -464,6 +465,24 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       });
       bc.close();
     } catch {}
+
+    try {
+      window.dispatchEvent(new CustomEvent('endscams:new-report', { detail: newRecord }));
+    } catch {}
+
+    // 4. Save to local storage for offline / local session persistence
+    try {
+      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams'];
+      storageKeys.forEach((key) => {
+        const raw = localStorage.getItem(key);
+        const existing = raw ? JSON.parse(raw) : [];
+        const updated = Array.isArray(existing) ? [newRecord, ...existing] : [newRecord];
+        localStorage.setItem(key, JSON.stringify(updated));
+      });
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.warn('LocalStorage save warning:', err);
+    }
 
     if (onRecordCreated) {
       onRecordCreated(newRecord);
@@ -870,8 +889,21 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4">
-      {formCard}
+    <div className="w-full flex flex-col items-center">
+      <Banner
+        variant="info"
+        id="report_privacy_notice"
+        dismissible
+        center
+        message={
+          <span>
+            <strong>Privacy Notice:</strong> Verified scam phone numbers and incident details are cataloged on the public Scam Tracker for 90 days to protect the community. Do not include your personal banking credentials.
+          </span>
+        }
+      />
+      <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4">
+        {formCard}
+      </div>
     </div>
   );
 };

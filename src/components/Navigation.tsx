@@ -79,14 +79,14 @@ export default function Navigation() {
           <div className="flex flex-1 justify-end items-center gap-1 lg:gap-2 shrink-0">
             <Link
               to="/shutdown"
-              className="hidden md:flex items-center justify-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm animate-pulse-slow"
+              className="hidden md:flex items-center justify-center gap-1 px-3 xl:px-4 py-1.5 xl:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm animate-pulse-slow whitespace-nowrap shrink-0"
             >
-              <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
-              Been Scammed? Click here
+              <ShieldAlert className="w-3.5 h-3.5 xl:w-4 xl:h-4 shrink-0" />
+              <span className="whitespace-nowrap">Been Scammed? Click here</span>
             </Link>
             <a
               href="https://endscams.org/donate"
-              className="hidden md:flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm"
+              className="hidden md:flex items-center justify-center px-3 xl:px-4 py-1.5 xl:py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs xl:text-sm transition-colors shadow-sm whitespace-nowrap shrink-0"
               target="_blank"
               rel="noopener noreferrer"
             >
