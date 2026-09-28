@@ -156,13 +156,13 @@ export interface TrackerPageProps {
 }
 
 export const TrackerPage: React.FC<TrackerPageProps> = () => {
-  const [iframeHeight, setIframeHeight] = useState<number>(8500);
+  const [iframeHeight, setIframeHeight] = useState<number>(32000);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
         if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
-          setIframeHeight(Math.max(event.data.height, 4000));
+          setIframeHeight(Math.max(event.data.height, 25000));
         }
       }
     };
@@ -180,7 +180,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         style={{
           width: '100%',
           height: `${iframeHeight}px`,
-          minHeight: '1000px',
+          minHeight: '25000px',
           border: 'none',
         }}
         scrolling="no"

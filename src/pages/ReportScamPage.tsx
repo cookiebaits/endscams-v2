@@ -94,13 +94,13 @@ export interface ReportScamPageProps {
 }
 
 export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
-  const [iframeHeight, setIframeHeight] = useState<number>(2200);
+  const [iframeHeight, setIframeHeight] = useState<number>(2500);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
         if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
-          setIframeHeight(Math.max(event.data.height, 1200));
+          setIframeHeight(Math.max(event.data.height, 1500));
         }
       }
     };
@@ -118,7 +118,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
         style={{
           width: '100%',
           height: `${iframeHeight}px`,
-          minHeight: '1000px',
+          minHeight: '1500px',
           border: 'none',
         }}
         scrolling="no"
