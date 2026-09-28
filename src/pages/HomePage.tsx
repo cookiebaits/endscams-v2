@@ -381,7 +381,35 @@ export default function HomePage() {
         }
       });
 
-      // 4. Supabase is the sole source of truth — no /api/records fallback needed
+      // 4. Query https://esscan.ai.studio/api/records directly
+      try {
+        const esscanRes = await fetch('https://esscan.ai.studio/api/records', {
+          headers: { 'Cache-Control': 'no-cache' },
+        });
+        if (esscanRes.ok) {
+          const esscanRecords = await esscanRes.json();
+          if (Array.isArray(esscanRecords)) {
+            esscanRecords.forEach((item: any) => {
+              if (item && isRecordMatch(item, core10Digits)) {
+                const itemId = item.id || `esscan-${item.phone_digits || Math.random()}`;
+                if (!seenIds.has(itemId)) {
+                  seenIds.add(itemId);
+                  trackerEntries.push({
+                    id: itemId,
+                    source_name: item.source_name || 'EndScams Threat Tracker (esscan.ai.studio)',
+                    source_url: item.source_url || 'https://esscan.ai.studio',
+                    report_date: item.report_date || item.detectedAt || new Date().toISOString().split('T')[0],
+                    category: item.category || 'Threat Tracker Scam Line',
+                    description: item.description || item.impersonated_company || ''
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to query esscan.ai.studio database:', err);
+      }
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
       setResult({ found: totalFound, reports, trackerEntries });
