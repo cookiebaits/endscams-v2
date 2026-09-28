@@ -31,18 +31,10 @@ export interface ThreatRecord {
 }
 
 export const STANDARD_SCAM_CATEGORIES = [
-  'Lottery & Sweepstakes Scams (American Cash Awards, PCH, Mega Millions)',
-  'General Tech Support & Refund Scams (Geek Squad, Microsoft, Apple)',
-  'Bank & Financial Impersonation (Chase, Wells Fargo, Zelle, Wire Fraud)',
-  'Crypto BTC Recovery Scam',
-  'Spellcaster WhatsApp Extortion',
-  'Government & Law Enforcement (Social Security, IRS, Police, DEA)',
-  'Utility & Telecom Scams (Spectrum, AT&T, Power/Electric)',
-  'Job, Task & Investment Scams',
-  'Vehicle & Auto Warranty Scams',
-  'Healthcare, Medicare & Medical Scams',
-  'Romance & Blackmail Scams',
-  'Other / Uncategorized Threat',
+  'Refund / Impersonator',
+  'Lotto / Sweepstakes',
+  'Spell / Non-Delivery',
+  'Other',
 ];
 
 export function formatDisplayPhone(raw: string, digits: string): string {
