@@ -156,13 +156,13 @@ export interface TrackerPageProps {
 }
 
 export const TrackerPage: React.FC<TrackerPageProps> = () => {
-  const [iframeHeight, setIframeHeight] = useState<number>(3000);
+  const [iframeHeight, setIframeHeight] = useState<number>(8500);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
-        if (event.data && typeof event.data.height === 'number') {
-          setIframeHeight(Math.max(event.data.height, 1200));
+        if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
+          setIframeHeight(Math.max(event.data.height, 4000));
         }
       }
     };
@@ -176,12 +176,12 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       <iframe
         src="https://esscan.ai.studio"
         title="EndScams Threat Tracker"
-        className="w-full border-0 block"
+        className="w-full border-0 block flex-1"
         style={{
+          width: '100%',
           height: `${iframeHeight}px`,
-          minHeight: '100vh',
+          minHeight: '1000px',
           border: 'none',
-          overflow: 'hidden',
         }}
         scrolling="no"
       />
