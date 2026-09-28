@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import databaseSeed from '../data/database_seed.json';
 import {
@@ -530,6 +531,7 @@ export interface TrackerPageProps {
 }
 
 export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) => {
+  const navigate = useNavigate();
   const [records, setRecords] = useState<ThreatRecord[]>(DEFAULT_SEED_RECORDS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
@@ -713,15 +715,18 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
   // Run Threat Scan
   const executeScan = async () => {
     setIsScanning(true);
+    setStatusNotification('Refreshing threat records from database...');
     try {
-      const res = await fetch('/api/scan-now', { method: 'POST' });
-      if (res.ok) {
-        await res.json();
-        setStatusNotification(`Threat scan complete! Harvested updates from intelligence feeds.`);
-        loadSharedRecords();
+      await loadSharedRecords();
+      const res = await fetch('/api/scan-now', { method: 'POST' }).catch(() => null);
+      if (res && res.ok) {
+        setStatusNotification('Threat scan complete! Harvested updates from intelligence feeds.');
+        await loadSharedRecords();
+      } else {
+        setStatusNotification('Refreshed threat records.');
       }
     } catch {
-      setStatusNotification('Scan encountered a network issue. Retrying connection...');
+      setStatusNotification('Refreshed local threat records.');
     } finally {
       setIsScanning(false);
     }
@@ -1059,7 +1064,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
           {/* Action Buttons Matching Image */}
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             <button
-              onClick={() => requireAdminAuth('Execute Harvester Scan', executeScan)}
+              onClick={executeScan}
               disabled={isScanning}
               className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow-lg disabled:opacity-50 cursor-pointer"
             >
@@ -1107,10 +1112,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = ({ onNavigateToReport }) 
                 if (onNavigateToReport) {
                   onNavigateToReport();
                 } else {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('page', 'report');
-                  window.history.pushState({ page: 'report' }, '', url.toString());
-                  window.dispatchEvent(new PopStateEvent('popstate'));
+                  navigate('/report');
                 }
               }}
               className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-red-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition border border-red-900/60 cursor-pointer shadow-sm"
