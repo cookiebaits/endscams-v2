@@ -109,6 +109,9 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
       <iframe
         src={iframeSrc}
         title="EndScams Report Scam"
+        loading="eager"
+        // @ts-ignore
+        fetchpriority="high"
         className="w-full border-0 block flex-1"
         style={{
           width: '100%',

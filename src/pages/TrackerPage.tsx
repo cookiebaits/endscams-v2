@@ -171,6 +171,9 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       <iframe
         src={iframeSrc}
         title="EndScams Threat Tracker"
+        loading="eager"
+        // @ts-ignore
+        fetchpriority="high"
         className="w-full border-0 block flex-1"
         style={{
           width: '100%',
