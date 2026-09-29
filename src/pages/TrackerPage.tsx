@@ -151,30 +151,88 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const [iframeHeight, setIframeHeight] = useState<number>(32000);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
-        if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
-          setIframeHeight(Math.max(event.data.height, 25000));
-        }
-      }
-    };
-
-    const handleScroll = () => {
+    const postScrollPosition = (extraData: Record<string, any> = {}) => {
       const iframe = document.querySelector('iframe[title="EndScams Threat Tracker"]') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage({
           type: 'PARENT_SCROLL_POSITION',
-          scrollY: window.scrollY,
-          viewportHeight: window.innerHeight
+          scrollY: window.scrollY || window.pageYOffset || 0,
+          viewportHeight: window.innerHeight || document.documentElement.clientHeight || 800,
+          documentHeight: document.documentElement.scrollHeight || 32000,
+          ...extraData,
         }, '*');
       }
     };
 
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
+        const data = event.data;
+        if (data) {
+          if (typeof data.height === 'number' && data.height > 0) {
+            setIframeHeight(Math.max(data.height, 25000));
+          }
+
+          // Handle modal scroll locking signals from iframe
+          const isLockSignal =
+            data.type === 'OPEN_MODAL' ||
+            data.type === 'LOCK_SCROLL' ||
+            data.type === 'MODAL_OPEN' ||
+            data.type === 'SHOW_DETAILS' ||
+            data.type === 'EDIT_DETAILS' ||
+            data.action === 'lock_scroll' ||
+            data.lockScroll === true ||
+            data.modalOpen === true ||
+            data.isModalOpen === true;
+
+          const isUnlockSignal =
+            data.type === 'CLOSE_MODAL' ||
+            data.type === 'UNLOCK_SCROLL' ||
+            data.type === 'MODAL_CLOSE' ||
+            data.type === 'HIDE_DETAILS' ||
+            data.action === 'unlock_scroll' ||
+            data.lockScroll === false ||
+            data.modalOpen === false ||
+            data.isModalOpen === false;
+
+          if (isLockSignal) {
+            document.body.style.overflow = 'hidden';
+            document.body.style.touchAction = 'none';
+          } else if (isUnlockSignal) {
+            document.body.style.overflow = '';
+            document.body.style.touchAction = '';
+          }
+
+          // Always reply with parent scroll position so modal centers on active viewport
+          postScrollPosition();
+        }
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      postScrollPosition();
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      postScrollPosition({ clickY: e.pageY || (e.clientY + window.scrollY) });
+    };
+
     window.addEventListener('message', handleMessage);
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
+    window.addEventListener('resize', handleScrollOrResize, { passive: true });
+    window.addEventListener('click', handleClick, { passive: true });
+
+    // Initial post + interval sync
+    postScrollPosition();
+    const interval = setInterval(postScrollPosition, 300);
+
     return () => {
+      clearInterval(interval);
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', handleScrollOrResize);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('click', handleClick);
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
     };
   }, []);
 

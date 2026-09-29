@@ -294,13 +294,11 @@ export default function HomePage() {
           .from('scam_reports')
           .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
           .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
           .order('incident_date', { ascending: false }),
         supabase
           .from('tracker_entries')
-          .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
+          .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number,impersonated_company')
           .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
           .order('report_date', { ascending: false }),
       ]).catch(() => [{ data: [] }, { data: [] }]);
 
@@ -311,7 +309,7 @@ export default function HomePage() {
             reports.push({
               id: r.id,
               category: r.category || 'Refund / Impersonator',
-              description: r.description || '',
+              description: r.description || r.impersonated_company || '',
               incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
               source: r.source || 'User Report',
               source_url: r.source_url
@@ -330,7 +328,7 @@ export default function HomePage() {
               source_url: t.source_url || '',
               report_date: t.report_date || new Date().toISOString().split('T')[0],
               category: t.category || 'Refund / Impersonator',
-              description: t.description || ''
+              description: t.description || t.impersonated_company || ''
             });
           }
         });
@@ -352,7 +350,7 @@ export default function HomePage() {
       });
 
       // 3. Check LocalStorage sources (esscan_threat_records_v2, user_reported_scams, end_scam_scan_shared_state)
-      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
+      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records', 'esscan_scam_records'];
       storageKeys.forEach((key) => {
         try {
           const raw = localStorage.getItem(key);
@@ -370,7 +368,7 @@ export default function HomePage() {
                     source_url: item.source_url || item.sourceUrl || '',
                     report_date: item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0],
                     category: item.category || item.type_of_scam || item.scamType || 'Reported Scam',
-                    description: item.description || item.detailedSummary || item.snippet || ''
+                    description: item.description || item.impersonated_company || item.detailedSummary || item.snippet || ''
                   });
                 }
               }
@@ -381,34 +379,44 @@ export default function HomePage() {
         }
       });
 
-      // 4. Query https://esscan.ai.studio/api/records directly
-      try {
-        const esscanRes = await fetch('https://esscan.ai.studio/api/records', {
-          headers: { 'Cache-Control': 'no-cache' },
-        });
-        if (esscanRes.ok) {
-          const esscanRecords = await esscanRes.json();
-          if (Array.isArray(esscanRecords)) {
-            esscanRecords.forEach((item: any) => {
+      // 4. Query live tracker endpoints (/api/records and https://esscan.ai.studio/api/records)
+      const trackerEndpoints = [
+        '/api/records',
+        'https://esscan.ai.studio/api/records'
+      ];
+
+      for (const endpoint of trackerEndpoints) {
+        try {
+          const esscanRes = await fetch(endpoint, {
+            headers: { 'Cache-Control': 'no-cache' },
+          });
+          if (esscanRes.ok) {
+            const esscanData = await esscanRes.json();
+            const recordList = Array.isArray(esscanData)
+              ? esscanData
+              : (esscanData?.records && Array.isArray(esscanData.records) ? esscanData.records : []);
+
+            recordList.forEach((item: any) => {
               if (item && isRecordMatch(item, core10Digits)) {
-                const itemId = item.id || `esscan-${item.phone_digits || Math.random()}`;
+                const itemId = item.id || `esscan-${item.phone_digits || item.phone_number || Math.random()}`;
                 if (!seenIds.has(itemId)) {
                   seenIds.add(itemId);
+                  const descParts = [item.impersonated_company, item.description].filter(Boolean).join(' - ');
                   trackerEntries.push({
                     id: itemId,
                     source_name: item.source_name || 'EndScams Threat Tracker (esscan.ai.studio)',
                     source_url: item.source_url || 'https://esscan.ai.studio',
                     report_date: item.report_date || item.detectedAt || new Date().toISOString().split('T')[0],
                     category: item.category || 'Threat Tracker Scam Line',
-                    description: item.description || item.impersonated_company || ''
+                    description: descParts || item.description || item.impersonated_company || ''
                   });
                 }
               }
             });
           }
+        } catch (err) {
+          console.warn(`Failed to query tracker database endpoint (${endpoint}):`, err);
         }
-      } catch (err) {
-        console.warn('Failed to query esscan.ai.studio database:', err);
       }
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
