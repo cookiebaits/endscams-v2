@@ -159,7 +159,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       }
     };
 
-    const handleScroll = () => {
+    const sendScrollPosition = () => {
       const iframe = document.querySelector('iframe[title="EndScams Threat Tracker"]') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage({
@@ -171,10 +171,18 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
     };
 
     window.addEventListener('message', handleMessage);
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', sendScrollPosition, { passive: true });
+    window.addEventListener('resize', sendScrollPosition, { passive: true });
+
+    // Send initial position immediately and after initial render frames
+    sendScrollPosition();
+    const interval = setInterval(sendScrollPosition, 1000);
+
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', sendScrollPosition);
+      window.removeEventListener('resize', sendScrollPosition);
+      clearInterval(interval);
     };
   }, []);
 
