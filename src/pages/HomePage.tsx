@@ -387,25 +387,27 @@ export default function HomePage() {
           headers: { 'Cache-Control': 'no-cache' },
         });
         if (esscanRes.ok) {
-          const esscanRecords = await esscanRes.json();
-          if (Array.isArray(esscanRecords)) {
-            esscanRecords.forEach((item: any) => {
-              if (item && isRecordMatch(item, core10Digits)) {
-                const itemId = item.id || `esscan-${item.phone_digits || Math.random()}`;
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || 'EndScams Threat Tracker (esscan.ai.studio)',
-                    source_url: item.source_url || 'https://esscan.ai.studio',
-                    report_date: item.report_date || item.detectedAt || new Date().toISOString().split('T')[0],
-                    category: item.category || 'Threat Tracker Scam Line',
-                    description: item.description || item.impersonated_company || ''
-                  });
-                }
+          const esscanData = await esscanRes.json();
+          const esscanRecords = Array.isArray(esscanData)
+            ? esscanData
+            : (esscanData && Array.isArray(esscanData.records) ? esscanData.records : []);
+
+          esscanRecords.forEach((item: any) => {
+            if (item && isRecordMatch(item, core10Digits)) {
+              const itemId = item.id || `esscan-${item.phone_digits || Math.random()}`;
+              if (!seenIds.has(itemId)) {
+                seenIds.add(itemId);
+                trackerEntries.push({
+                  id: itemId,
+                  source_name: item.source_name || 'EndScams Threat Tracker (esscan.ai.studio)',
+                  source_url: item.source_url || 'https://esscan.ai.studio',
+                  report_date: item.report_date || item.detectedAt || new Date().toISOString().split('T')[0],
+                  category: item.category || item.impersonated_company || 'Threat Tracker Scam Line',
+                  description: item.description || item.impersonated_company || ''
+                });
               }
-            });
-          }
+            }
+          });
         }
       } catch (err) {
         console.warn('Failed to query esscan.ai.studio database:', err);

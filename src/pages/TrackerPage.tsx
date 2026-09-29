@@ -156,6 +156,24 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
           setIframeHeight(Math.max(event.data.height, 25000));
         }
+
+        // Handle modal lock scroll events from iframe
+        if (event.data) {
+          const type = event.data.type || event.data.action || '';
+          if (
+            type === 'OPEN_MODAL' ||
+            type === 'LOCK_SCROLL' ||
+            (type === 'MODAL_STATE_CHANGE' && event.data.isOpen)
+          ) {
+            document.body.style.overflow = 'hidden';
+          } else if (
+            type === 'CLOSE_MODAL' ||
+            type === 'UNLOCK_SCROLL' ||
+            (type === 'MODAL_STATE_CHANGE' && !event.data.isOpen)
+          ) {
+            document.body.style.overflow = '';
+          }
+        }
       }
     };
 
@@ -176,13 +194,14 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
 
     // Send initial position immediately and after initial render frames
     sendScrollPosition();
-    const interval = setInterval(sendScrollPosition, 1000);
+    const interval = setInterval(sendScrollPosition, 500);
 
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('scroll', sendScrollPosition);
       window.removeEventListener('resize', sendScrollPosition);
       clearInterval(interval);
+      document.body.style.overflow = '';
     };
   }, []);
 
