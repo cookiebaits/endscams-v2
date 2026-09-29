@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import databaseSeed from '../data/database_seed.json';
 
 export interface AltNumberEntry {
   phone: string;
@@ -141,7 +142,7 @@ export function isRecordMatch(record: any, target10Digits: string): boolean {
   return false;
 }
 
-export const MASTER_SEED_RECORDS: ThreatRecord[] = [];
+export const MASTER_SEED_RECORDS: ThreatRecord[] = (databaseSeed as ThreatRecord[]) || [];
 
 export interface TrackerPageProps {
   onNavigateToReport?: () => void;
@@ -151,15 +152,29 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const [iframeHeight, setIframeHeight] = useState<number>(32000);
 
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
-        if (event.data && typeof event.data.height === 'number' && event.data.height > 0) {
-          setIframeHeight(Math.max(event.data.height, 25000));
-        }
+    let savedScrollY: number | null = null;
+
+    const lockScrollAndCenter = (modalTop?: number) => {
+      if (document.body.style.overflow !== 'hidden') {
+        savedScrollY = window.scrollY;
+        document.body.style.overflow = 'hidden';
+      }
+
+      if (typeof modalTop === 'number' && modalTop > 0) {
+        const targetScroll = Math.max(0, modalTop - window.innerHeight / 4);
+        window.scrollTo({ top: targetScroll, behavior: 'instant' as ScrollBehavior });
       }
     };
 
-    const handleScroll = () => {
+    const unlockScroll = () => {
+      document.body.style.overflow = '';
+      if (savedScrollY !== null) {
+        window.scrollTo({ top: savedScrollY, behavior: 'instant' as ScrollBehavior });
+        savedScrollY = null;
+      }
+    };
+
+    const sendParentScrollPosition = () => {
       const iframe = document.querySelector('iframe[title="EndScams Threat Tracker"]') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage({
@@ -170,11 +185,45 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       }
     };
 
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data) {
+        if (typeof event.data.height === 'number' && event.data.height > 0) {
+          setIframeHeight(Math.max(event.data.height, 25000));
+        }
+
+        if (
+          event.data.type === 'OPEN_MODAL' ||
+          event.data.type === 'LOCK_SCROLL' ||
+          event.data.modalOpen === true ||
+          event.data.action === 'OPEN_EDIT_MODAL'
+        ) {
+          lockScrollAndCenter(event.data.modalTop);
+        } else if (
+          event.data.type === 'CLOSE_MODAL' ||
+          event.data.type === 'UNLOCK_SCROLL' ||
+          event.data.modalOpen === false ||
+          event.data.action === 'CLOSE_EDIT_MODAL'
+        ) {
+          unlockScroll();
+        }
+      }
+    };
+
+    const handleScroll = () => {
+      sendParentScrollPosition();
+    };
+
+    // Periodically post parent scroll position to iframe so iframe positions modals at active viewport center
+    const intervalId = setInterval(sendParentScrollPosition, 200);
+
     window.addEventListener('message', handleMessage);
     window.addEventListener('scroll', handleScroll, { passive: true });
+
     return () => {
+      clearInterval(intervalId);
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('scroll', handleScroll);
+      document.body.style.overflow = '';
     };
   }, []);
 

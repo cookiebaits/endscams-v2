@@ -18,6 +18,21 @@
     "description": "Targeting previous crypto scam victims by promising to reverse fraudulent blockchain transactions through private WhatsApp channel. Solicits upfront gas fees."
   },
   {
+    "id": "esscan-02",
+    "phone_number": "1 (469) 820-9134",
+    "phone_digits": "14698209134",
+    "is_whatsapp": false,
+    "alt_numbers": [],
+    "source_name": "Community Decoy Index",
+    "source_url": "https://esscan.ai.studio",
+    "report_date": "2026-09-08",
+    "category": "Lotto / Sweepstakes",
+    "impersonated_company": "CashApp $5000 Drop Promo",
+    "invoice_number": "CA-5000-DROP",
+    "amount_charged": "$5,000.00 Fraudulent Grant",
+    "description": "CashApp $5000 Drop Promo phishing scam line claiming instant account credit after verifying PIN and bank details."
+  },
+  {
     "id": "esscan-03",
     "phone_number": "1 (951) 629-3962",
     "phone_digits": "19516293962",
