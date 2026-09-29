@@ -159,8 +159,23 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       }
     };
 
+    const handleScroll = () => {
+      const iframe = document.querySelector('iframe[title="EndScams Threat Tracker"]') as HTMLIFrameElement;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          type: 'PARENT_SCROLL_POSITION',
+          scrollY: window.scrollY,
+          viewportHeight: window.innerHeight
+        }, '*');
+      }
+    };
+
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   const todayDate = getPSTDateStamp();

@@ -310,7 +310,7 @@ export default function HomePage() {
             seenIds.add(r.id);
             reports.push({
               id: r.id,
-              category: r.category || 'User Scam Report',
+              category: r.category || 'Refund / Impersonator',
               description: r.description || '',
               incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
               source: r.source || 'User Report',
@@ -329,7 +329,7 @@ export default function HomePage() {
               source_name: t.source_name || 'Watchdog Harvester',
               source_url: t.source_url || '',
               report_date: t.report_date || new Date().toISOString().split('T')[0],
-              category: t.category || 'Scam',
+              category: t.category || 'Refund / Impersonator',
               description: t.description || ''
             });
           }
