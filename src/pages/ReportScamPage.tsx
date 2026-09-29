@@ -101,10 +101,13 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  const todayDate = getPSTDateStamp();
+  const iframeSrc = `https://esscan.ai.studio/?page=report&v=${todayDate}`;
+
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center">
       <iframe
-        src="https://esscan.ai.studio/?page=report"
+        src={iframeSrc}
         title="EndScams Report Scam"
         className="w-full border-0 block flex-1"
         style={{

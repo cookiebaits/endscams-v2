@@ -163,10 +163,13 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
+  const todayDate = getPSTDateStamp();
+  const iframeSrc = `https://esscan.ai.studio?v=${todayDate}`;
+
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col">
       <iframe
-        src="https://esscan.ai.studio"
+        src={iframeSrc}
         title="EndScams Threat Tracker"
         className="w-full border-0 block flex-1"
         style={{
