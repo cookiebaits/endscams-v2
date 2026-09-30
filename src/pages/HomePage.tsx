@@ -6,9 +6,115 @@ import {
   X, Info
 } from 'lucide-react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { MASTER_SEED_RECORDS, isRecordMatch, ThreatRecord } from './TrackerPage';
 
-type ImpactStats = {
+// ============================================================================
+// 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
+// ============================================================================
+
+/**
+ * Universally matches any phone number input against threat database records.
+ * Supports all user formats:
+ * - (555) 123-4567
+ * - 555-123-4567
+ * - 5551234567
+ * - 15551234567
+ * - +1 (555) 123-4567
+ * - +234 813 816 1886
+ * - +254... / +27... / International
+ * 
+ * Strictly matches full 10-digit North American telephone numbers (Area Code + Prefix + Line)
+ * to prevent false positives from sharing 7-digit substrings across different area codes.
+ */
+export function isRecordMatch(record: any, targetInput: string): boolean {
+  if (!record || !targetInput) return false;
+  const rawTarget = String(targetInput).trim();
+  const cleanTarget = rawTarget.replace(/\D/g, '');
+  if (!cleanTarget || cleanTarget.length < 7) return false;
+
+  // 10-digit North American core
+  let target10 = cleanTarget;
+  if (cleanTarget.length === 11 && cleanTarget.startsWith('1')) {
+    target10 = cleanTarget.slice(1);
+  }
+
+  // Collect all potential digit variants from the record
+  const candidateDigits: string[] = [];
+  const addVal = (val: any) => {
+    if (!val) return;
+    const d = String(val).replace(/\D/g, '');
+    if (d && !candidateDigits.includes(d)) candidateDigits.push(d);
+  };
+
+  addVal(record.phone_digits);
+  addVal(record.clean_phone);
+  addVal(record.cleanPhone);
+  addVal(record.phone_number);
+  addVal(record.phone);
+  addVal(record.alt_phone);
+
+  if (Array.isArray(record.alt_numbers)) {
+    for (const alt of record.alt_numbers) {
+      if (typeof alt === 'string') {
+        addVal(alt);
+      } else if (alt && typeof alt === 'object') {
+        addVal(alt.digits);
+        addVal(alt.phone);
+      }
+    }
+  }
+
+  for (const cDigits of candidateDigits) {
+    if (!cDigits) continue;
+
+    // 1. Exact raw digits match
+    if (cDigits === cleanTarget) return true;
+
+    let c10 = cDigits;
+    if (cDigits.length === 11 && cDigits.startsWith('1')) {
+      c10 = cDigits.slice(1);
+    }
+
+    // 2. Full 10-digit North American Match (Area code + Exchange + Number)
+    if (target10.length === 10 && c10.length === 10) {
+      if (target10 === c10) return true;
+    }
+
+    // 3. 11-digit vs 10-digit North American Match
+    if (target10.length === 10) {
+      if (cDigits === `1${target10}` || cDigits === target10) return true;
+    }
+    if (c10.length === 10) {
+      if (cleanTarget === `1${c10}` || cleanTarget === c10) return true;
+    }
+
+    // 4. International prefix match (Nigeria: 234 vs local 0..., Kenya: 254 vs local 0..., etc.)
+    if (cleanTarget.startsWith('234') && cDigits.startsWith('0') && cDigits.slice(1) === cleanTarget.slice(3)) {
+      return true;
+    }
+    if (cDigits.startsWith('234') && cleanTarget.startsWith('0') && cleanTarget.slice(1) === cDigits.slice(3)) {
+      return true;
+    }
+    if (cleanTarget.startsWith('254') && cDigits.startsWith('0') && cDigits.slice(1) === cleanTarget.slice(3)) {
+      return true;
+    }
+    if (cDigits.startsWith('254') && cleanTarget.startsWith('0') && cleanTarget.slice(1) === cDigits.slice(3)) {
+      return true;
+    }
+
+    // 5. Full international match
+    if (cleanTarget.length >= 10 && cDigits.length >= 10 && cleanTarget === cDigits) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============================================================================
+// 2. HELPER UTILITIES & STATS
+// ============================================================================
+
+export type ImpactStats = {
   money_saved: number;
   scammer_hours_wasted: number;
   resources_shutdown: number;
@@ -22,7 +128,7 @@ function seededRandom(seed: number) {
 }
 
 // Calculate simulated stats growth
-function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
+export function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
   const simulatedStats = { ...baseStats };
   const baselineDate = baseStats.last_updated ? new Date(baseStats.last_updated) : new Date('2024-01-01T00:00:00Z');
   const now = new Date();
@@ -69,7 +175,7 @@ export function formatPhoneDisplay(raw: string): string {
   return raw.startsWith('+') ? raw : (digits.length > 10 ? `+${digits}` : digits);
 }
 
-function normalizeInput(raw: string): string {
+export function normalizeInput(raw: string): string {
   const digits = raw.replace(/\D/g, '');
   if (digits.length === 11 && digits.startsWith('1')) {
     return digits.slice(1);
@@ -77,7 +183,7 @@ function normalizeInput(raw: string): string {
   return digits;
 }
 
-function formatTyping(value: string): string {
+export function formatTyping(value: string): string {
   if (value.startsWith('+')) {
     return value;
   }
@@ -91,14 +197,14 @@ function formatTyping(value: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
-type SearchResult = {
+export type SearchResult = {
   found: boolean;
   reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }>;
   trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }>;
 };
 
-// Custom hook for count up effect
-function useCountUp(end: number, duration: number = 2000) {
+// Custom hook for count up animation effect
+export function useCountUp(end: number, duration: number = 2000) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -131,7 +237,7 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
   const configuredFetcher = (import.meta.env.VITE_FETCHER_URL || '').replace(/\/+$/, '');
   const baseUrl = configuredFetcher || '';
 
-  // Build target endpoints (unified /api/tools with fallback to direct /api/<tool>)
+  // Target endpoints supporting /api/tools, /api/<tool>, and /api/scam-tools/<tool>
   const targets = [
     { url: `${baseUrl}/api/tools`, body: { tool, query } },
     { url: `${baseUrl}/api/${tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip_address: query } : { url: query } },
@@ -163,7 +269,11 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
   throw new Error(lastError);
 }
 
-interface HomePageProps {
+// ============================================================================
+// 3. MAIN HOMEPAGE COMPONENT
+// ============================================================================
+
+export interface HomePageProps {
   onNavigateToTracker?: (searchQuery?: string) => void;
   onNavigateToReport?: (prefilledPhone?: string) => void;
 }
@@ -312,6 +422,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     }
   };
 
+  // ==========================================================================
+  // UNIFIED DATABASE SEARCH HANDLER (Supports all formats, iframe safe)
+  // ==========================================================================
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const rawInput = input.trim();
@@ -355,7 +468,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
         console.warn('Live /api/records fetch error during search:', err);
       }
 
-      // 2. Check Supabase database tables directly if client available
+      // 2. Check Supabase database tables directly if client is available
       if (supabaseClient) {
         try {
           const core10Digits = normalizeInput(rawInput);
@@ -407,27 +520,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
         } catch {}
       }
 
-      // 3. Check local Master Seed Records
-      if (Array.isArray(MASTER_SEED_RECORDS)) {
-        MASTER_SEED_RECORDS.forEach((s) => {
-          if (isRecordMatch(s, rawInput)) {
-            const itemId = String(s.id || s.phone_digits);
-            if (!seenIds.has(itemId)) {
-              seenIds.add(itemId);
-              trackerEntries.push({
-                id: s.id,
-                source_name: s.source_name || 'Community Watchdog Index',
-                source_url: s.source_url || '',
-                report_date: s.report_date || new Date().toISOString().split('T')[0],
-                category: s.category || 'Scam Intelligence',
-                description: s.description || s.impersonated_company || ''
-              });
-            }
-          }
-        });
-      }
-
-      // 4. Check LocalStorage sources
+      // 3. Check LocalStorage sources
       const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
       storageKeys.forEach((key) => {
         try {
@@ -452,9 +545,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
               }
             });
           }
-        } catch {
-          /* ignore storage errors */
-        }
+        } catch {}
       });
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
@@ -579,7 +670,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
               </div>
               <button
                 type="submit"
-                disabled={normalizeInput(input).length < 7 || searching}
+                disabled={input.replace(/\D/g, '').length < 7 || searching}
                 className="h-14 px-8 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
               >
                 {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" />Search</>}
@@ -633,7 +724,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                         onClick={() => onNavigateToTracker(searchedDigits)}
                         className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
                       >
-                        <ExternalLink className="w-4 h-4" /> View in Live Tracker
+                        <ExternalLink className="w-4 h-4" /> View in Live Threat Tracker
                       </button>
                     )}
                   </div>
@@ -1159,7 +1250,8 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   );
 }
 
-function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
+// Subcomponent: ReportCard
+export function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-2 text-left shadow-sm">
       <div className="flex items-center justify-between mb-2">
