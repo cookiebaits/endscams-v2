@@ -644,10 +644,12 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-20 bg-slate-50 dark:bg-slate-950">
+      <section id="tools" className="py-20 bg-slate-950 border-b border-slate-900">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-black mb-3 text-slate-900 dark:text-white">Community Scam Database</h2>
-          <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-xl mx-auto text-sm">
+          <h2 className="text-3xl sm:text-4xl font-extrabold mb-3 text-white tracking-tight">
+            Community Scam Database
+          </h2>
+          <p className="text-slate-400 mb-8 max-w-xl mx-auto text-sm leading-relaxed">
             Search our historical database of known fraudulent numbers reported by victims and security decoys.
           </p>
 
@@ -664,19 +666,32 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                     setResult(null);
                     setSearched(false);
                   }}
-                  maxLength={25}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-12 pr-4 h-14 text-lg rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all text-slate-900 dark:text-white font-mono"
+                  maxLength={30}
+                  className="w-full bg-[#0b1329] border border-slate-700/80 pl-12 pr-10 h-14 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none transition-all text-white font-mono placeholder-slate-500"
                 />
+                {input && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('');
+                      setResult(null);
+                      setSearched(false);
+                    }}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <button
                 type="submit"
                 disabled={input.replace(/\D/g, '').length < 7 || searching}
-                className="h-14 px-8 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
+                className="h-14 px-8 rounded-xl text-base font-bold bg-[#b46d0a] hover:bg-[#c97b0c] text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer shrink-0"
               >
-                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" />Search</>}
+                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5 stroke-[2.5]" />Search</>}
               </button>
             </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 text-left pl-1">
+            <p className="text-xs text-slate-500 mt-2 text-left pl-1">
               Accepts standard 10-digit format: (555) 123-4567 | 555-123-4567 | 5551234567
             </p>
           </form>
