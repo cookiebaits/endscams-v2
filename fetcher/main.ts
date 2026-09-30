@@ -73,7 +73,7 @@ async function saveRecordToSupabase(r: any) {
     const source_name = r.source_name || r.platform || "Threat Intelligence";
     const source_url = r.source_url || r.sourceUrl || "";
     const report_date = r.report_date || r.postDate || r.detectedAt || new Date().toISOString().split("T")[0];
-    const category = normalizeCategory(r.category || r.scamType || r.description || "Refund / Impersonator");
+    const category = r.category || r.scamType || "General Tech Support & Refund Scams";
     const description = r.description || r.detailedSummary || r.snippet || "";
 
     let impersonated_company = r.impersonated_company || r.impersonatedCompany || "";
@@ -556,54 +556,37 @@ async function queryGeminiWithRotation(prompt: string, apiKey: string): Promise<
 const CSV_URL = "https://docs.google.com/spreadsheets/d/1wA8LivoY-tYG1gLI4BtX06SLARiiS83a/export?format=csv&id=1wA8LivoY-tYG1gLI4BtX06SLARiiS83a";
 
 const WHATSAPP_QUERIES = [
-  { q: 'site:facebook.com "spellcaster" "Whatsapp" "Healing" "Fortune"', category: "Spell / Non-Delivery", label: "Facebook — Spellcaster/Healing" },
-  { q: 'site:facebook.com "illuminati" "Whatsapp"',                     category: "Spell / Non-Delivery", label: "Facebook — Illuminati" },
-  { q: 'site:instagram.com "spellcaster" "Whatsapp"',                   category: "Spell / Non-Delivery", label: "Instagram — Spellcaster" },
-  { q: 'site:facebook.com "btc recovery" "Whatsapp"',                   category: "Spell / Non-Delivery", label: "Facebook — BTC Recovery" },
-  { q: 'site:instagram.com "btc recovery" "Whatsapp"',                  category: "Spell / Non-Delivery", label: "Instagram — BTC Recovery" },
-  { q: '"Whatsapp" "Fortune" "Fortune Telling"',                        category: "Spell / Non-Delivery", label: "Web — Fortune Telling" },
-  { q: '"Whatsapp" "Magic" "Magician"',                                 category: "Spell / Non-Delivery", label: "Web — Magic/Magician" },
-  { q: '"Whatsapp" "Crypto Recovery"',                                  category: "Spell / Non-Delivery", label: "Web — Crypto Recovery" },
-  { q: '"guestbook" spell "WhatsApp"',                                  category: "Spell / Non-Delivery", label: "Web — Guestbook Spell" },
-  { q: 'site:petscams.com scam phone',                                  category: "Other",                label: "PetScams.com" },
-  { q: 'site:scampulse.com pet scam phone',                             category: "Other",                label: "ScamPulse — Pet Scams" },
-  { q: 'site:scammer.info/c/scams phone',                               category: "Refund / Impersonator", label: "Scammer.info — Forum" },
-  { q: '"book publisher" "amazon" "chat" phone',                        category: "Refund / Impersonator", label: "Amazon Book Publisher Scams" },
+  { q: 'site:facebook.com "spellcaster" "Whatsapp" "Healing" "Fortune"', category: "Spiritual / Spellcaster Scam", label: "Facebook — Spellcaster/Healing" },
+  { q: 'site:facebook.com "illuminati" "Whatsapp"',                     category: "Spiritual / Spellcaster Scam", label: "Facebook — Illuminati" },
+  { q: 'site:instagram.com "spellcaster" "Whatsapp"',                   category: "Spiritual / Spellcaster Scam", label: "Instagram — Spellcaster" },
+  { q: 'site:facebook.com "btc recovery" "Whatsapp"',                   category: "Crypto Recovery Scam",         label: "Facebook — BTC Recovery" },
+  { q: 'site:instagram.com "btc recovery" "Whatsapp"',                  category: "Crypto Recovery Scam",         label: "Instagram — BTC Recovery" },
+  { q: '"Whatsapp" "Fortune" "Fortune Telling"',                        category: "Spiritual / Spellcaster Scam", label: "Web — Fortune Telling" },
+  { q: '"Whatsapp" "Magic" "Magician"',                                 category: "Spiritual / Spellcaster Scam", label: "Web — Magic/Magician" },
+  { q: '"Whatsapp" "Crypto Recovery"',                                  category: "Crypto Recovery Scam",         label: "Web — Crypto Recovery" },
+  { q: '"guestbook" spell "WhatsApp"',                                  category: "Spiritual / Spellcaster Scam", label: "Web — Guestbook Spell" },
+  { q: 'site:petscams.com scam phone',                                  category: "Pet Scam",                    label: "PetScams.com" },
+  { q: 'site:scampulse.com pet scam phone',                             category: "Pet Scam",                    label: "ScamPulse — Pet Scams" },
+  { q: 'site:scammer.info/c/scams phone',                               category: "General Tech Support & Refund Scams", label: "Scammer.info — Forum" },
+  { q: '"book publisher" "amazon" "chat" phone',                        category: "Publishing Chat Scam",         label: "Amazon Book Publisher Scams" },
 ];
 
 const BBB_QUERIES = [
-  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0",    category: "Refund / Impersonator", label: "BBB — PayPal" },
-  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0", category: "Other",                 label: "BBB — Emergency" },
-  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0",   category: "Lotto / Sweepstakes",   label: "BBB — Million" },
+  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dpaypal%26from%3D0",    category: "Invoice / Imposter Scam", label: "BBB — PayPal" },
+  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Demergency%26from%3D0", category: "Emergency Scam",          label: "BBB — Emergency" },
+  { url: "https://www.bbb.org/scamtracker/lookupscam?q=all%3Dmillion%26from%3D0",   category: "Lottery / Prize Scam",    label: "BBB — Million" },
 ];
 
 function normalizeCategory(raw: string): string {
   const r = (raw || "").toLowerCase();
-  if (
-    r.includes("tech") || r.includes("refund") || r.includes("impersonat") ||
-    r.includes("support") || r.includes("charge") || r.includes("security") ||
-    r.includes("irs") || r.includes("amazon") || r.includes("kindle") ||
-    r.includes("walmart") || r.includes("meta") || r.includes("bank") ||
-    r.includes("invoice") || r.includes("warrant") || r.includes("debt") ||
-    r.includes("government") || r.includes("social")
-  ) {
-    return "Refund / Impersonator";
-  }
-  if (
-    r.includes("lotter") || r.includes("lotto") || r.includes("prize") ||
-    r.includes("sweep") || r.includes("pch") || r.includes("winning")
-  ) {
-    return "Lotto / Sweepstakes";
-  }
-  if (
-    r.includes("spell") || r.includes("healing") || r.includes("herbal") ||
-    r.includes("btc") || r.includes("crypto") || r.includes("bitcoin") ||
-    r.includes("recovery") || r.includes("spiritual") || r.includes("luck") ||
-    r.includes("non-delivery") || r.includes("delivery") || r.includes("fortune") || r.includes("magic")
-  ) {
-    return "Spell / Non-Delivery";
-  }
-  return "Other";
+  if (r.includes("lotter") || r.includes("prize") || r.includes("sweep")) return "Lottery / Prize Scam";
+  if (r.includes("warrant")) return "Invoice / Imposter Scam";
+  if (r.includes("debt")) return "Invoice / Imposter Scam";
+  if (r.includes("emergency")) return "Emergency Scam";
+  if (r.includes("government") || r.includes("irs") || r.includes("social")) return "Government Impersonation";
+  if (r.includes("crypto") || r.includes("bitcoin") || r.includes("btc")) return "Crypto Recovery Scam";
+  if (r.includes("spell") || r.includes("fortune") || r.includes("magic")) return "Spiritual / Spellcaster Scam";
+  return raw?.trim() || "Unknown Scam";
 }
 
 async function runPipeline(): Promise<Record<string, unknown>> {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export interface AltNumberEntry {
   phone: string;
@@ -31,10 +31,18 @@ export interface ThreatRecord {
 }
 
 export const STANDARD_SCAM_CATEGORIES = [
-  'Refund / Impersonator',
-  'Lotto / Sweepstakes',
-  'Spell / Non-Delivery',
-  'Other',
+  'Lottery & Sweepstakes Scams (American Cash Awards, PCH, Mega Millions)',
+  'General Tech Support & Refund Scams (Geek Squad, Microsoft, Apple)',
+  'Bank & Financial Impersonation (Chase, Wells Fargo, Zelle, Wire Fraud)',
+  'Crypto BTC Recovery Scam',
+  'Spellcaster WhatsApp Extortion',
+  'Government & Law Enforcement (Social Security, IRS, Police, DEA)',
+  'Utility & Telecom Scams (Spectrum, AT&T, Power/Electric)',
+  'Job, Task & Investment Scams',
+  'Vehicle & Auto Warranty Scams',
+  'Healthcare, Medicare & Medical Scams',
+  'Romance & Blackmail Scams',
+  'Other / Uncategorized Threat',
 ];
 
 export function formatDisplayPhone(raw: string, digits: string): string {
@@ -46,54 +54,6 @@ export function formatDisplayPhone(raw: string, digits: string): string {
     return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
   return raw.startsWith('+') ? raw : `+${digits}`;
-}
-
-export function getCleanCopyPhone(text: string): string {
-  if (!text) return '';
-  const digits = text.replace(/\D/g, '');
-  if (digits.length === 11 && digits.startsWith('1')) {
-    return digits.slice(1);
-  }
-  return digits || text;
-}
-
-export function isFictitiousOrInvalidPhone(digits: string): boolean {
-  if (!digits || digits.length < 7) return true;
-  if (/^(\d)\1+$/.test(digits)) return true;
-  if (digits.includes('5550199') || digits.includes('5550100')) return true;
-  return false;
-}
-
-export function deriveCountryInfo(rawOrFormatted: string): { name: string; flag: string; code: string } {
-  const digits = (rawOrFormatted || '').replace(/\D/g, '');
-  if (digits.startsWith('234')) return { name: 'Nigeria', flag: '🇳🇬', code: 'NG' };
-  if (digits.startsWith('254')) return { name: 'Kenya', flag: '🇰🇪', code: 'KE' };
-  if (digits.startsWith('27')) return { name: 'South Africa', flag: '🇿🇦', code: 'ZA' };
-  if (digits.startsWith('44')) return { name: 'United Kingdom', flag: '🇬🇧', code: 'GB' };
-  if (digits.startsWith('91')) return { name: 'India', flag: '🇮🇳', code: 'IN' };
-  if (digits.startsWith('61')) return { name: 'Australia', flag: '🇦🇺', code: 'AU' };
-  if (digits.length === 10 || (digits.length === 11 && digits.startsWith('1'))) {
-    return { name: 'United States', flag: '🇺🇸', code: 'US' };
-  }
-  return { name: 'International', flag: '🌐', code: 'INT' };
-}
-
-export function isWhatsAppThreat(record: {
-  is_whatsapp?: boolean;
-  phone_number?: string;
-  phone_digits?: string;
-  category?: string;
-  description?: string;
-  source_name?: string;
-}): boolean {
-  if (record.is_whatsapp === true) return true;
-  const cat = (record.category || '').toLowerCase();
-  const desc = (record.description || '').toLowerCase();
-  const src = (record.source_name || '').toLowerCase();
-  if (cat.includes('whatsapp') || desc.includes('whatsapp') || src.includes('whatsapp')) return true;
-  const digits = (record.phone_digits || record.phone_number || '').replace(/\D/g, '');
-  if (digits.startsWith('234') || digits.startsWith('254') || digits.startsWith('27')) return true;
-  return false;
 }
 
 export function getPSTDateStamp(): string {
@@ -110,151 +70,103 @@ export function getPSTDateStamp(): string {
   }
 }
 
-export function normalizeToNumericalDate(dateStr: any): string {
-  if (!dateStr) return getPSTDateStamp();
-  const str = String(dateStr).trim();
-  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (isoMatch) {
-    const y = isoMatch[1];
-    const m = isoMatch[2].padStart(2, '0');
-    const d = isoMatch[3].padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  return getPSTDateStamp();
-}
-
-export function isRecordMatch(record: any, target10Digits: string): boolean {
-  if (!record || !target10Digits) return false;
-  const digits10 = target10Digits.replace(/\D/g, '').slice(-10);
-  if (!digits10) return false;
-
-  const mainDigits = (record.phone_digits || record.cleanPhone || record.phone_number || record.phone || '').replace(/\D/g, '');
-  if (mainDigits.includes(digits10)) return true;
-
-  if (Array.isArray(record.alt_numbers)) {
-    for (const alt of record.alt_numbers) {
-      const altDigits = (alt.digits || alt.phone || '').replace(/\D/g, '');
-      if (altDigits.includes(digits10)) return true;
-    }
-  }
-
-  return false;
-}
-
 export const MASTER_SEED_RECORDS: ThreatRecord[] = [];
+
+export function isRecordMatch(record: ThreatRecord, query: string): boolean {
+  if (!query) return true;
+  const q = query.toLowerCase().replace(/\D/g, '');
+  const textQ = query.toLowerCase();
+  return (
+    record.phone_digits.includes(q) ||
+    record.phone_number.toLowerCase().includes(textQ) ||
+    (record.impersonated_company || '').toLowerCase().includes(textQ) ||
+    (record.category || '').toLowerCase().includes(textQ)
+  );
+}
+
+export async function fetchFromSupabase(): Promise<{ success: boolean; records?: ThreatRecord[]; error?: string }> {
+  return { success: true, records: [] };
+}
+
+export async function upsertToSupabase(records: ThreatRecord[]): Promise<{ success: boolean; count?: number; error?: string }> {
+  return { success: true, count: records.length };
+}
 
 export interface TrackerPageProps {
   onNavigateToReport?: () => void;
 }
 
 export const TrackerPage: React.FC<TrackerPageProps> = () => {
-  const [iframeHeight, setIframeHeight] = useState<number>(32000);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeHeight, setIframeHeight] = useState<number | string>('100vh');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const postScrollPosition = (extraData: Record<string, any> = {}) => {
-      const iframe = document.querySelector('iframe[title="EndScams Threat Tracker"]') as HTMLIFrameElement;
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({
-          type: 'PARENT_SCROLL_POSITION',
-          scrollY: window.scrollY || window.pageYOffset || 0,
-          viewportHeight: window.innerHeight || document.documentElement.clientHeight || 800,
-          documentHeight: document.documentElement.scrollHeight || 32000,
-          ...extraData,
-        }, '*');
-      }
-    };
-
+    // PostMessage communication with iframe for dynamic height & modal scroll lock
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin.includes('esscan.ai.studio') || event.origin.includes('localhost')) {
-        const data = event.data;
-        if (data) {
-          if (typeof data.height === 'number' && data.height > 0) {
-            setIframeHeight(Math.max(data.height, 25000));
-          }
+      if (!event.data) return;
 
-          // Handle modal scroll locking signals from iframe
-          const isLockSignal =
-            data.type === 'OPEN_MODAL' ||
-            data.type === 'LOCK_SCROLL' ||
-            data.type === 'MODAL_OPEN' ||
-            data.type === 'SHOW_DETAILS' ||
-            data.type === 'EDIT_DETAILS' ||
-            data.action === 'lock_scroll' ||
-            data.lockScroll === true ||
-            data.modalOpen === true ||
-            data.isModalOpen === true;
+      const { type, height, frameHeight } = event.data;
 
-          const isUnlockSignal =
-            data.type === 'CLOSE_MODAL' ||
-            data.type === 'UNLOCK_SCROLL' ||
-            data.type === 'MODAL_CLOSE' ||
-            data.type === 'HIDE_DETAILS' ||
-            data.action === 'unlock_scroll' ||
-            data.lockScroll === false ||
-            data.modalOpen === false ||
-            data.isModalOpen === false;
-
-          if (isLockSignal) {
-            document.body.style.overflow = 'hidden';
-            document.body.style.touchAction = 'none';
-          } else if (isUnlockSignal) {
-            document.body.style.overflow = '';
-            document.body.style.touchAction = '';
-          }
-
-          // Always reply with parent scroll position so modal centers on active viewport
-          postScrollPosition();
+      // Handle height adjustments sent from embedded app
+      if (type === 'FRAME_HEIGHT' || type === 'RESIZE' || type === 'SET_HEIGHT') {
+        const h = height || frameHeight;
+        if (h && typeof h === 'number' && h > 300) {
+          setIframeHeight(h);
         }
       }
-    };
 
-    const handleScrollOrResize = () => {
-      postScrollPosition();
-    };
-
-    const handleClick = (e: MouseEvent) => {
-      postScrollPosition({ clickY: e.pageY || (e.clientY + window.scrollY) });
+      // Handle modal lock / unlock scroll events
+      if (type === 'LOCK_SCROLL' || type === 'OPEN_MODAL') {
+        document.body.style.overflow = 'hidden';
+      } else if (type === 'UNLOCK_SCROLL' || type === 'CLOSE_MODAL') {
+        document.body.style.overflow = '';
+      }
     };
 
     window.addEventListener('message', handleMessage);
-    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
-    window.addEventListener('resize', handleScrollOrResize, { passive: true });
-    window.addEventListener('click', handleClick, { passive: true });
 
-    // Initial post + interval sync
-    postScrollPosition();
-    const interval = setInterval(postScrollPosition, 300);
+    // Sync parent scroll position to iframe for overlay modal positioning
+    const scrollInterval = setInterval(() => {
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: 'PARENT_SCROLL_POSITION',
+            scrollTop: window.scrollY,
+            windowHeight: window.innerHeight,
+          },
+          '*'
+        );
+      }
+    }, 500);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('scroll', handleScrollOrResize);
-      window.removeEventListener('resize', handleScrollOrResize);
-      window.removeEventListener('click', handleClick);
+      clearInterval(scrollInterval);
       document.body.style.overflow = '';
-      document.body.style.touchAction = '';
     };
   }, []);
 
-  const todayDate = getPSTDateStamp();
-  const iframeSrc = `https://esscan.ai.studio?v=${todayDate}`;
-
   return (
-    <div className="w-full min-h-screen bg-slate-950 flex flex-col">
+    <div className="w-full min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 bg-slate-950/90 flex flex-col items-center justify-center space-y-3 text-slate-300">
+          <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-medium">Loading Threat Tracker...</span>
+        </div>
+      )}
+
       <iframe
-        src={iframeSrc}
-        title="EndScams Threat Tracker"
-        loading="eager"
-        // @ts-ignore
-        fetchpriority="high"
+        ref={iframeRef}
+        src="https://esscan.ai.studio"
+        title="ESSCAN Threat Tracker"
+        onLoad={() => setIsLoading(false)}
         className="w-full border-0 block flex-1"
         style={{
-          width: '100%',
-          height: `${iframeHeight}px`,
-          minHeight: '25000px',
-          border: 'none',
+          height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
+          minHeight: 'calc(100vh - 80px)',
         }}
-        scrolling="no"
+        scrolling="auto"
       />
     </div>
   );
