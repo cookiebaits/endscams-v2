@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, ShieldAlert, CheckCircle2, ExternalLink, Loader2,
-  Phone, AlertTriangle, Globe, Shield, ArrowRight, X
+  Phone, Globe, Shield, ArrowRight, X
 } from 'lucide-react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import databaseSeed from '../data/database_seed.json';

@@ -5,7 +5,7 @@ import {
   Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
   X, Info
 } from 'lucide-react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
