@@ -13,14 +13,18 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "@xmldom/xmldom": "^0.9.11",
+    "express": "^4.21.2",
     "helmet": "^8.0.0",
     "lucide-react": "^0.475.0",
+    "raw-body": "4.0.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "7.18.2",
     "ws": "^8.20.1"
   },
   "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.1",
     "@eslint/js": "^9.9.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

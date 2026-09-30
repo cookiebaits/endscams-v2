@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
+  Search, Phone, Shield, ExternalLink,
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
   Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
   X, Info
 } from 'lucide-react';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
@@ -26,7 +26,7 @@ import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSear
  * Strictly matches full 10-digit North American telephone numbers (Area Code + Prefix + Line)
  * to prevent false positives from sharing 7-digit substrings across different area codes.
  */
-export function isRecordMatch(record: any, targetInput: string): boolean {
+export function isRecordMatch(record: Record<string, unknown>, targetInput: string): boolean {
   if (!record || !targetInput) return false;
   const rawTarget = String(targetInput).trim();
   const cleanTarget = rawTarget.replace(/\D/g, '');
@@ -40,7 +40,7 @@ export function isRecordMatch(record: any, targetInput: string): boolean {
 
   // Collect all potential digit variants from the record
   const candidateDigits: string[] = [];
-  const addVal = (val: any) => {
+  const addVal = (val: unknown) => {
     if (!val) return;
     const d = String(val).replace(/\D/g, '');
     if (d && !candidateDigits.includes(d)) candidateDigits.push(d);
@@ -57,9 +57,10 @@ export function isRecordMatch(record: any, targetInput: string): boolean {
     for (const alt of record.alt_numbers) {
       if (typeof alt === 'string') {
         addVal(alt);
-      } else if (alt && typeof alt === 'object') {
-        addVal(alt.digits);
-        addVal(alt.phone);
+      } else if (alt && typeof alt === 'object' && alt !== null) {
+        const altObj = alt as Record<string, unknown>;
+        addVal(altObj.digits);
+        addVal(altObj.phone);
       }
     }
   }
@@ -262,8 +263,8 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
       if (data?.error) {
         lastError = data.error;
       }
-    } catch (e: any) {
-      lastError = e?.message || 'Network connection failed';
+    } catch (e: unknown) {
+      lastError = e instanceof Error ? e.message : 'Network connection failed';
     }
   }
 
@@ -285,28 +286,25 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   // Phone Tool State
   const [phoneToolInput, setPhoneToolInput] = useState('');
   const [phoneToolLoading, setPhoneToolLoading] = useState(false);
-  const [phoneToolResult, setPhoneToolResult] = useState<any>(null);
+  const [phoneToolResult, setPhoneToolResult] = useState<Record<string, any> | null>(null);
 
   // Email Tool State
   const [emailToolInput, setEmailToolInput] = useState('');
   const [emailToolLoading, setEmailToolLoading] = useState(false);
-  const [emailToolResult, setEmailToolResult] = useState<any>(null);
+  const [emailToolResult, setEmailToolResult] = useState<Record<string, any> | null>(null);
 
   // IP Tool State
   const [ipToolInput, setIpToolInput] = useState('');
   const [ipToolLoading, setIpToolLoading] = useState(false);
-  const [ipToolResult, setIpToolResult] = useState<any>(null);
+  const [ipToolResult, setIpToolResult] = useState<Record<string, any> | null>(null);
 
   // Scrape Tool State
   const [scrapeToolInput, setScrapeToolInput] = useState('');
   const [scrapeToolLoading, setScrapeToolLoading] = useState(false);
-  const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
+  const [scrapeToolResult, setScrapeToolResult] = useState<Record<string, any> | null>(null);
   const [showRawJson, setShowRawJson] = useState(false);
 
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
-
-  // Supabase Client
-  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   // Banner dismiss state
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -332,7 +330,6 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           const config = await res.json();
           if (config.supabaseUrl && config.supabaseKey) {
             const sb = createClient(config.supabaseUrl, config.supabaseKey);
-            setSupabaseClient(sb);
 
             const { data } = await sb
               .from('impact_statistics')
@@ -364,8 +361,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     try {
       const data = await fetchToolData('phone', query);
       setPhoneToolResult(data);
-    } catch (err: any) {
-      setPhoneToolResult({ error: err.message || 'Failed to verify phone number' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to verify phone number';
+      setPhoneToolResult({ error: msg });
     } finally {
       setPhoneToolLoading(false);
     }
@@ -380,8 +378,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     try {
       const data = await fetchToolData('email', emailToolInput.trim());
       setEmailToolResult(data);
-    } catch (err: any) {
-      setEmailToolResult({ error: err.message || 'Failed to scan email' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to scan email';
+      setEmailToolResult({ error: msg });
     } finally {
       setEmailToolLoading(false);
     }
@@ -394,8 +393,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     try {
       const data = await fetchToolData('ip', ipToolInput.trim() || 'auto');
       setIpToolResult(data);
-    } catch (err: any) {
-      setIpToolResult({ error: err.message || 'Failed to analyze IP address' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to analyze IP address';
+      setIpToolResult({ error: msg });
     } finally {
       setIpToolLoading(false);
     }
@@ -410,8 +410,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     try {
       const data = await fetchToolData('scrape', scrapeToolInput.trim());
       setScrapeToolResult(data);
-    } catch (err: any) {
-      setScrapeToolResult({ error: err.message || 'Failed to scrape webpage' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to scrape webpage';
+      setScrapeToolResult({ error: msg });
     } finally {
       setScrapeToolLoading(false);
     }
@@ -931,7 +932,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
 
                       {showRawJson && (
                         <pre className="p-4 bg-slate-900 text-slate-200 rounded-xl overflow-x-auto max-h-80 font-mono text-[11px]">
-                          {typeof scrapeToolResult === 'string' ? scrapeToolResult.substring(0, 4000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 4000)}
+                          {typeof scrapeToolResult === 'string' ? (scrapeToolResult as string).substring(0, 4000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 4000)}
                         </pre>
                       )}
                     </div>

@@ -294,17 +294,18 @@ let activeUrl = '';
 let activeKey = '';
 
 export function getStoredSupabaseConfig(): { url: string; key: string } {
+  const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env || {};
   let url =
     (typeof process !== 'undefined' && process.env?.SUPABASE_URL) ||
-    (import.meta as any).env?.SUPABASE_URL ||
-    (import.meta as any).env?.VITE_SUPABASE_URL ||
+    metaEnv.SUPABASE_URL ||
+    metaEnv.VITE_SUPABASE_URL ||
     'https://joxeqlgkuvgvjoshmjqu.supabase.co';
 
   let key =
     (typeof process !== 'undefined' && (process.env?.SUPABASE_KEY || process.env?.SUPABASE_ANON_KEY)) ||
-    (import.meta as any).env?.SUPABASE_KEY ||
-    (import.meta as any).env?.SUPABASE_ANON_KEY ||
-    (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
+    metaEnv.SUPABASE_KEY ||
+    metaEnv.SUPABASE_ANON_KEY ||
+    metaEnv.VITE_SUPABASE_ANON_KEY ||
     '';
 
   if (typeof window !== 'undefined') {
@@ -335,7 +336,9 @@ export async function fetchServerSupabaseConfig(): Promise<{ url: string; key: s
         return { url: data.supabaseUrl, key: data.supabaseKey };
       }
     }
-  } catch {}
+  } catch (_e) {
+    // Config fetch fallback
+  }
   return getStoredSupabaseConfig();
 }
 
@@ -502,7 +505,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           } else {
             setOcrStatus('Screenshot attached.');
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.warn('OCR fetch failed:', err);
           setOcrStatus('Screenshot attached.');
         } finally {
@@ -510,10 +513,11 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
         }
       };
       reader.readAsDataURL(file);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsOcrProcessing(false);
       setOcrStatus(null);
-      setFeedback({ type: 'error', message: `Could not process image: ${err.message}` });
+      const msg = err instanceof Error ? err.message : String(err);
+      setFeedback({ type: 'error', message: `Could not process image: ${msg}` });
     }
   }, []);
 
@@ -654,7 +658,9 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           }),
         });
         if (resp.ok) break;
-      } catch {}
+      } catch (_e) {
+        // Backend endpoint retry fallback
+      }
     }
 
     // 3. Broadcast cross-tab
@@ -665,7 +671,9 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
         record: newRecord,
       });
       bc.close();
-    } catch {}
+    } catch (_e) {
+      // BroadcastChannel unavailable fallback
+    }
 
     if (onRecordCreated) {
       onRecordCreated(newRecord);
