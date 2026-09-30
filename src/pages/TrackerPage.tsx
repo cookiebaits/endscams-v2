@@ -48,14 +48,46 @@ export const STANDARD_SCAM_CATEGORIES = [
 ];
 
 export function formatDisplayPhone(raw: string, digits: string): string {
-  if (!digits) return raw || '';
-  if (digits.length === 10) {
-    return `1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (!raw && !digits) return '';
+  const input = raw || digits || '';
+  const rawTrim = input.trim();
+  const isPlus = rawTrim.startsWith('+');
+  const d = (digits || rawTrim).replace(/\D/g, '');
+  if (!d) return rawTrim;
+
+  if (isPlus || (d.length > 10 && !d.startsWith('1')) || (d.length >= 11 && !d.startsWith('1'))) {
+    let ccLength = 3;
+    if (d.startsWith('1')) {
+      ccLength = 1;
+    } else if (
+      ['44', '33', '49', '39', '34', '31', '32', '41', '43', '46', '47', '45', '48', '61', '64', '81', '82', '86', '91', '20', '27', '55', '52', '54'].some(p => d.startsWith(p))
+    ) {
+      ccLength = 2;
+    } else if (isPlus) {
+      ccLength = Math.min(3, d.length);
+    } else if (d.length <= 10) {
+      ccLength = Math.min(3, Math.max(2, d.length - 7));
+    }
+
+    if (ccLength === 1 && d.length === 11) {
+      return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+    }
+
+    const cc = d.slice(0, ccLength);
+    const rest = d.slice(ccLength);
+    if (!rest) return `+(${cc})`;
+    if (rest.length <= 3) return `+(${cc}) ${rest}`;
+    if (rest.length <= 8) return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3)}`;
+    return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3, 8)}${rest.length > 8 ? '-' + rest.slice(8) : ''}`;
   }
-  if (digits.length === 11 && digits.startsWith('1')) {
-    return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+
+  if (d.length === 10) {
+    return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
   }
-  return raw.startsWith('+') ? raw : `+${digits}`;
+  if (d.length === 11 && d.startsWith('1')) {
+    return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  }
+  return `+${d}`;
 }
 
 export function getPSTDateStamp(): string {

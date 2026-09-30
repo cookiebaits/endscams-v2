@@ -18,25 +18,67 @@ function normalizeInput(raw: string): string {
 // Helper: Format phone display
 function formatPhoneDisplay(raw: string): string {
   if (!raw) return '';
-  const digits = raw.replace(/\D/g, '');
+  const rawTrim = raw.trim();
+  const isPlus = rawTrim.startsWith('+');
+  const digits = rawTrim.replace(/\D/g, '');
+  if (!digits) return rawTrim;
+
+  if (isPlus || (digits.length > 10 && !digits.startsWith('1')) || (digits.length >= 11 && !digits.startsWith('1'))) {
+    let ccLength = 3;
+    if (digits.startsWith('1')) {
+      ccLength = 1;
+    } else if (
+      ['44', '33', '49', '39', '34', '31', '32', '41', '43', '46', '47', '45', '48', '61', '64', '81', '82', '86', '91', '20', '27', '55', '52', '54'].some(p => digits.startsWith(p))
+    ) {
+      ccLength = 2;
+    } else if (isPlus) {
+      ccLength = Math.min(3, digits.length);
+    } else if (digits.length <= 10) {
+      ccLength = Math.min(3, Math.max(2, digits.length - 7));
+    }
+
+    if (ccLength === 1 && digits.length === 11) {
+      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+
+    const cc = digits.slice(0, ccLength);
+    const rest = digits.slice(ccLength);
+    if (!rest) return `+(${cc})`;
+    if (rest.length <= 3) return `+(${cc}) ${rest}`;
+    if (rest.length <= 8) return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3)}`;
+    return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3, 8)}${rest.length > 8 ? '-' + rest.slice(8) : ''}`;
+  }
+
   if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    return `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
   if (digits.length === 11 && digits.startsWith('1')) {
-    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
-  if (digits.startsWith('234') && digits.length >= 10) {
-    return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
-  }
-  if (digits.startsWith('254') && digits.length >= 10) {
-    return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
-  }
-  return raw.startsWith('+') ? raw : (digits.length > 10 ? `+${digits}` : digits);
+
+  return `+${digits}`;
 }
 
 // Helper: Format typing
 function formatTyping(value: string): string {
-  if (value.startsWith('+')) return value;
+  if (!value) return '';
+  const rawTrim = value.trim();
+  if (rawTrim.startsWith('+')) {
+    const digits = rawTrim.slice(1).replace(/\D/g, '');
+    if (!digits) return '+';
+    let ccLength = 3;
+    if (digits.startsWith('1')) ccLength = 1;
+    else if (['44', '33', '49', '39', '34', '31', '32', '41', '43', '46', '47', '45', '48', '61', '64', '81', '82', '86', '91', '20', '27', '55', '52', '54'].some(p => digits.startsWith(p))) {
+      ccLength = 2;
+    }
+    const cc = digits.slice(0, ccLength);
+    const rest = digits.slice(ccLength);
+    if (!rest) return `+(${cc})`;
+    if (rest.length <= 3) return `+(${cc}) ${rest}`;
+    if (rest.length <= 8) return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3)}`;
+    return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3, 8)}-${rest.slice(8)}`;
+  }
+
   const digits = value.replace(/\D/g, '');
   if (digits.length === 11 && digits.startsWith('1')) {
     return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`;

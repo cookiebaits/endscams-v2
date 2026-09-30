@@ -38,13 +38,47 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
- * Formats phone numbers for display, handling North American & International formats (+xx, +xxx)
+ * Formats phone numbers for display, handling North American & International formats (+xx, +xxx like +256)
  */
 export function formatPhoneDisplay(phoneDigits: string): string {
   if (!phoneDigits) return '';
-  if (phoneDigits.startsWith('+')) return phoneDigits;
+  const raw = phoneDigits.trim();
+  const isPlus = raw.startsWith('+');
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return raw;
 
-  const digits = phoneDigits.replace(/\D/g, '');
+  // International format if starts with '+' or has country code length > 10 (not standard 10/11 US)
+  if (isPlus || (digits.length > 10 && !digits.startsWith('1')) || (digits.length >= 11 && !digits.startsWith('1'))) {
+    let ccLength = 3;
+    if (digits.startsWith('1')) {
+      ccLength = 1;
+    } else if (
+      ['44', '33', '49', '39', '34', '31', '32', '41', '43', '46', '47', '45', '48', '61', '64', '81', '82', '86', '91', '20', '27', '55', '52', '54'].some(p => digits.startsWith(p))
+    ) {
+      ccLength = 2;
+    } else if (isPlus) {
+      ccLength = Math.min(3, digits.length);
+    } else if (digits.length <= 10) {
+      ccLength = Math.min(3, Math.max(2, digits.length - 7));
+    }
+
+    if (ccLength === 1 && digits.length === 11) {
+      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+
+    const cc = digits.slice(0, ccLength);
+    const rest = digits.slice(ccLength);
+    if (!rest) {
+      return `+(${cc})`;
+    }
+    if (rest.length <= 3) {
+      return `+(${cc}) ${rest}`;
+    }
+    if (rest.length <= 8) {
+      return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3)}`;
+    }
+    return `+(${cc}) ${rest.slice(0, 3)}-${rest.slice(3, 8)}${rest.length > 8 ? '-' + rest.slice(8) : ''}`;
+  }
 
   // Standard US / NANP (10 digits or 11 digits starting with 1)
   if (digits.length === 10) {
@@ -54,13 +88,6 @@ export function formatPhoneDisplay(phoneDigits: string): string {
     return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }
 
-  // Common country codes formatted explicitly
-  if (digits.startsWith('234')) return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 10)} ${digits.slice(10)}`; // Nigeria
-  if (digits.startsWith('44'))  return `+44 ${digits.slice(2, 6)} ${digits.slice(6)}`;                           // UK
-  if (digits.startsWith('27'))  return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;      // S. Africa
-  if (digits.startsWith('91'))  return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;                           // India
-
-  // Generic international fallback (+xx / +xxx)
   return `+${digits}`;
 }
 
