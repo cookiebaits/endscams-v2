@@ -70,18 +70,25 @@ export function formatPhoneDisplay(raw: string): string {
 }
 
 function normalizeInput(raw: string): string {
-  let digits = raw.replace(/\D/g, '');
-  if (digits.length > 10 && digits.startsWith('1')) {
-    digits = digits.slice(1);
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1);
   }
-  return digits.slice(0, 10);
+  return digits;
 }
 
 function formatTyping(value: string): string {
-  const d = normalizeInput(value);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (value.startsWith('+')) {
+    return value;
+  }
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`;
+  }
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
 type SearchResult = {
@@ -307,39 +314,68 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
 
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const core10Digits = normalizeInput(input);
     const rawInput = input.trim();
-    if (core10Digits.length < 7 && rawInput.length < 7) return;
+    const cleanDigits = rawInput.replace(/\D/g, '');
+    if (cleanDigits.length < 7) return;
 
     setSearching(true);
     setSearched(false);
-    setSearchedDigits(core10Digits || rawInput.replace(/\D/g, ''));
+    setSearchedDigits(cleanDigits);
 
     try {
       const reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }> = [];
       const trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
       const seenIds = new Set<string>();
 
-      // 1. Check Supabase database tables if available
+      // 1. Direct Backend /api/records Query (Retrieves all live CWN Scam Tracker records)
+      try {
+        const recRes = await fetch('/api/records');
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          if (Array.isArray(recData.records)) {
+            recData.records.forEach((item: any) => {
+              if (isRecordMatch(item, rawInput)) {
+                const itemId = String(item.id || item.phone_digits || item.phone_number);
+                if (!seenIds.has(itemId)) {
+                  seenIds.add(itemId);
+                  trackerEntries.push({
+                    id: itemId,
+                    source_name: item.source_name || item.source || 'Live Threat Tracker',
+                    source_url: item.source_url || item.sourceUrl || '',
+                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
+                    category: item.category || 'Scam Intelligence',
+                    description: item.description || item.impersonated_company || ''
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Live /api/records fetch error during search:', err);
+      }
+
+      // 2. Check Supabase database tables directly if client available
       if (supabaseClient) {
-        const target11Digits = `1${core10Digits}`;
         try {
+          const core10Digits = normalizeInput(rawInput);
+          const target11Digits = `1${core10Digits}`;
           const [reportsRes, trackerRes] = await Promise.all([
             supabaseClient
               .from('scam_reports')
               .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
-              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
               .order('incident_date', { ascending: false }),
             supabaseClient
               .from('tracker_entries')
               .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
-              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
               .order('report_date', { ascending: false }),
           ]);
 
           if (reportsRes && reportsRes.data) {
             reportsRes.data.forEach((r: any) => {
-              if (isRecordMatch(r, core10Digits) && !seenIds.has(r.id)) {
+              if (isRecordMatch(r, rawInput) && !seenIds.has(r.id)) {
                 seenIds.add(r.id);
                 reports.push({
                   id: r.id,
@@ -355,7 +391,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
 
           if (trackerRes && trackerRes.data) {
             trackerRes.data.forEach((t: any) => {
-              if (isRecordMatch(t, core10Digits) && !seenIds.has(t.id)) {
+              if (isRecordMatch(t, rawInput) && !seenIds.has(t.id)) {
                 seenIds.add(t.id);
                 trackerEntries.push({
                   id: t.id,
@@ -371,45 +407,22 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
         } catch {}
       }
 
-      // 2. Check Backend /api/records endpoint
-      try {
-        const recRes = await fetch('/api/records');
-        if (recRes.ok) {
-          const recData = await recRes.json();
-          if (Array.isArray(recData.records)) {
-            recData.records.forEach((item: any) => {
-              if (isRecordMatch(item, core10Digits)) {
-                const itemId = String(item.id || item.phone_digits);
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || item.source || 'EndScams Threat Tracker',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
-                    category: item.category || 'Scam Intelligence',
-                    description: item.description || item.impersonated_company || ''
-                  });
-                }
-              }
-            });
-          }
-        }
-      } catch {}
-
       // 3. Check local Master Seed Records
       if (Array.isArray(MASTER_SEED_RECORDS)) {
         MASTER_SEED_RECORDS.forEach((s) => {
-          if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
-            seenIds.add(s.id);
-            trackerEntries.push({
-              id: s.id,
-              source_name: s.source_name || 'Community Watchdog Index',
-              source_url: s.source_url || '',
-              report_date: s.report_date || new Date().toISOString().split('T')[0],
-              category: s.category || 'Scam Intelligence',
-              description: s.description || s.impersonated_company || ''
-            });
+          if (isRecordMatch(s, rawInput)) {
+            const itemId = String(s.id || s.phone_digits);
+            if (!seenIds.has(itemId)) {
+              seenIds.add(itemId);
+              trackerEntries.push({
+                id: s.id,
+                source_name: s.source_name || 'Community Watchdog Index',
+                source_url: s.source_url || '',
+                report_date: s.report_date || new Date().toISOString().split('T')[0],
+                category: s.category || 'Scam Intelligence',
+                description: s.description || s.impersonated_company || ''
+              });
+            }
           }
         });
       }
@@ -423,7 +436,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
             const parsed = JSON.parse(raw);
             const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
             items.forEach((item: any) => {
-              if (item && isRecordMatch(item, core10Digits)) {
+              if (item && isRecordMatch(item, rawInput)) {
                 const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
                 if (!seenIds.has(itemId)) {
                   seenIds.add(itemId);
@@ -439,7 +452,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
               }
             });
           }
-        } catch {}
+        } catch {
+          /* ignore storage errors */
+        }
       });
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
