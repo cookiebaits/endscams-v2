@@ -6,6 +6,7 @@ import {
   X, Info
 } from 'lucide-react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
 // 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
@@ -644,155 +645,15 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-20 bg-slate-950 border-b border-slate-900">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl sm:text-4xl font-extrabold mb-3 text-white tracking-tight">
-            Community Scam Database
-          </h2>
-          <p className="text-slate-400 mb-8 max-w-xl mx-auto text-sm leading-relaxed">
-            Search our historical database of known fraudulent numbers reported by victims and security decoys.
-          </p>
-
-          <form onSubmit={handleDatabaseSearch} className="max-w-2xl mx-auto mb-6">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="(555) 123-4567"
-                  value={input}
-                  onChange={(e) => {
-                    setInput(formatTyping(e.target.value));
-                    setResult(null);
-                    setSearched(false);
-                  }}
-                  maxLength={30}
-                  className="w-full bg-[#0b1329] border border-slate-700/80 pl-12 pr-10 h-14 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none transition-all text-white font-mono placeholder-slate-500"
-                />
-                {input && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInput('');
-                      setResult(null);
-                      setSearched(false);
-                    }}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1 cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={input.replace(/\D/g, '').length < 7 || searching}
-                className="h-14 px-8 rounded-xl text-base font-bold bg-[#b46d0a] hover:bg-[#c97b0c] text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer shrink-0"
-              >
-                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5 stroke-[2.5]" />Search</>}
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 mt-2 text-left pl-1">
-              Accepts standard 10-digit format: (555) 123-4567 | 555-123-4567 | 5551234567
-            </p>
-          </form>
-
-          {searching && (
-            <div className="max-w-2xl mx-auto mt-6 p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center animate-fade-in shadow-sm">
-              <Loader2 className="w-8 h-8 text-amber-500 mx-auto mb-2 animate-spin" />
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Searching community records...</p>
-            </div>
-          )}
-
-          {searched && !searching && result && (
-            <div className="max-w-2xl mx-auto mt-6 space-y-4">
-              {result.found ? (
-                <div className="p-6 rounded-2xl border-2 border-red-500/40 bg-red-50 dark:bg-red-950/30 text-left">
-                  <div className="flex items-center gap-3 mb-4">
-                    <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
-                    <div>
-                      <p className="font-bold text-red-600 dark:text-red-400 text-lg">Warning — Number Has Been Reported</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Found {result.reports.length + result.trackerEntries.length} report(s) for {formatPhoneDisplay(searchedDigits)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 mb-4">
-                    {result.reports.map(r => (
-                      <ReportCard key={r.id} label={r.category} date={r.incident_date} description={r.description} sourceName="User Report" sourceUrl={r.source_url} />
-                    ))}
-                    {result.trackerEntries.map(t => (
-                      <ReportCard key={t.id} label={t.category || 'Scam'} date={t.report_date} description={t.description || ''} sourceName={t.source_name} sourceUrl={t.source_url} />
-                    ))}
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2.5">
-                    <button
-                      onClick={() => triggerDeepScan(searchedDigits)}
-                      className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
-                    >
-                      <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
-                    </button>
-
-                    {onNavigateToTracker && (
-                      <button
-                        onClick={() => onNavigateToTracker(searchedDigits)}
-                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
-                      >
-                        <ExternalLink className="w-4 h-4" /> View in Live Threat Tracker
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <CheckCircle className="w-8 h-8 text-emerald-500 flex-shrink-0" />
-                    <div>
-                      <p className="font-bold text-emerald-600 dark:text-emerald-400 text-lg">No direct matches in local database</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        {formatPhoneDisplay(searchedDigits)} has not yet been logged in our community reports. Run a real-time carrier lookup below to see if it is a disposable VOIP line.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <button
-                      onClick={() => triggerDeepScan(searchedDigits)}
-                      className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
-                    >
-                      <Phone className="w-4 h-4" /> Deep Scan Carrier & VOIP Status
-                    </button>
-
-                    {onNavigateToReport && (
-                      <button
-                        onClick={() => onNavigateToReport(searchedDigits)}
-                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
-                      >
-                        <ShieldAlert className="w-4 h-4 text-red-400" /> Report This Number
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid sm:grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    {(['google', 'duckduckgo', 'brave'] as const).map(engine => (
-                      <a
-                        key={engine}
-                        href={buildSearchUrl(engine, searchedDigits)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 transition-all"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Search {engine.charAt(0).toUpperCase() + engine.slice(1)}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      <section id="tools" className="py-20 bg-[#070b14] border-b border-slate-900">
+        <CommunityScamDatabaseSearch
+          onNavigateToTracker={onNavigateToTracker}
+          onNavigateToReport={onNavigateToReport}
+          onNavigateToHome={() => {
+            const toolsEl = document.getElementById('tools');
+            if (toolsEl) toolsEl.scrollIntoView({ behavior: 'smooth' });
+          }}
+        />
       </section>
 
       {/* Impact Section */}
