@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { 
   Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
@@ -6,7 +7,7 @@ import {
   X, Info
 } from 'lucide-react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { MASTER_SEED_RECORDS, isRecordMatch, ThreatRecord } from './TrackerPage';
+import { MASTER_SEED_RECORDS, isRecordMatch } from './TrackerPage';
 
 type ImpactStats = {
   money_saved: number;
@@ -135,6 +136,7 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
 
   for (const target of targets) {
     try {
+      console.info(`[HomePage] Attempting tool fetch to target URL: ${target.url}`, target.body);
       const res = await fetch(target.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,6 +145,7 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
 
       const data = await res.json().catch(() => null);
       if (res.ok && data) {
+        console.info(`[HomePage] Tool fetch successful from ${target.url}:`, data);
         return data;
       }
       if (data?.error) {
@@ -150,9 +153,11 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
       }
     } catch (e: any) {
       lastError = e?.message || 'Network connection failed';
+      console.warn(`[HomePage] Tool fetch failed for target ${target.url}:`, e);
     }
   }
 
+  console.error(`[HomePage] All targets failed for tool '${tool}'. Last error:`, lastError);
   throw new Error(lastError);
 }
 
@@ -162,7 +167,28 @@ interface HomePageProps {
 }
 
 export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
+  const navigate = useNavigate();
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
+
+  const handleNavigateTracker = (searchQuery?: string) => {
+    if (onNavigateToTracker) {
+      onNavigateToTracker(searchQuery);
+    } else {
+      navigate(searchQuery ? `/tracker?q=${encodeURIComponent(searchQuery)}` : '/tracker');
+    }
+  };
+
+  const handleNavigateReport = (prefilledPhone?: string) => {
+    if (onNavigateToReport) {
+      onNavigateToReport(prefilledPhone);
+    } else {
+      navigate(prefilledPhone ? `/report?phone=${encodeURIComponent(prefilledPhone)}` : '/report');
+    }
+  };
+
+  const handleNavigateWorkshop = () => {
+    navigate('/workshop');
+  };
 
   // Phone Tool State
   const [phoneToolInput, setPhoneToolInput] = useState('');
@@ -215,6 +241,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   useEffect(() => {
     async function initSupabase() {
       try {
+        console.info('[HomePage] Initializing Supabase client & fetching /api/config...');
         const res = await fetch('/api/config');
         if (res.ok) {
           const config = await res.json();
@@ -222,20 +249,25 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
             const sb = createClient(config.supabaseUrl, config.supabaseKey);
             setSupabaseClient(sb);
 
-            const { data } = await sb
+            const { data, error } = await sb
               .from('impact_statistics')
               .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
               .order('last_updated', { ascending: false })
               .limit(1)
               .maybeSingle();
 
-            if (data) {
+            if (error) {
+              console.warn('[HomePage] Error querying impact_statistics:', error);
+            } else if (data) {
+              console.info('[HomePage] Retrieved impact statistics:', data);
               setImpactStats(data as ImpactStats);
             }
           }
+        } else {
+          console.warn('[HomePage] /api/config returned status:', res.status);
         }
       } catch (e) {
-        console.warn('Failed to fetch impact stats or config', e);
+        console.warn('[HomePage] Failed to fetch impact stats or config:', e);
       }
     }
 
@@ -443,8 +475,10 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       });
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
+      console.info(`[HomePage] Search complete for digits ${core10Digits || rawInput}: found=${totalFound}, reports=${reports.length}, trackerEntries=${trackerEntries.length}`);
       setResult({ found: totalFound, reports, trackerEntries });
-    } catch {
+    } catch (err) {
+      console.error('[HomePage] Database search encountered error:', err);
       setResult({ found: false, reports: [], trackerEntries: [] });
     } finally {
       setSearching(false);
@@ -510,7 +544,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
 
           <div className="flex flex-col items-center justify-center mb-12">
             <button
-              onClick={() => onNavigateToTracker && onNavigateToTracker()}
+              onClick={handleNavigateWorkshop}
               className="px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-lg shadow-lg shadow-amber-500/20 mb-4 transition-all hover:scale-105 active:scale-95 cursor-pointer"
             >
               Work With Us
@@ -613,14 +647,12 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                       <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
                     </button>
 
-                    {onNavigateToTracker && (
-                      <button
-                        onClick={() => onNavigateToTracker(searchedDigits)}
-                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
-                      >
-                        <ExternalLink className="w-4 h-4" /> View in Live Tracker
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleNavigateTracker(searchedDigits)}
+                      className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                    >
+                      <ExternalLink className="w-4 h-4" /> View in Live Tracker
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -643,14 +675,12 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                       <Phone className="w-4 h-4" /> Deep Scan Carrier & VOIP Status
                     </button>
 
-                    {onNavigateToReport && (
-                      <button
-                        onClick={() => onNavigateToReport(searchedDigits)}
-                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
-                      >
-                        <ShieldAlert className="w-4 h-4 text-red-400" /> Report This Number
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleNavigateReport(searchedDigits)}
+                      className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-red-400" /> Report This Number
+                    </button>
                   </div>
 
                   <div className="grid sm:grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -1132,7 +1162,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
             Your report immediately protects others in the community. Add the scammer's number to our watchdog index.
           </p>
           <button
-            onClick={() => onNavigateToReport && onNavigateToReport()}
+            onClick={() => handleNavigateReport()}
             className="inline-flex items-center gap-2 text-lg px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
           >
             <ShieldAlert className="w-5 h-5" />
