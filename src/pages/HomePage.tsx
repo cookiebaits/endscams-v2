@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
+  Search, Phone, Shield, ExternalLink,
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
   Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
   X, Info
@@ -303,16 +303,8 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
   const [showRawJson, setShowRawJson] = useState(false);
 
-  // Database Search State
-  const [input, setInput] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [result, setResult] = useState<SearchResult | null>(null);
-  const [searched, setSearched] = useState(false);
-  const [searchedDigits, setSearchedDigits] = useState('');
+  // Impact Stats State
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
-
-  // Supabase Client
-  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   // Banner dismiss state
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -338,7 +330,6 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           const config = await res.json();
           if (config.supabaseUrl && config.supabaseKey) {
             const sb = createClient(config.supabaseUrl, config.supabaseKey);
-            setSupabaseClient(sb);
 
             const { data } = await sb
               .from('impact_statistics')
@@ -353,7 +344,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           }
         }
       } catch (e) {
-        console.warn('Failed to fetch impact stats or config', e);
+        console.warn('[HomePage] Failed to fetch impact stats or config', e);
       }
     }
 
@@ -421,163 +412,6 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     } finally {
       setScrapeToolLoading(false);
     }
-  };
-
-  // ==========================================================================
-  // UNIFIED DATABASE SEARCH HANDLER (Supports all formats, iframe safe)
-  // ==========================================================================
-  const handleDatabaseSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const rawInput = input.trim();
-    const cleanDigits = rawInput.replace(/\D/g, '');
-    if (cleanDigits.length < 7) return;
-
-    setSearching(true);
-    setSearched(false);
-    setSearchedDigits(cleanDigits);
-
-    try {
-      const reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }> = [];
-      const trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
-      const seenIds = new Set<string>();
-
-      // 1. Direct Backend /api/records Query (Retrieves all live CWN Scam Tracker records)
-      try {
-        const recRes = await fetch('/api/records');
-        if (recRes.ok) {
-          const recData = await recRes.json();
-          if (Array.isArray(recData.records)) {
-            recData.records.forEach((item: any) => {
-              if (isRecordMatch(item, rawInput)) {
-                const itemId = String(item.id || item.phone_digits || item.phone_number);
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || item.source || 'Live Threat Tracker',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
-                    category: item.category || 'Scam Intelligence',
-                    description: item.description || item.impersonated_company || ''
-                  });
-                }
-              }
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Live /api/records fetch error during search:', err);
-      }
-
-      // 2. Check Supabase database tables directly if client is available
-      if (supabaseClient) {
-        try {
-          const core10Digits = normalizeInput(rawInput);
-          const target11Digits = `1${core10Digits}`;
-          const [reportsRes, trackerRes] = await Promise.all([
-            supabaseClient
-              .from('scam_reports')
-              .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
-              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
-              .order('incident_date', { ascending: false }),
-            supabaseClient
-              .from('tracker_entries')
-              .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
-              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
-              .order('report_date', { ascending: false }),
-          ]);
-
-          if (reportsRes && reportsRes.data) {
-            reportsRes.data.forEach((r: any) => {
-              if (isRecordMatch(r, rawInput) && !seenIds.has(r.id)) {
-                seenIds.add(r.id);
-                reports.push({
-                  id: r.id,
-                  category: r.category || 'User Scam Report',
-                  description: r.description || '',
-                  incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
-                  source: r.source || 'User Report',
-                  source_url: r.source_url
-                });
-              }
-            });
-          }
-
-          if (trackerRes && trackerRes.data) {
-            trackerRes.data.forEach((t: any) => {
-              if (isRecordMatch(t, rawInput) && !seenIds.has(t.id)) {
-                seenIds.add(t.id);
-                trackerEntries.push({
-                  id: t.id,
-                  source_name: t.source_name || 'Threat Intelligence Tracker',
-                  source_url: t.source_url || '',
-                  report_date: t.report_date || new Date().toISOString().split('T')[0],
-                  category: t.category || 'Scam',
-                  description: t.description || ''
-                });
-              }
-            });
-          }
-        } catch {}
-      }
-
-      // 3. Check LocalStorage sources
-      const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
-      storageKeys.forEach((key) => {
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
-            items.forEach((item: any) => {
-              if (item && isRecordMatch(item, rawInput)) {
-                const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || item.source || item.platform || 'Local Report Index',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0],
-                    category: item.category || item.type_of_scam || item.scamType || 'Reported Scam',
-                    description: item.description || item.detailedSummary || item.snippet || ''
-                  });
-                }
-              }
-            });
-          }
-        } catch {}
-      });
-
-      const totalFound = reports.length > 0 || trackerEntries.length > 0;
-      setResult({ found: totalFound, reports, trackerEntries });
-    } catch {
-      setResult({ found: false, reports: [], trackerEntries: [] });
-    } finally {
-      setSearching(false);
-      setSearched(true);
-    }
-  };
-
-  // Launch live carrier deep scan from database search result
-  const triggerDeepScan = (digits: string) => {
-    const formatted = `+1${digits}`;
-    setPhoneToolInput(formatted);
-    setActiveTool('phone');
-    handlePhoneToolSearch(undefined, formatted);
-    const toolsSection = document.getElementById('advanced-tools');
-    if (toolsSection) {
-      toolsSection.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const buildSearchUrl = (engine: string, digits: string) => {
-    const formatted = formatPhoneDisplay(digits);
-    const dashes = `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
-    const q = encodeURIComponent(`"${formatted}" OR "${dashes}" OR "${digits}" scam`);
-    if (engine === 'google') return `https://www.google.com/search?q=${q}`;
-    if (engine === 'duckduckgo') return `https://duckduckgo.com/?q=${q}`;
-    return `https://search.brave.com/search?q=${q}`;
   };
 
   return (
