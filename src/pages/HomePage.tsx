@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Phone, Shield, ExternalLink,
+  Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
   Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
   X, Info
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
@@ -303,8 +303,10 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
   const [showRawJson, setShowRawJson] = useState(false);
 
-  // Impact Stats State
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
+
+  // Supabase Client
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   // Banner dismiss state
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -330,6 +332,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           const config = await res.json();
           if (config.supabaseUrl && config.supabaseKey) {
             const sb = createClient(config.supabaseUrl, config.supabaseKey);
+            setSupabaseClient(sb);
 
             const { data } = await sb
               .from('impact_statistics')
@@ -344,7 +347,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           }
         }
       } catch (e) {
-        console.warn('[HomePage] Failed to fetch impact stats or config', e);
+        console.warn('Failed to fetch impact stats or config', e);
       }
     }
 
