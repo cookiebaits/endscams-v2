@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { ShieldAlert, Lock, ArrowLeft } from 'lucide-react';
+import { isTrackerCountryAllowed } from '../utils/geoIp';
 
 export interface AltNumberEntry {
   phone: string;
@@ -100,15 +102,25 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number | string>('100vh');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
+    async function checkGeoAccess() {
+      const allowed = await isTrackerCountryAllowed();
+      setIsAllowed(allowed);
+    }
+    checkGeoAccess();
+  }, []);
+
+  useEffect(() => {
+    if (isAllowed === false) return;
+
     // PostMessage communication with iframe for dynamic height & modal scroll lock
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
 
       const { type, height, frameHeight } = event.data;
 
-      // Handle height adjustments sent from embedded app
       if (type === 'FRAME_HEIGHT' || type === 'RESIZE' || type === 'SET_HEIGHT') {
         const h = height || frameHeight;
         if (h && typeof h === 'number' && h > 300) {
@@ -116,7 +128,6 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         }
       }
 
-      // Handle modal lock / unlock scroll events
       if (type === 'LOCK_SCROLL' || type === 'OPEN_MODAL') {
         document.body.style.overflow = 'hidden';
       } else if (type === 'UNLOCK_SCROLL' || type === 'CLOSE_MODAL') {
@@ -126,7 +137,6 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
 
     window.addEventListener('message', handleMessage);
 
-    // Sync parent scroll position to iframe for overlay modal positioning
     const scrollInterval = setInterval(() => {
       if (iframeRef.current && iframeRef.current.contentWindow) {
         iframeRef.current.contentWindow.postMessage(
@@ -145,7 +155,45 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       clearInterval(scrollInterval);
       document.body.style.overflow = '';
     };
-  }, []);
+  }, [isAllowed]);
+
+  if (isAllowed === null) {
+    return (
+      <div className="w-full min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-3 text-slate-300">
+        <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-sm font-medium">Verifying security authorization...</span>
+      </div>
+    );
+  }
+
+  if (isAllowed === false) {
+    return (
+      <div className="w-full min-h-[80vh] bg-slate-950 flex flex-col items-center justify-center px-4 text-center">
+        <div className="max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-white">Access Denied</h1>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              For added security, access to the Threat Tracker page is restricted to authorized regions (United States, UK, Ireland, EU, Canada, and Australia).
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <a
+              href="/home"
+              className="inline-flex items-center space-x-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm transition shadow-lg"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Return to Home</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">

@@ -6,7 +6,6 @@ import {
   X, Info
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
 // 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
@@ -483,15 +482,16 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-20 bg-[#070b14] border-b border-slate-900">
-        <CommunityScamDatabaseSearch
-          onNavigateToTracker={onNavigateToTracker}
-          onNavigateToReport={onNavigateToReport}
-          onNavigateToHome={() => {
-            const toolsEl = document.getElementById('tools');
-            if (toolsEl) toolsEl.scrollIntoView({ behavior: 'smooth' });
-          }}
-        />
+      <section id="tools" className="py-12 bg-[#070b14] border-b border-slate-900">
+        <div className="max-w-7xl mx-auto px-4">
+          <iframe
+            src="https://esscan.ai.studio/?page=search"
+            title="ESSCAN Scam Database Search"
+            className="w-full border-0 rounded-2xl block overflow-hidden shadow-2xl"
+            style={{ minHeight: '700px', height: '100%' }}
+            scrolling="auto"
+          />
+        </div>
       </section>
 
       {/* Impact Section */}
