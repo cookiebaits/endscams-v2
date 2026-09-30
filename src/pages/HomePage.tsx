@@ -1,16 +1,120 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router';
 import { 
   Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
-  Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check 
+  Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
+  X, Info
 } from 'lucide-react';
-import { supabase, formatPhoneDisplay } from '../lib/supabase';
-import Banner from '../components/Banner';
-import { requireDisclaimerAcceptance } from '../components/TermsBanner';
-import { MASTER_SEED_RECORDS, isRecordMatch } from './TrackerPage';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-type ImpactStats = {
+// ============================================================================
+// 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
+// ============================================================================
+
+/**
+ * Universally matches any phone number input against threat database records.
+ * Supports all user formats:
+ * - (555) 123-4567
+ * - 555-123-4567
+ * - 5551234567
+ * - 15551234567
+ * - +1 (555) 123-4567
+ * - +234 813 816 1886
+ * - +254... / +27... / International
+ * 
+ * Strictly matches full 10-digit North American telephone numbers (Area Code + Prefix + Line)
+ * to prevent false positives from sharing 7-digit substrings across different area codes.
+ */
+export function isRecordMatch(record: any, targetInput: string): boolean {
+  if (!record || !targetInput) return false;
+  const rawTarget = String(targetInput).trim();
+  const cleanTarget = rawTarget.replace(/\D/g, '');
+  if (!cleanTarget || cleanTarget.length < 7) return false;
+
+  // 10-digit North American core
+  let target10 = cleanTarget;
+  if (cleanTarget.length === 11 && cleanTarget.startsWith('1')) {
+    target10 = cleanTarget.slice(1);
+  }
+
+  // Collect all potential digit variants from the record
+  const candidateDigits: string[] = [];
+  const addVal = (val: any) => {
+    if (!val) return;
+    const d = String(val).replace(/\D/g, '');
+    if (d && !candidateDigits.includes(d)) candidateDigits.push(d);
+  };
+
+  addVal(record.phone_digits);
+  addVal(record.clean_phone);
+  addVal(record.cleanPhone);
+  addVal(record.phone_number);
+  addVal(record.phone);
+  addVal(record.alt_phone);
+
+  if (Array.isArray(record.alt_numbers)) {
+    for (const alt of record.alt_numbers) {
+      if (typeof alt === 'string') {
+        addVal(alt);
+      } else if (alt && typeof alt === 'object') {
+        addVal(alt.digits);
+        addVal(alt.phone);
+      }
+    }
+  }
+
+  for (const cDigits of candidateDigits) {
+    if (!cDigits) continue;
+
+    // 1. Exact raw digits match
+    if (cDigits === cleanTarget) return true;
+
+    let c10 = cDigits;
+    if (cDigits.length === 11 && cDigits.startsWith('1')) {
+      c10 = cDigits.slice(1);
+    }
+
+    // 2. Full 10-digit North American Match (Area code + Exchange + Number)
+    if (target10.length === 10 && c10.length === 10) {
+      if (target10 === c10) return true;
+    }
+
+    // 3. 11-digit vs 10-digit North American Match
+    if (target10.length === 10) {
+      if (cDigits === `1${target10}` || cDigits === target10) return true;
+    }
+    if (c10.length === 10) {
+      if (cleanTarget === `1${c10}` || cleanTarget === c10) return true;
+    }
+
+    // 4. International prefix match (Nigeria: 234 vs local 0..., Kenya: 254 vs local 0..., etc.)
+    if (cleanTarget.startsWith('234') && cDigits.startsWith('0') && cDigits.slice(1) === cleanTarget.slice(3)) {
+      return true;
+    }
+    if (cDigits.startsWith('234') && cleanTarget.startsWith('0') && cleanTarget.slice(1) === cDigits.slice(3)) {
+      return true;
+    }
+    if (cleanTarget.startsWith('254') && cDigits.startsWith('0') && cDigits.slice(1) === cleanTarget.slice(3)) {
+      return true;
+    }
+    if (cDigits.startsWith('254') && cleanTarget.startsWith('0') && cleanTarget.slice(1) === cDigits.slice(3)) {
+      return true;
+    }
+
+    // 5. Full international match
+    if (cleanTarget.length >= 10 && cDigits.length >= 10 && cleanTarget === cDigits) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// ============================================================================
+// 2. HELPER UTILITIES & STATS
+// ============================================================================
+
+export type ImpactStats = {
   money_saved: number;
   scammer_hours_wasted: number;
   resources_shutdown: number;
@@ -24,7 +128,7 @@ function seededRandom(seed: number) {
 }
 
 // Calculate simulated stats growth
-function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
+export function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
   const simulatedStats = { ...baseStats };
   const baselineDate = baseStats.last_updated ? new Date(baseStats.last_updated) : new Date('2024-01-01T00:00:00Z');
   const now = new Date();
@@ -53,29 +157,54 @@ function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
   return simulatedStats;
 }
 
-function normalizeInput(raw: string): string {
-  let digits = raw.replace(/\D/g, '');
-  if (digits.length > 10 && digits.startsWith('1')) {
-    digits = digits.slice(1);
+export function formatPhoneDisplay(raw: string): string {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
-  return digits.slice(0, 10);
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.startsWith('234') && digits.length >= 10) {
+    return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+  }
+  if (digits.startsWith('254') && digits.length >= 10) {
+    return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+  }
+  return raw.startsWith('+') ? raw : (digits.length > 10 ? `+${digits}` : digits);
 }
 
-function formatTyping(value: string): string {
-  const d = normalizeInput(value);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+export function normalizeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return digits.slice(1);
+  }
+  return digits;
 }
 
-type SearchResult = {
+export function formatTyping(value: string): string {
+  if (value.startsWith('+')) {
+    return value;
+  }
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`;
+  }
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
+
+export type SearchResult = {
   found: boolean;
   reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }>;
   trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }>;
 };
 
-// Custom hook for count up effect
-function useCountUp(end: number, duration: number = 2000) {
+// Custom hook for count up animation effect
+export function useCountUp(end: number, duration: number = 2000) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -103,16 +232,16 @@ function useCountUp(end: number, duration: number = 2000) {
   return count;
 }
 
-// Resilient API Client Helper
+// Resilient API Client Helper for the 4 Advanced Tools
 async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: string) {
-  const configuredFetcher = (import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org').replace(/\/+$/, '');
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const baseUrl = isLocal ? 'http://localhost:3000' : configuredFetcher;
+  const configuredFetcher = (import.meta.env.VITE_FETCHER_URL || '').replace(/\/+$/, '');
+  const baseUrl = configuredFetcher || '';
 
-  // Build target endpoints (unified /api/tools with fallback to direct /api/<tool>)
+  // Target endpoints supporting /api/tools, /api/<tool>, and /api/scam-tools/<tool>
   const targets = [
     { url: `${baseUrl}/api/tools`, body: { tool, query } },
-    { url: `${baseUrl}/api/${tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip_address: query } : { url: query } }
+    { url: `${baseUrl}/api/${tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip_address: query } : { url: query } },
+    { url: `${baseUrl}/api/scam-tools/${tool === 'scrape' ? 'domain' : tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip: query } : { domain: query } }
   ];
 
   let lastError = 'Failed to fetch data';
@@ -140,7 +269,16 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
   throw new Error(lastError);
 }
 
-export default function HomePage() {
+// ============================================================================
+// 3. MAIN HOMEPAGE COMPONENT
+// ============================================================================
+
+export interface HomePageProps {
+  onNavigateToTracker?: (searchQuery?: string) => void;
+  onNavigateToReport?: (prefilledPhone?: string) => void;
+}
+
+export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
 
   // Phone Tool State
@@ -172,6 +310,12 @@ export default function HomePage() {
   const [searchedDigits, setSearchedDigits] = useState('');
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
 
+  // Supabase Client
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
+
+  // Banner dismiss state
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+
   const fallbackStats: ImpactStats = {
     money_saved: 1278250,
     scammer_hours_wasted: 5676,
@@ -184,30 +328,39 @@ export default function HomePage() {
   const animatedHours = useCountUp(displayedStats.scammer_hours_wasted);
   const animatedResources = useCountUp(displayedStats.resources_shutdown);
 
+  // Load Supabase Client & Impact Stats
   useEffect(() => {
-    const fetchImpactStats = async () => {
+    async function initSupabase() {
       try {
-        const { data, error } = await supabase
-          .from('impact_statistics')
-          .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
-          .order('last_updated', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const config = await res.json();
+          if (config.supabaseUrl && config.supabaseKey) {
+            const sb = createClient(config.supabaseUrl, config.supabaseKey);
+            setSupabaseClient(sb);
 
-        if (data && !error) {
-          setImpactStats(data as ImpactStats);
+            const { data } = await sb
+              .from('impact_statistics')
+              .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
+              .order('last_updated', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (data) {
+              setImpactStats(data as ImpactStats);
+            }
+          }
         }
       } catch (e) {
-        console.error('Failed to fetch impact stats', e);
+        console.warn('Failed to fetch impact stats or config', e);
       }
-    };
+    }
 
-    fetchImpactStats();
+    initSupabase();
   }, []);
 
   const handlePhoneToolSearch = async (e?: React.FormEvent, overridePhone?: string) => {
     if (e) e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     const query = (overridePhone || phoneToolInput).trim();
     if (!query) return;
 
@@ -225,7 +378,6 @@ export default function HomePage() {
 
   const handleEmailToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     if (!emailToolInput.trim()) return;
 
     setEmailToolLoading(true);
@@ -242,7 +394,6 @@ export default function HomePage() {
 
   const handleIpToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     setIpToolLoading(true);
     setIpToolResult(null);
     try {
@@ -257,7 +408,6 @@ export default function HomePage() {
 
   const handleScrapeToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     if (!scrapeToolInput.trim()) return;
 
     setScrapeToolLoading(true);
@@ -272,86 +422,105 @@ export default function HomePage() {
     }
   };
 
+  // ==========================================================================
+  // UNIFIED DATABASE SEARCH HANDLER (Supports all formats, iframe safe)
+  // ==========================================================================
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
-    const core10Digits = normalizeInput(input);
-    if (core10Digits.length < 10) return;
+    const rawInput = input.trim();
+    const cleanDigits = rawInput.replace(/\D/g, '');
+    if (cleanDigits.length < 7) return;
 
     setSearching(true);
     setSearched(false);
-    setSearchedDigits(core10Digits);
+    setSearchedDigits(cleanDigits);
 
     try {
       const reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }> = [];
       const trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
       const seenIds = new Set<string>();
 
-      // 1. Check Supabase database tables
-      const target11Digits = `1${core10Digits}`;
-      const [reportsRes, trackerRes] = await Promise.all([
-        supabase
-          .from('scam_reports')
-          .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
-          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
-          .order('incident_date', { ascending: false }),
-        supabase
-          .from('tracker_entries')
-          .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
-          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
-          .order('report_date', { ascending: false }),
-      ]).catch(() => [{ data: [] }, { data: [] }]);
-
-      if (reportsRes && reportsRes.data) {
-        reportsRes.data.forEach((r: any) => {
-          if (isRecordMatch(r, core10Digits) && !seenIds.has(r.id)) {
-            seenIds.add(r.id);
-            reports.push({
-              id: r.id,
-              category: r.category || 'User Scam Report',
-              description: r.description || '',
-              incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
-              source: r.source || 'User Report',
-              source_url: r.source_url
+      // 1. Direct Backend /api/records Query (Retrieves all live CWN Scam Tracker records)
+      try {
+        const recRes = await fetch('/api/records');
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          if (Array.isArray(recData.records)) {
+            recData.records.forEach((item: any) => {
+              if (isRecordMatch(item, rawInput)) {
+                const itemId = String(item.id || item.phone_digits || item.phone_number);
+                if (!seenIds.has(itemId)) {
+                  seenIds.add(itemId);
+                  trackerEntries.push({
+                    id: itemId,
+                    source_name: item.source_name || item.source || 'Live Threat Tracker',
+                    source_url: item.source_url || item.sourceUrl || '',
+                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
+                    category: item.category || 'Scam Intelligence',
+                    description: item.description || item.impersonated_company || ''
+                  });
+                }
+              }
             });
           }
-        });
-      }
-
-      if (trackerRes && trackerRes.data) {
-        trackerRes.data.forEach((t: any) => {
-          if (isRecordMatch(t, core10Digits) && !seenIds.has(t.id)) {
-            seenIds.add(t.id);
-            trackerEntries.push({
-              id: t.id,
-              source_name: t.source_name || 'Watchdog Harvester',
-              source_url: t.source_url || '',
-              report_date: t.report_date || new Date().toISOString().split('T')[0],
-              category: t.category || 'Scam',
-              description: t.description || ''
-            });
-          }
-        });
-      }
-
-      // 2. Check local Master Seed Records (used on /tracker page)
-      MASTER_SEED_RECORDS.forEach((s) => {
-        if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
-          seenIds.add(s.id);
-          trackerEntries.push({
-            id: s.id,
-            source_name: s.source_name || 'Community Watchdog Index',
-            source_url: s.source_url || '',
-            report_date: s.report_date || new Date().toISOString().split('T')[0],
-            category: s.category || 'Scam Intelligence',
-            description: s.description || s.impersonated_company || ''
-          });
         }
-      });
+      } catch (err) {
+        console.warn('Live /api/records fetch error during search:', err);
+      }
 
-      // 3. Check LocalStorage sources (esscan_threat_records_v2, user_reported_scams, end_scam_scan_shared_state)
+      // 2. Check Supabase database tables directly if client is available
+      if (supabaseClient) {
+        try {
+          const core10Digits = normalizeInput(rawInput);
+          const target11Digits = `1${core10Digits}`;
+          const [reportsRes, trackerRes] = await Promise.all([
+            supabaseClient
+              .from('scam_reports')
+              .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
+              .order('incident_date', { ascending: false }),
+            supabaseClient
+              .from('tracker_entries')
+              .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.eq.${cleanDigits}`)
+              .order('report_date', { ascending: false }),
+          ]);
+
+          if (reportsRes && reportsRes.data) {
+            reportsRes.data.forEach((r: any) => {
+              if (isRecordMatch(r, rawInput) && !seenIds.has(r.id)) {
+                seenIds.add(r.id);
+                reports.push({
+                  id: r.id,
+                  category: r.category || 'User Scam Report',
+                  description: r.description || '',
+                  incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
+                  source: r.source || 'User Report',
+                  source_url: r.source_url
+                });
+              }
+            });
+          }
+
+          if (trackerRes && trackerRes.data) {
+            trackerRes.data.forEach((t: any) => {
+              if (isRecordMatch(t, rawInput) && !seenIds.has(t.id)) {
+                seenIds.add(t.id);
+                trackerEntries.push({
+                  id: t.id,
+                  source_name: t.source_name || 'Threat Intelligence Tracker',
+                  source_url: t.source_url || '',
+                  report_date: t.report_date || new Date().toISOString().split('T')[0],
+                  category: t.category || 'Scam',
+                  description: t.description || ''
+                });
+              }
+            });
+          }
+        } catch {}
+      }
+
+      // 3. Check LocalStorage sources
       const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
       storageKeys.forEach((key) => {
         try {
@@ -360,7 +529,7 @@ export default function HomePage() {
             const parsed = JSON.parse(raw);
             const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
             items.forEach((item: any) => {
-              if (item && isRecordMatch(item, core10Digits)) {
+              if (item && isRecordMatch(item, rawInput)) {
                 const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
                 if (!seenIds.has(itemId)) {
                   seenIds.add(itemId);
@@ -376,12 +545,8 @@ export default function HomePage() {
               }
             });
           }
-        } catch {
-          /* ignore storage errors */
-        }
+        } catch {}
       });
-
-      // 4. Supabase is the sole source of truth — no /api/records fallback needed
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
       setResult({ found: totalFound, reports, trackerEntries });
@@ -416,18 +581,29 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <Banner 
-        variant="info" 
-        message={<span className="text-[1.15em] font-medium">Welcome to Cyberscam Watchdog Network! We are a 501(c)(3) Non-Profit dedicated to ending scams through education.</span>}
-        dismissible 
-        center
-        id="home_welcome"
-      />
+      {/* Welcome Banner */}
+      {!isBannerDismissed && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 px-4 py-3 text-center relative flex items-center justify-center">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto text-xs sm:text-sm font-medium">
+            <Info className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              Welcome to Cyberscam Watchdog Network! We are a 501(c)(3) Non-Profit dedicated to ending scams through education.
+            </span>
+          </div>
+          <button
+            onClick={() => setIsBannerDismissed(true)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition"
+            title="Dismiss banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="relative pt-20 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
         <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-950" />
-        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brand-500/10 to-transparent" />
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-amber-500/10 to-transparent" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-6xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
@@ -439,27 +615,41 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col items-center justify-center mb-12">
-            <Link to="/workshop" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30 mb-4">
+            <button
+              onClick={() => onNavigateToTracker && onNavigateToTracker()}
+              className="px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-lg shadow-lg shadow-amber-500/20 mb-4 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
               Work With Us
-            </Link>
+            </button>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              You can also email us directly at <a href="mailto:outreach@endscams.org" className="text-brand-500 hover:underline">outreach@endscams.org</a>
+              You can also email us directly at{' '}
+              <a href="mailto:outreach@endscams.org" className="text-amber-500 hover:underline">
+                outreach@endscams.org
+              </a>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-emerald-500" /> Verified Protection</span>
-            <span className="flex items-center gap-2"><Network className="w-4 h-4 text-brand-500" /> Global Intelligence</span>
-            <span className="flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Community Driven</span>
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-emerald-500" /> Verified Protection
+            </span>
+            <span className="flex items-center gap-2">
+              <Network className="w-4 h-4 text-amber-500" /> Global Intelligence
+            </span>
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" /> Community Driven
+            </span>
           </div>
         </div>
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-20 bg-slate-50 dark:bg-slate-950">
+      <section id="tools" className="py-20 bg-slate-950 border-b border-slate-900">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-black mb-3 text-slate-900 dark:text-white">Community Scam Database</h2>
-          <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-xl mx-auto text-sm">
+          <h2 className="text-3xl sm:text-4xl font-extrabold mb-3 text-white tracking-tight">
+            Community Scam Database
+          </h2>
+          <p className="text-slate-400 mb-8 max-w-xl mx-auto text-sm leading-relaxed">
             Search our historical database of known fraudulent numbers reported by victims and security decoys.
           </p>
 
@@ -476,26 +666,39 @@ export default function HomePage() {
                     setResult(null);
                     setSearched(false);
                   }}
-                  maxLength={25}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-12 pr-4 h-14 text-lg rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all"
+                  maxLength={30}
+                  className="w-full bg-[#0b1329] border border-slate-700/80 pl-12 pr-10 h-14 text-base sm:text-lg rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 focus:outline-none transition-all text-white font-mono placeholder-slate-500"
                 />
+                {input && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput('');
+                      setResult(null);
+                      setSearched(false);
+                    }}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <button
                 type="submit"
-                disabled={normalizeInput(input).length < 10 || searching}
-                className="btn-primary h-14 px-8 rounded-xl text-base disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={input.replace(/\D/g, '').length < 7 || searching}
+                className="h-14 px-8 rounded-xl text-base font-bold bg-[#b46d0a] hover:bg-[#c97b0c] text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer shrink-0"
               >
-                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" />Search</>}
+                {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5 stroke-[2.5]" />Search</>}
               </button>
             </div>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 text-left pl-1">
+            <p className="text-xs text-slate-500 mt-2 text-left pl-1">
               Accepts standard 10-digit format: (555) 123-4567 | 555-123-4567 | 5551234567
             </p>
           </form>
 
           {searching && (
             <div className="max-w-2xl mx-auto mt-6 p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center animate-fade-in shadow-sm">
-              <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
+              <Loader2 className="w-8 h-8 text-amber-500 mx-auto mb-2 animate-spin" />
               <p className="text-slate-600 dark:text-slate-400 text-sm">Searching community records...</p>
             </div>
           )}
@@ -523,12 +726,23 @@ export default function HomePage() {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => triggerDeepScan(searchedDigits)}
-                    className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm"
-                  >
-                    <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <button
+                      onClick={() => triggerDeepScan(searchedDigits)}
+                      className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
+                    >
+                      <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
+                    </button>
+
+                    {onNavigateToTracker && (
+                      <button
+                        onClick={() => onNavigateToTracker(searchedDigits)}
+                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                      >
+                        <ExternalLink className="w-4 h-4" /> View in Live Threat Tracker
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-sm">
@@ -545,10 +759,19 @@ export default function HomePage() {
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={() => triggerDeepScan(searchedDigits)}
-                      className="flex-1 py-3 px-4 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm"
+                      className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
                     >
                       <Phone className="w-4 h-4" /> Deep Scan Carrier & VOIP Status
                     </button>
+
+                    {onNavigateToReport && (
+                      <button
+                        onClick={() => onNavigateToReport(searchedDigits)}
+                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                      >
+                        <ShieldAlert className="w-4 h-4 text-red-400" /> Report This Number
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -593,8 +816,8 @@ export default function HomePage() {
             </div>
 
             <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-6 shadow-md border border-slate-200 dark:border-slate-700/60 text-center flex flex-col items-center hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-6">
-                <Hourglass className="w-8 h-8 text-brand-500" />
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6">
+                <Hourglass className="w-8 h-8 text-amber-500" />
               </div>
               <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
               <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Scam Decoy Investigations (hrs)</h3>
@@ -637,14 +860,14 @@ export default function HomePage() {
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(isSelected ? null : tool.id)}
-                  className={`p-5 rounded-2xl text-left transition-all duration-200 border ${
+                  className={`p-5 rounded-2xl text-left transition-all duration-200 border cursor-pointer ${
                     isSelected 
-                      ? 'border-brand-500 bg-white dark:bg-slate-900 shadow-lg ring-2 ring-brand-500/20' 
-                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-brand-500/40 hover:shadow-md'
+                      ? 'border-amber-500 bg-white dark:bg-slate-900 shadow-lg ring-2 ring-amber-500/20' 
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-500/40 hover:shadow-md'
                   }`}
                 >
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${
-                    isSelected ? 'bg-brand-500 text-white' : 'bg-brand-500/10 text-brand-500'
+                    isSelected ? 'bg-amber-500 text-slate-950' : 'bg-amber-500/10 text-amber-500'
                   }`}>
                     <Icon className="w-6 h-6" />
                   </div>
@@ -657,9 +880,9 @@ export default function HomePage() {
 
           {/* Active Tool View: PHONE */}
           {activeTool === 'phone' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Phone className="w-5 h-5" />
                 </div>
                 <div>
@@ -674,12 +897,12 @@ export default function HomePage() {
                   value={phoneToolInput}
                   onChange={(e) => setPhoneToolInput(e.target.value)}
                   placeholder="Enter phone number (e.g. +14152007986 or (415) 200-7986)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={phoneToolLoading || !phoneToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {phoneToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Inspect Phone
                 </button>
@@ -729,13 +952,13 @@ export default function HomePage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                           <p className="text-xs font-semibold text-slate-500 mb-3 flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                            <Shield className="w-3.5 h-3.5 text-brand-500" /> Line Status & Validity
+                            <Shield className="w-3.5 h-3.5 text-amber-500" /> Line Status & Validity
                           </p>
                           <div className="space-y-2 text-xs">
                             <div className="flex justify-between">
                               <span className="text-slate-500">Valid Number:</span>
-                              <span className={`font-semibold ${phoneToolResult.is_valid ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {phoneToolResult.is_valid ? 'Active / Valid' : 'Invalid'}
+                              <span className={`font-semibold ${phoneToolResult.is_valid || phoneToolResult.valid ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {phoneToolResult.is_valid || phoneToolResult.valid ? 'Active / Valid' : 'Invalid'}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -802,9 +1025,9 @@ export default function HomePage() {
 
           {/* Active Tool View: EMAIL */}
           {activeTool === 'email' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
@@ -819,12 +1042,12 @@ export default function HomePage() {
                   value={emailToolInput}
                   onChange={(e) => setEmailToolInput(e.target.value)}
                   placeholder="Enter email address (e.g. security-alert@paypal-update.com)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={emailToolLoading || !emailToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {emailToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scan Email
                 </button>
@@ -878,9 +1101,9 @@ export default function HomePage() {
 
           {/* Active Tool View: IP */}
           {activeTool === 'ip' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Network className="w-5 h-5" />
                 </div>
                 <div>
@@ -895,12 +1118,12 @@ export default function HomePage() {
                   value={ipToolInput}
                   onChange={(e) => setIpToolInput(e.target.value)}
                   placeholder="Enter IP address (or leave empty to check your own connection)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={ipToolLoading}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {ipToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scan IP
                 </button>
@@ -917,7 +1140,7 @@ export default function HomePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">IP Address:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{ipToolResult.ip_address || ipToolResult.data?.ip_address || 'Detected'}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{ipToolResult.ip_address || ipToolResult.data?.ip_address || ipToolResult.ip || 'Detected'}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Location:</span>
@@ -927,12 +1150,12 @@ export default function HomePage() {
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Network / ISP:</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ipToolResult.connection?.isp_name || 'Broadband'}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ipToolResult.connection?.isp_name || ipToolResult.isp || 'Broadband'}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">VPN / Tor Flag:</span>
-                        <span className={`font-semibold ${ipToolResult.security?.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
-                          {ipToolResult.security?.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
+                        <span className={`font-semibold ${ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          {ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
                         </span>
                       </div>
                     </div>
@@ -944,9 +1167,9 @@ export default function HomePage() {
 
           {/* Active Tool View: SCRAPER */}
           {activeTool === 'scrape' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Globe className="w-5 h-5" />
                 </div>
                 <div>
@@ -961,12 +1184,12 @@ export default function HomePage() {
                   value={scrapeToolInput}
                   onChange={(e) => setScrapeToolInput(e.target.value)}
                   placeholder="Enter URL to safely inspect (e.g. https://example-phish.com)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={scrapeToolLoading || !scrapeToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {scrapeToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scrape Website
                 </button>
@@ -1002,7 +1225,7 @@ export default function HomePage() {
 
                       <button
                         onClick={() => setShowRawJson(!showRawJson)}
-                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-500 transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-500 transition-colors cursor-pointer"
                       >
                         {showRawJson ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         {showRawJson ? 'Hide Raw Inspection Output' : 'View Raw Inspection Output'}
@@ -1029,28 +1252,32 @@ export default function HomePage() {
           <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-xl mx-auto">
             Your report immediately protects others in the community. Add the scammer's number to our watchdog index.
           </p>
-          <Link to="/report" className="btn-primary inline-flex items-center gap-2 text-lg px-8 py-4 shadow-lg shadow-brand-500/20">
+          <button
+            onClick={() => onNavigateToReport && onNavigateToReport()}
+            className="inline-flex items-center gap-2 text-lg px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          >
             <ShieldAlert className="w-5 h-5" />
             Report a Scam Now
-          </Link>
+          </button>
         </div>
       </section>
     </div>
   );
 }
 
-function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
+// Subcomponent: ReportCard
+export function ReportCard({ label, date, description, sourceName, sourceUrl }: { label: string; date: string; description: string; sourceName: string; sourceUrl?: string | null }) {
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-2 text-left shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold px-2 py-0.5 bg-brand-500/10 text-brand-500 rounded">{label}</span>
+        <span className="text-xs font-semibold px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded">{label}</span>
         <span className="text-xs text-slate-400">{date}</span>
       </div>
       {description && <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 line-clamp-2">{description}</p>}
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-400">Source: {sourceName}</span>
         {sourceUrl && (
-          <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
+          <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-500 hover:underline flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />View Report
           </a>
         )}
