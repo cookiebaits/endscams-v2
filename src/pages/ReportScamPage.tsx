@@ -72,7 +72,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
           minHeight: 'calc(100vh - 80px)',
         }}
-        scrolling="auto"
+        scrolling="no"
       />
     </div>
   );

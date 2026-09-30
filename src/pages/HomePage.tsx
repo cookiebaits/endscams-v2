@@ -482,15 +482,56 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-12 bg-[#070b14] border-b border-slate-900">
-        <div className="max-w-7xl mx-auto px-4">
-          <iframe
-            src="https://esscan.ai.studio/?page=search"
-            title="ESSCAN Scam Database Search"
-            className="w-full border-0 rounded-2xl block overflow-hidden shadow-2xl"
-            style={{ minHeight: '700px', height: '100%' }}
-            scrolling="auto"
-          />
+      <section id="tools" className="py-16 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-colors duration-200">
+        <div className="max-w-5xl mx-auto px-4">
+          {/* Header Controls & Title */}
+          <div className="flex flex-col items-center text-center">
+            <div className="flex items-center justify-between w-full max-w-2xl mb-6">
+              <button
+                onClick={() => window.history.back()}
+                className="px-4 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700/60"
+              >
+                ← Back
+              </button>
+              <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full text-[11px] font-bold tracking-wider uppercase flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5" /> Community Scam Database
+              </span>
+              <button
+                onClick={() => onNavigateToTracker && onNavigateToTracker()}
+                className="px-4 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700/60"
+              >
+                Live Threat Tracker <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 shadow-inner">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+
+            <h2 className="text-3xl md:text-5xl font-black mb-3 text-white tracking-tight">
+              Community Scam Database Search
+            </h2>
+
+            <p className="text-sm md:text-base text-slate-400 max-w-2xl mb-8 leading-relaxed">
+              Search our historical database of verified fraudulent numbers, VoIP call centers, and fake refund claims reported by victims and security decoys.
+            </p>
+          </div>
+
+          {/* Embedded Search Form Iframe Box */}
+          <div className="relative w-full max-w-3xl mx-auto rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0c1322]">
+            <div className="relative w-full overflow-hidden" style={{ height: '175px' }}>
+              <iframe
+                src="https://esscan.ai.studio/?page=search"
+                title="ESSCAN Scam Search Box"
+                className="w-full border-0 absolute left-0"
+                style={{
+                  height: '800px',
+                  top: '-278px',
+                }}
+                scrolling="no"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
