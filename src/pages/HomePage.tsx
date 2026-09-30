@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router';
 import { 
   Search, Phone, Shield, ExternalLink, CheckCircle, XCircle, 
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
-  Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check 
+  Network, Globe, ChevronDown, ChevronUp, AlertTriangle, Check,
+  X, Info
 } from 'lucide-react';
-import { supabase, formatPhoneDisplay } from '../lib/supabase';
-import Banner from '../components/Banner';
-import { requireDisclaimerAcceptance } from '../components/TermsBanner';
-import { MASTER_SEED_RECORDS, isRecordMatch } from './TrackerPage';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { MASTER_SEED_RECORDS, isRecordMatch, ThreatRecord } from './TrackerPage';
 
 type ImpactStats = {
   money_saved: number;
@@ -51,6 +49,24 @@ function getSimulatedStats(baseStats: ImpactStats): ImpactStats {
   }
 
   return simulatedStats;
+}
+
+export function formatPhoneDisplay(raw: string): string {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.startsWith('234') && digits.length >= 10) {
+    return `+234 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+  }
+  if (digits.startsWith('254') && digits.length >= 10) {
+    return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+  }
+  return raw.startsWith('+') ? raw : (digits.length > 10 ? `+${digits}` : digits);
 }
 
 function normalizeInput(raw: string): string {
@@ -103,16 +119,16 @@ function useCountUp(end: number, duration: number = 2000) {
   return count;
 }
 
-// Resilient API Client Helper
+// Resilient API Client Helper for the 4 Advanced Tools
 async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: string) {
-  const configuredFetcher = (import.meta.env.VITE_FETCHER_URL || 'https://fetcher.endscams.org').replace(/\/+$/, '');
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const baseUrl = isLocal ? 'http://localhost:3000' : configuredFetcher;
+  const configuredFetcher = (import.meta.env.VITE_FETCHER_URL || '').replace(/\/+$/, '');
+  const baseUrl = configuredFetcher || '';
 
   // Build target endpoints (unified /api/tools with fallback to direct /api/<tool>)
   const targets = [
     { url: `${baseUrl}/api/tools`, body: { tool, query } },
-    { url: `${baseUrl}/api/${tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip_address: query } : { url: query } }
+    { url: `${baseUrl}/api/${tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip_address: query } : { url: query } },
+    { url: `${baseUrl}/api/scam-tools/${tool === 'scrape' ? 'domain' : tool}`, body: tool === 'phone' ? { phone: query } : tool === 'email' ? { email: query } : tool === 'ip' ? { ip: query } : { domain: query } }
   ];
 
   let lastError = 'Failed to fetch data';
@@ -140,7 +156,12 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
   throw new Error(lastError);
 }
 
-export default function HomePage() {
+interface HomePageProps {
+  onNavigateToTracker?: (searchQuery?: string) => void;
+  onNavigateToReport?: (prefilledPhone?: string) => void;
+}
+
+export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
 
   // Phone Tool State
@@ -172,6 +193,12 @@ export default function HomePage() {
   const [searchedDigits, setSearchedDigits] = useState('');
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
 
+  // Supabase Client
+  const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
+
+  // Banner dismiss state
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+
   const fallbackStats: ImpactStats = {
     money_saved: 1278250,
     scammer_hours_wasted: 5676,
@@ -184,30 +211,39 @@ export default function HomePage() {
   const animatedHours = useCountUp(displayedStats.scammer_hours_wasted);
   const animatedResources = useCountUp(displayedStats.resources_shutdown);
 
+  // Load Supabase Client & Impact Stats
   useEffect(() => {
-    const fetchImpactStats = async () => {
+    async function initSupabase() {
       try {
-        const { data, error } = await supabase
-          .from('impact_statistics')
-          .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
-          .order('last_updated', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const config = await res.json();
+          if (config.supabaseUrl && config.supabaseKey) {
+            const sb = createClient(config.supabaseUrl, config.supabaseKey);
+            setSupabaseClient(sb);
 
-        if (data && !error) {
-          setImpactStats(data as ImpactStats);
+            const { data } = await sb
+              .from('impact_statistics')
+              .select('money_saved, scammer_hours_wasted, resources_shutdown, last_updated')
+              .order('last_updated', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (data) {
+              setImpactStats(data as ImpactStats);
+            }
+          }
         }
       } catch (e) {
-        console.error('Failed to fetch impact stats', e);
+        console.warn('Failed to fetch impact stats or config', e);
       }
-    };
+    }
 
-    fetchImpactStats();
+    initSupabase();
   }, []);
 
   const handlePhoneToolSearch = async (e?: React.FormEvent, overridePhone?: string) => {
     if (e) e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     const query = (overridePhone || phoneToolInput).trim();
     if (!query) return;
 
@@ -225,7 +261,6 @@ export default function HomePage() {
 
   const handleEmailToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     if (!emailToolInput.trim()) return;
 
     setEmailToolLoading(true);
@@ -242,7 +277,6 @@ export default function HomePage() {
 
   const handleIpToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     setIpToolLoading(true);
     setIpToolResult(null);
     try {
@@ -257,7 +291,6 @@ export default function HomePage() {
 
   const handleScrapeToolSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     if (!scrapeToolInput.trim()) return;
 
     setScrapeToolLoading(true);
@@ -274,84 +307,114 @@ export default function HomePage() {
 
   const handleDatabaseSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireDisclaimerAcceptance()) return;
     const core10Digits = normalizeInput(input);
-    if (core10Digits.length < 10) return;
+    const rawInput = input.trim();
+    if (core10Digits.length < 7 && rawInput.length < 7) return;
 
     setSearching(true);
     setSearched(false);
-    setSearchedDigits(core10Digits);
+    setSearchedDigits(core10Digits || rawInput.replace(/\D/g, ''));
 
     try {
       const reports: Array<{ id: string; category: string; description: string; incident_date: string; source: string; source_url?: string }> = [];
       const trackerEntries: Array<{ id: string; source_name: string; source_url: string; report_date: string; category?: string; description?: string }> = [];
       const seenIds = new Set<string>();
 
-      // 1. Check Supabase database tables
-      const target11Digits = `1${core10Digits}`;
-      const [reportsRes, trackerRes] = await Promise.all([
-        supabase
-          .from('scam_reports')
-          .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
-          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
-          .order('incident_date', { ascending: false }),
-        supabase
-          .from('tracker_entries')
-          .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
-          .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
-          .gt('expires_at', new Date().toISOString())
-          .order('report_date', { ascending: false }),
-      ]).catch(() => [{ data: [] }, { data: [] }]);
+      // 1. Check Supabase database tables if available
+      if (supabaseClient) {
+        const target11Digits = `1${core10Digits}`;
+        try {
+          const [reportsRes, trackerRes] = await Promise.all([
+            supabaseClient
+              .from('scam_reports')
+              .select('id,category,description,incident_date,source,source_url,phone_digits,phone_number')
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+              .order('incident_date', { ascending: false }),
+            supabaseClient
+              .from('tracker_entries')
+              .select('id,source_name,source_url,report_date,category,description,phone_digits,phone_number')
+              .or(`phone_digits.eq.${core10Digits},phone_digits.eq.${target11Digits},phone_digits.ilike.%${core10Digits}%`)
+              .order('report_date', { ascending: false }),
+          ]);
 
-      if (reportsRes && reportsRes.data) {
-        reportsRes.data.forEach((r: any) => {
-          if (isRecordMatch(r, core10Digits) && !seenIds.has(r.id)) {
-            seenIds.add(r.id);
-            reports.push({
-              id: r.id,
-              category: r.category || 'Refund / Impersonator',
-              description: r.description || '',
-              incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
-              source: r.source || 'User Report',
-              source_url: r.source_url
+          if (reportsRes && reportsRes.data) {
+            reportsRes.data.forEach((r: any) => {
+              if (isRecordMatch(r, core10Digits) && !seenIds.has(r.id)) {
+                seenIds.add(r.id);
+                reports.push({
+                  id: r.id,
+                  category: r.category || 'User Scam Report',
+                  description: r.description || '',
+                  incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
+                  source: r.source || 'User Report',
+                  source_url: r.source_url
+                });
+              }
             });
           }
-        });
-      }
 
-      if (trackerRes && trackerRes.data) {
-        trackerRes.data.forEach((t: any) => {
-          if (isRecordMatch(t, core10Digits) && !seenIds.has(t.id)) {
-            seenIds.add(t.id);
-            trackerEntries.push({
-              id: t.id,
-              source_name: t.source_name || 'Watchdog Harvester',
-              source_url: t.source_url || '',
-              report_date: t.report_date || new Date().toISOString().split('T')[0],
-              category: t.category || 'Refund / Impersonator',
-              description: t.description || ''
+          if (trackerRes && trackerRes.data) {
+            trackerRes.data.forEach((t: any) => {
+              if (isRecordMatch(t, core10Digits) && !seenIds.has(t.id)) {
+                seenIds.add(t.id);
+                trackerEntries.push({
+                  id: t.id,
+                  source_name: t.source_name || 'Threat Intelligence Tracker',
+                  source_url: t.source_url || '',
+                  report_date: t.report_date || new Date().toISOString().split('T')[0],
+                  category: t.category || 'Scam',
+                  description: t.description || ''
+                });
+              }
             });
           }
-        });
+        } catch {}
       }
 
-      // 2. Check local Master Seed Records (used on /tracker page)
-      MASTER_SEED_RECORDS.forEach((s) => {
-        if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
-          seenIds.add(s.id);
-          trackerEntries.push({
-            id: s.id,
-            source_name: s.source_name || 'Community Watchdog Index',
-            source_url: s.source_url || '',
-            report_date: s.report_date || new Date().toISOString().split('T')[0],
-            category: s.category || 'Scam Intelligence',
-            description: s.description || s.impersonated_company || ''
-          });
+      // 2. Check Backend /api/records endpoint
+      try {
+        const recRes = await fetch('/api/records');
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          if (Array.isArray(recData.records)) {
+            recData.records.forEach((item: any) => {
+              if (isRecordMatch(item, core10Digits)) {
+                const itemId = String(item.id || item.phone_digits);
+                if (!seenIds.has(itemId)) {
+                  seenIds.add(itemId);
+                  trackerEntries.push({
+                    id: itemId,
+                    source_name: item.source_name || item.source || 'EndScams Threat Tracker',
+                    source_url: item.source_url || item.sourceUrl || '',
+                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
+                    category: item.category || 'Scam Intelligence',
+                    description: item.description || item.impersonated_company || ''
+                  });
+                }
+              }
+            });
+          }
         }
-      });
+      } catch {}
 
-      // 3. Check LocalStorage sources (esscan_threat_records_v2, user_reported_scams, end_scam_scan_shared_state)
+      // 3. Check local Master Seed Records
+      if (Array.isArray(MASTER_SEED_RECORDS)) {
+        MASTER_SEED_RECORDS.forEach((s) => {
+          if (isRecordMatch(s, core10Digits) && !seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            trackerEntries.push({
+              id: s.id,
+              source_name: s.source_name || 'Community Watchdog Index',
+              source_url: s.source_url || '',
+              report_date: s.report_date || new Date().toISOString().split('T')[0],
+              category: s.category || 'Scam Intelligence',
+              description: s.description || s.impersonated_company || ''
+            });
+          }
+        });
+      }
+
+      // 4. Check LocalStorage sources
       const storageKeys = ['esscan_threat_records_v2', 'user_reported_scams', 'end_scam_scan_shared_state', 'tracker_records'];
       storageKeys.forEach((key) => {
         try {
@@ -376,40 +439,8 @@ export default function HomePage() {
               }
             });
           }
-        } catch {
-          /* ignore storage errors */
-        }
+        } catch {}
       });
-
-      // 4. Query https://esscan.ai.studio/api/records directly
-      try {
-        const esscanRes = await fetch('https://esscan.ai.studio/api/records', {
-          headers: { 'Cache-Control': 'no-cache' },
-        });
-        if (esscanRes.ok) {
-          const esscanRecords = await esscanRes.json();
-          if (Array.isArray(esscanRecords)) {
-            esscanRecords.forEach((item: any) => {
-              if (item && isRecordMatch(item, core10Digits)) {
-                const itemId = item.id || `esscan-${item.phone_digits || Math.random()}`;
-                if (!seenIds.has(itemId)) {
-                  seenIds.add(itemId);
-                  trackerEntries.push({
-                    id: itemId,
-                    source_name: item.source_name || 'EndScams Threat Tracker (esscan.ai.studio)',
-                    source_url: item.source_url || 'https://esscan.ai.studio',
-                    report_date: item.report_date || item.detectedAt || new Date().toISOString().split('T')[0],
-                    category: item.category || 'Threat Tracker Scam Line',
-                    description: item.description || item.impersonated_company || ''
-                  });
-                }
-              }
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to query esscan.ai.studio database:', err);
-      }
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
       setResult({ found: totalFound, reports, trackerEntries });
@@ -444,18 +475,29 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <Banner 
-        variant="info" 
-        message={<span className="text-[1.15em] font-medium">Welcome to Cyberscam Watchdog Network! We are a 501(c)(3) Non-Profit dedicated to ending scams through education.</span>}
-        dismissible 
-        center
-        id="home_welcome"
-      />
+      {/* Welcome Banner */}
+      {!isBannerDismissed && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 px-4 py-3 text-center relative flex items-center justify-center">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto text-xs sm:text-sm font-medium">
+            <Info className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              Welcome to Cyberscam Watchdog Network! We are a 501(c)(3) Non-Profit dedicated to ending scams through education.
+            </span>
+          </div>
+          <button
+            onClick={() => setIsBannerDismissed(true)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition"
+            title="Dismiss banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="relative pt-20 pb-24 overflow-hidden border-b border-slate-200 dark:border-slate-800">
         <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-950" />
-        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-brand-500/10 to-transparent" />
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-amber-500/10 to-transparent" />
 
         <div className="relative max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-6xl font-black mb-6 text-slate-900 dark:text-white leading-tight tracking-tight">
@@ -467,18 +509,30 @@ export default function HomePage() {
           </p>
 
           <div className="flex flex-col items-center justify-center mb-12">
-            <Link to="/workshop" className="btn-primary w-full sm:w-auto text-lg px-8 py-3.5 shadow-brand-500/30 mb-4">
+            <button
+              onClick={() => onNavigateToTracker && onNavigateToTracker()}
+              className="px-8 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-lg shadow-lg shadow-amber-500/20 mb-4 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
               Work With Us
-            </Link>
+            </button>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              You can also email us directly at <a href="mailto:outreach@endscams.org" className="text-brand-500 hover:underline">outreach@endscams.org</a>
+              You can also email us directly at{' '}
+              <a href="mailto:outreach@endscams.org" className="text-amber-500 hover:underline">
+                outreach@endscams.org
+              </a>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm font-medium text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-emerald-500" /> Verified Protection</span>
-            <span className="flex items-center gap-2"><Network className="w-4 h-4 text-brand-500" /> Global Intelligence</span>
-            <span className="flex items-center gap-2"><Shield className="w-4 h-4 text-blue-500" /> Community Driven</span>
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-emerald-500" /> Verified Protection
+            </span>
+            <span className="flex items-center gap-2">
+              <Network className="w-4 h-4 text-amber-500" /> Global Intelligence
+            </span>
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" /> Community Driven
+            </span>
           </div>
         </div>
       </section>
@@ -505,13 +559,13 @@ export default function HomePage() {
                     setSearched(false);
                   }}
                   maxLength={25}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-12 pr-4 h-14 text-lg rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 pl-12 pr-4 h-14 text-lg rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none transition-all text-slate-900 dark:text-white font-mono"
                 />
               </div>
               <button
                 type="submit"
-                disabled={normalizeInput(input).length < 10 || searching}
-                className="btn-primary h-14 px-8 rounded-xl text-base disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={normalizeInput(input).length < 7 || searching}
+                className="h-14 px-8 rounded-xl text-base font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-500/20 cursor-pointer shrink-0"
               >
                 {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" />Search</>}
               </button>
@@ -523,7 +577,7 @@ export default function HomePage() {
 
           {searching && (
             <div className="max-w-2xl mx-auto mt-6 p-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center animate-fade-in shadow-sm">
-              <Loader2 className="w-8 h-8 text-brand-500 mx-auto mb-2 animate-spin" />
+              <Loader2 className="w-8 h-8 text-amber-500 mx-auto mb-2 animate-spin" />
               <p className="text-slate-600 dark:text-slate-400 text-sm">Searching community records...</p>
             </div>
           )}
@@ -551,12 +605,23 @@ export default function HomePage() {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => triggerDeepScan(searchedDigits)}
-                    className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm"
-                  >
-                    <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <button
+                      onClick={() => triggerDeepScan(searchedDigits)}
+                      className="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
+                    >
+                      <Network className="w-4 h-4" /> Run Live Carrier & VOIP Deep Scan on {formatPhoneDisplay(searchedDigits)}
+                    </button>
+
+                    {onNavigateToTracker && (
+                      <button
+                        onClick={() => onNavigateToTracker(searchedDigits)}
+                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                      >
+                        <ExternalLink className="w-4 h-4" /> View in Live Tracker
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-sm">
@@ -573,10 +638,19 @@ export default function HomePage() {
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={() => triggerDeepScan(searchedDigits)}
-                      className="flex-1 py-3 px-4 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm"
+                      className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-md text-sm cursor-pointer"
                     >
                       <Phone className="w-4 h-4" /> Deep Scan Carrier & VOIP Status
                     </button>
+
+                    {onNavigateToReport && (
+                      <button
+                        onClick={() => onNavigateToReport(searchedDigits)}
+                        className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl flex items-center justify-center gap-2 transition-all text-sm cursor-pointer border border-slate-700"
+                      >
+                        <ShieldAlert className="w-4 h-4 text-red-400" /> Report This Number
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -621,8 +695,8 @@ export default function HomePage() {
             </div>
 
             <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-6 shadow-md border border-slate-200 dark:border-slate-700/60 text-center flex flex-col items-center hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-6">
-                <Hourglass className="w-8 h-8 text-brand-500" />
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6">
+                <Hourglass className="w-8 h-8 text-amber-500" />
               </div>
               <div className="text-4xl md:text-5xl font-black mb-3 text-slate-900 dark:text-white">{`${animatedHours.toLocaleString('en-US')}`}</div>
               <h3 className="text-lg font-bold mb-2 text-slate-800 dark:text-slate-200">Scam Decoy Investigations (hrs)</h3>
@@ -665,14 +739,14 @@ export default function HomePage() {
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(isSelected ? null : tool.id)}
-                  className={`p-5 rounded-2xl text-left transition-all duration-200 border ${
+                  className={`p-5 rounded-2xl text-left transition-all duration-200 border cursor-pointer ${
                     isSelected 
-                      ? 'border-brand-500 bg-white dark:bg-slate-900 shadow-lg ring-2 ring-brand-500/20' 
-                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-brand-500/40 hover:shadow-md'
+                      ? 'border-amber-500 bg-white dark:bg-slate-900 shadow-lg ring-2 ring-amber-500/20' 
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 hover:border-amber-500/40 hover:shadow-md'
                   }`}
                 >
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${
-                    isSelected ? 'bg-brand-500 text-white' : 'bg-brand-500/10 text-brand-500'
+                    isSelected ? 'bg-amber-500 text-slate-950' : 'bg-amber-500/10 text-amber-500'
                   }`}>
                     <Icon className="w-6 h-6" />
                   </div>
@@ -685,9 +759,9 @@ export default function HomePage() {
 
           {/* Active Tool View: PHONE */}
           {activeTool === 'phone' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Phone className="w-5 h-5" />
                 </div>
                 <div>
@@ -702,12 +776,12 @@ export default function HomePage() {
                   value={phoneToolInput}
                   onChange={(e) => setPhoneToolInput(e.target.value)}
                   placeholder="Enter phone number (e.g. +14152007986 or (415) 200-7986)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={phoneToolLoading || !phoneToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {phoneToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Inspect Phone
                 </button>
@@ -757,13 +831,13 @@ export default function HomePage() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                           <p className="text-xs font-semibold text-slate-500 mb-3 flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-                            <Shield className="w-3.5 h-3.5 text-brand-500" /> Line Status & Validity
+                            <Shield className="w-3.5 h-3.5 text-amber-500" /> Line Status & Validity
                           </p>
                           <div className="space-y-2 text-xs">
                             <div className="flex justify-between">
                               <span className="text-slate-500">Valid Number:</span>
-                              <span className={`font-semibold ${phoneToolResult.is_valid ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {phoneToolResult.is_valid ? 'Active / Valid' : 'Invalid'}
+                              <span className={`font-semibold ${phoneToolResult.is_valid || phoneToolResult.valid ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {phoneToolResult.is_valid || phoneToolResult.valid ? 'Active / Valid' : 'Invalid'}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -830,9 +904,9 @@ export default function HomePage() {
 
           {/* Active Tool View: EMAIL */}
           {activeTool === 'email' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Mail className="w-5 h-5" />
                 </div>
                 <div>
@@ -847,12 +921,12 @@ export default function HomePage() {
                   value={emailToolInput}
                   onChange={(e) => setEmailToolInput(e.target.value)}
                   placeholder="Enter email address (e.g. security-alert@paypal-update.com)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={emailToolLoading || !emailToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {emailToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scan Email
                 </button>
@@ -906,9 +980,9 @@ export default function HomePage() {
 
           {/* Active Tool View: IP */}
           {activeTool === 'ip' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Network className="w-5 h-5" />
                 </div>
                 <div>
@@ -923,12 +997,12 @@ export default function HomePage() {
                   value={ipToolInput}
                   onChange={(e) => setIpToolInput(e.target.value)}
                   placeholder="Enter IP address (or leave empty to check your own connection)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={ipToolLoading}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {ipToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scan IP
                 </button>
@@ -945,7 +1019,7 @@ export default function HomePage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">IP Address:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{ipToolResult.ip_address || ipToolResult.data?.ip_address || 'Detected'}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{ipToolResult.ip_address || ipToolResult.data?.ip_address || ipToolResult.ip || 'Detected'}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Location:</span>
@@ -955,12 +1029,12 @@ export default function HomePage() {
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Network / ISP:</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ipToolResult.connection?.isp_name || 'Broadband'}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ipToolResult.connection?.isp_name || ipToolResult.isp || 'Broadband'}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">VPN / Tor Flag:</span>
-                        <span className={`font-semibold ${ipToolResult.security?.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
-                          {ipToolResult.security?.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
+                        <span className={`font-semibold ${ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          {ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
                         </span>
                       </div>
                     </div>
@@ -972,9 +1046,9 @@ export default function HomePage() {
 
           {/* Active Tool View: SCRAPER */}
           {activeTool === 'scrape' && (
-            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="mt-8 bg-white dark:bg-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
                   <Globe className="w-5 h-5" />
                 </div>
                 <div>
@@ -989,12 +1063,12 @@ export default function HomePage() {
                   value={scrapeToolInput}
                   onChange={(e) => setScrapeToolInput(e.target.value)}
                   placeholder="Enter URL to safely inspect (e.g. https://example-phish.com)"
-                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-slate-900 dark:text-white text-sm"
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-900 dark:text-white text-sm"
                 />
                 <button
                   type="submit"
                   disabled={scrapeToolLoading || !scrapeToolInput.trim()}
-                  className="btn-primary px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 cursor-pointer shadow-md transition-all"
                 >
                   {scrapeToolLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Scrape Website
                 </button>
@@ -1030,7 +1104,7 @@ export default function HomePage() {
 
                       <button
                         onClick={() => setShowRawJson(!showRawJson)}
-                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-500 transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-amber-500 transition-colors cursor-pointer"
                       >
                         {showRawJson ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         {showRawJson ? 'Hide Raw Inspection Output' : 'View Raw Inspection Output'}
@@ -1057,10 +1131,13 @@ export default function HomePage() {
           <p className="text-slate-600 dark:text-slate-400 mb-8 max-w-xl mx-auto">
             Your report immediately protects others in the community. Add the scammer's number to our watchdog index.
           </p>
-          <Link to="/report" className="btn-primary inline-flex items-center gap-2 text-lg px-8 py-4 shadow-lg shadow-brand-500/20">
+          <button
+            onClick={() => onNavigateToReport && onNavigateToReport()}
+            className="inline-flex items-center gap-2 text-lg px-8 py-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-500/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          >
             <ShieldAlert className="w-5 h-5" />
             Report a Scam Now
-          </Link>
+          </button>
         </div>
       </section>
     </div>
@@ -1071,14 +1148,14 @@ function ReportCard({ label, date, description, sourceName, sourceUrl }: { label
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 mb-2 text-left shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold px-2 py-0.5 bg-brand-500/10 text-brand-500 rounded">{label}</span>
+        <span className="text-xs font-semibold px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded">{label}</span>
         <span className="text-xs text-slate-400">{date}</span>
       </div>
       {description && <p className="text-sm text-slate-700 dark:text-slate-300 mb-2 line-clamp-2">{description}</p>}
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-400">Source: {sourceName}</span>
         {sourceUrl && (
-          <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline flex items-center gap-1">
+          <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-500 hover:underline flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />View Report
           </a>
         )}
