@@ -25,7 +25,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
  * Strictly matches full 10-digit North American telephone numbers (Area Code + Prefix + Line)
  * to prevent false positives from sharing 7-digit substrings across different area codes.
  */
-export function isRecordMatch(record: any, targetInput: string): boolean {
+export function isRecordMatch(record: Record<string, unknown> | null | undefined, targetInput: string): boolean {
   if (!record || !targetInput) return false;
   const rawTarget = String(targetInput).trim();
   const cleanTarget = rawTarget.replace(/\D/g, '');
@@ -39,26 +39,28 @@ export function isRecordMatch(record: any, targetInput: string): boolean {
 
   // Collect all potential digit variants from the record
   const candidateDigits: string[] = [];
-  const addVal = (val: any) => {
+  const addVal = (val: unknown) => {
     if (!val) return;
     const d = String(val).replace(/\D/g, '');
     if (d && !candidateDigits.includes(d)) candidateDigits.push(d);
   };
 
-  addVal(record.phone_digits);
-  addVal(record.clean_phone);
-  addVal(record.cleanPhone);
-  addVal(record.phone_number);
-  addVal(record.phone);
-  addVal(record.alt_phone);
+  const rec = record;
+  addVal(rec.phone_digits);
+  addVal(rec.clean_phone);
+  addVal(rec.cleanPhone);
+  addVal(rec.phone_number);
+  addVal(rec.phone);
+  addVal(rec.alt_phone);
 
-  if (Array.isArray(record.alt_numbers)) {
-    for (const alt of record.alt_numbers) {
+  if (Array.isArray(rec.alt_numbers)) {
+    for (const alt of rec.alt_numbers) {
       if (typeof alt === 'string') {
         addVal(alt);
-      } else if (alt && typeof alt === 'object') {
-        addVal(alt.digits);
-        addVal(alt.phone);
+      } else if (alt && typeof alt === 'object' && alt !== null) {
+        const altObj = alt as Record<string, unknown>;
+        addVal(altObj.digits);
+        addVal(altObj.phone);
       }
     }
   }
@@ -259,10 +261,10 @@ async function fetchToolData(tool: 'phone' | 'email' | 'ip' | 'scrape', query: s
         return data;
       }
       if (data?.error) {
-        lastError = data.error;
+        lastError = String(data.error);
       }
-    } catch (e: any) {
-      lastError = e?.message || 'Network connection failed';
+    } catch (e: unknown) {
+      lastError = (e as Error)?.message || 'Network connection failed';
     }
   }
 
@@ -284,22 +286,22 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
   // Phone Tool State
   const [phoneToolInput, setPhoneToolInput] = useState('');
   const [phoneToolLoading, setPhoneToolLoading] = useState(false);
-  const [phoneToolResult, setPhoneToolResult] = useState<any>(null);
+  const [phoneToolResult, setPhoneToolResult] = useState<Record<string, unknown> | null>(null);
 
   // Email Tool State
   const [emailToolInput, setEmailToolInput] = useState('');
   const [emailToolLoading, setEmailToolLoading] = useState(false);
-  const [emailToolResult, setEmailToolResult] = useState<any>(null);
+  const [emailToolResult, setEmailToolResult] = useState<Record<string, unknown> | null>(null);
 
   // IP Tool State
   const [ipToolInput, setIpToolInput] = useState('');
   const [ipToolLoading, setIpToolLoading] = useState(false);
-  const [ipToolResult, setIpToolResult] = useState<any>(null);
+  const [ipToolResult, setIpToolResult] = useState<Record<string, unknown> | null>(null);
 
   // Scrape Tool State
   const [scrapeToolInput, setScrapeToolInput] = useState('');
   const [scrapeToolLoading, setScrapeToolLoading] = useState(false);
-  const [scrapeToolResult, setScrapeToolResult] = useState<any>(null);
+  const [scrapeToolResult, setScrapeToolResult] = useState<Record<string, unknown> | null>(null);
   const [showRawJson, setShowRawJson] = useState(false);
 
   // Database Search State
@@ -368,9 +370,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     setPhoneToolResult(null);
     try {
       const data = await fetchToolData('phone', query);
-      setPhoneToolResult(data);
-    } catch (err: any) {
-      setPhoneToolResult({ error: err.message || 'Failed to verify phone number' });
+      setPhoneToolResult(data as Record<string, unknown>);
+    } catch (err: unknown) {
+      setPhoneToolResult({ error: (err as Error).message || 'Failed to verify phone number' });
     } finally {
       setPhoneToolLoading(false);
     }
@@ -384,9 +386,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     setEmailToolResult(null);
     try {
       const data = await fetchToolData('email', emailToolInput.trim());
-      setEmailToolResult(data);
-    } catch (err: any) {
-      setEmailToolResult({ error: err.message || 'Failed to scan email' });
+      setEmailToolResult(data as Record<string, unknown>);
+    } catch (err: unknown) {
+      setEmailToolResult({ error: (err as Error).message || 'Failed to scan email' });
     } finally {
       setEmailToolLoading(false);
     }
@@ -398,9 +400,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     setIpToolResult(null);
     try {
       const data = await fetchToolData('ip', ipToolInput.trim() || 'auto');
-      setIpToolResult(data);
-    } catch (err: any) {
-      setIpToolResult({ error: err.message || 'Failed to analyze IP address' });
+      setIpToolResult(data as Record<string, unknown>);
+    } catch (err: unknown) {
+      setIpToolResult({ error: (err as Error).message || 'Failed to analyze IP address' });
     } finally {
       setIpToolLoading(false);
     }
@@ -414,9 +416,9 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     setScrapeToolResult(null);
     try {
       const data = await fetchToolData('scrape', scrapeToolInput.trim());
-      setScrapeToolResult(data);
-    } catch (err: any) {
-      setScrapeToolResult({ error: err.message || 'Failed to scrape webpage' });
+      setScrapeToolResult(data as Record<string, unknown>);
+    } catch (err: unknown) {
+      setScrapeToolResult({ error: (err as Error).message || 'Failed to scrape webpage' });
     } finally {
       setScrapeToolLoading(false);
     }
@@ -446,18 +448,18 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
         if (recRes.ok) {
           const recData = await recRes.json();
           if (Array.isArray(recData.records)) {
-            recData.records.forEach((item: any) => {
+            recData.records.forEach((item: Record<string, unknown>) => {
               if (isRecordMatch(item, rawInput)) {
                 const itemId = String(item.id || item.phone_digits || item.phone_number);
                 if (!seenIds.has(itemId)) {
                   seenIds.add(itemId);
                   trackerEntries.push({
                     id: itemId,
-                    source_name: item.source_name || item.source || 'Live Threat Tracker',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || new Date().toISOString().split('T')[0],
-                    category: item.category || 'Scam Intelligence',
-                    description: item.description || item.impersonated_company || ''
+                    source_name: String(item.source_name || item.source || 'Live Threat Tracker'),
+                    source_url: String(item.source_url || item.sourceUrl || ''),
+                    report_date: String(item.report_date || item.incident_date || new Date().toISOString().split('T')[0]),
+                    category: String(item.category || 'Scam Intelligence'),
+                    description: String(item.description || item.impersonated_company || '')
                   });
                 }
               }
@@ -487,37 +489,39 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           ]);
 
           if (reportsRes && reportsRes.data) {
-            reportsRes.data.forEach((r: any) => {
-              if (isRecordMatch(r, rawInput) && !seenIds.has(r.id)) {
-                seenIds.add(r.id);
+            reportsRes.data.forEach((r: Record<string, unknown>) => {
+              if (isRecordMatch(r, rawInput) && !seenIds.has(String(r.id))) {
+                seenIds.add(String(r.id));
                 reports.push({
-                  id: r.id,
-                  category: r.category || 'User Scam Report',
-                  description: r.description || '',
-                  incident_date: r.incident_date || r.report_date || new Date().toISOString().split('T')[0],
-                  source: r.source || 'User Report',
-                  source_url: r.source_url
+                  id: String(r.id),
+                  category: String(r.category || 'User Scam Report'),
+                  description: String(r.description || ''),
+                  incident_date: String(r.incident_date || r.report_date || new Date().toISOString().split('T')[0]),
+                  source: String(r.source || 'User Report'),
+                  source_url: r.source_url ? String(r.source_url) : undefined
                 });
               }
             });
           }
 
           if (trackerRes && trackerRes.data) {
-            trackerRes.data.forEach((t: any) => {
-              if (isRecordMatch(t, rawInput) && !seenIds.has(t.id)) {
-                seenIds.add(t.id);
+            trackerRes.data.forEach((t: Record<string, unknown>) => {
+              if (isRecordMatch(t, rawInput) && !seenIds.has(String(t.id))) {
+                seenIds.add(String(t.id));
                 trackerEntries.push({
-                  id: t.id,
-                  source_name: t.source_name || 'Threat Intelligence Tracker',
-                  source_url: t.source_url || '',
-                  report_date: t.report_date || new Date().toISOString().split('T')[0],
-                  category: t.category || 'Scam',
-                  description: t.description || ''
+                  id: String(t.id),
+                  source_name: String(t.source_name || 'Threat Intelligence Tracker'),
+                  source_url: String(t.source_url || ''),
+                  report_date: String(t.report_date || new Date().toISOString().split('T')[0]),
+                  category: String(t.category || 'Scam'),
+                  description: String(t.description || '')
                 });
               }
             });
           }
-        } catch {}
+        } catch (err) {
+          console.warn('Supabase query search error:', err);
+        }
       }
 
       // 3. Check LocalStorage sources
@@ -528,24 +532,26 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
           if (raw) {
             const parsed = JSON.parse(raw);
             const items = Array.isArray(parsed) ? parsed : (parsed.records && Array.isArray(parsed.records) ? parsed.records : []);
-            items.forEach((item: any) => {
+            items.forEach((item: Record<string, unknown>) => {
               if (item && isRecordMatch(item, rawInput)) {
-                const itemId = item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`;
+                const itemId = String(item.id || `local-${item.phone_digits || item.cleanPhone || Math.random()}`);
                 if (!seenIds.has(itemId)) {
                   seenIds.add(itemId);
                   trackerEntries.push({
                     id: itemId,
-                    source_name: item.source_name || item.source || item.platform || 'Local Report Index',
-                    source_url: item.source_url || item.sourceUrl || '',
-                    report_date: item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0],
-                    category: item.category || item.type_of_scam || item.scamType || 'Reported Scam',
-                    description: item.description || item.detailedSummary || item.snippet || ''
+                    source_name: String(item.source_name || item.source || item.platform || 'Local Report Index'),
+                    source_url: String(item.source_url || item.sourceUrl || ''),
+                    report_date: String(item.report_date || item.incident_date || item.detectedAt || new Date().toISOString().split('T')[0]),
+                    category: String(item.category || item.type_of_scam || item.scamType || 'Reported Scam'),
+                    description: String(item.description || item.detailedSummary || item.snippet || '')
                   });
                 }
               }
             });
           }
-        } catch {}
+        } catch (err) {
+          console.warn('LocalStorage search error for key', key, err);
+        }
       });
 
       const totalFound = reports.length > 0 || trackerEntries.length > 0;
@@ -913,25 +919,26 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                   {phoneToolResult.error ? (
                     <div className="flex items-center gap-2 text-red-500 font-medium text-sm">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>{phoneToolResult.error}</span>
+                      <span>{String(phoneToolResult.error)}</span>
                     </div>
                   ) : (
                     <div className="space-y-5">
                       {/* Carrier Risk Assessment Banner */}
                       {(() => {
-                        const carrier = (phoneToolResult.phone_carrier?.name || phoneToolResult.carrier || '').toLowerCase();
+                        const carrierObj = phoneToolResult.phone_carrier as Record<string, unknown> | undefined;
+                        const carrier = String(carrierObj?.name || phoneToolResult.carrier || '').toLowerCase();
                         const wholesalers = ['synch', 'onvoy', 'bandwidth', 'google voice', 'text now', 'textfree', 'inteliquent', 'level 3'];
                         const majors = ['t-mobile', 'at&t', 'verizon', 'sprint', 'dish', 'bell', 'rogers', 'vodafone'];
 
                         const isWholesaler = wholesalers.some(w => carrier.includes(w));
                         const isMajor = majors.some(m => carrier.includes(m));
 
-                        if (isWholesaler || phoneToolResult.is_voip) {
+                        if (isWholesaler || Boolean(phoneToolResult.is_voip)) {
                           return (
                             <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                               <div className="text-xs">
-                                <span className="font-bold">Elevated Risk Warning:</span> Line belongs to a wholesale VOIP or virtual carrier ({phoneToolResult.phone_carrier?.name || 'VOIP'}). Commonly used by call centers and spoofers.
+                                <span className="font-bold">Elevated Risk Warning:</span> Line belongs to a wholesale VOIP or virtual carrier ({String(carrierObj?.name || 'VOIP')}). Commonly used by call centers and spoofers.
                               </div>
                             </div>
                           );
@@ -940,7 +947,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                             <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                               <Check className="w-5 h-5 flex-shrink-0" />
                               <div className="text-xs">
-                                <span className="font-bold">Verified Major Telecom:</span> Registered on a primary carrier ({phoneToolResult.phone_carrier?.name || 'Major Network'}).
+                                <span className="font-bold">Verified Major Telecom:</span> Registered on a primary carrier ({String(carrierObj?.name || 'Major Network')}).
                               </div>
                             </div>
                           );
@@ -964,7 +971,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                             <div className="flex justify-between">
                               <span className="text-slate-500">Line Type:</span>
                               <span className="font-semibold uppercase text-slate-700 dark:text-slate-300">
-                                {phoneToolResult.phone_carrier?.line_type || phoneToolResult.type || 'Unknown'}
+                                {String((phoneToolResult.phone_carrier as Record<string, unknown> | undefined)?.line_type || phoneToolResult.type || 'Unknown')}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -984,13 +991,13 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                             <div>
                               <span className="text-slate-500 block">Registered Carrier:</span>
                               <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                {phoneToolResult.phone_carrier?.name || phoneToolResult.carrier || 'Unassigned'}
+                                {String((phoneToolResult.phone_carrier as Record<string, unknown> | undefined)?.name || phoneToolResult.carrier || 'Unassigned')}
                               </span>
                             </div>
                             <div className="flex justify-between pt-1">
                               <span className="text-slate-500">SMS Gateway:</span>
                               <span className="font-mono text-slate-700 dark:text-slate-300">
-                                {phoneToolResult.phone_messaging?.sms_domain || 'Standard'}
+                                {String((phoneToolResult.phone_messaging as Record<string, unknown> | undefined)?.sms_domain || 'Standard')}
                               </span>
                             </div>
                           </div>
@@ -1004,13 +1011,13 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                             <div>
                               <span className="text-slate-500 block">E.164 International:</span>
                               <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                                {phoneToolResult.format?.international || phoneToolResult.phone_format?.international || phoneToolInput}
+                                {String((phoneToolResult.format as Record<string, unknown> | undefined)?.international || (phoneToolResult.phone_format as Record<string, unknown> | undefined)?.international || phoneToolInput)}
                               </span>
                             </div>
                             <div>
                               <span className="text-slate-500 block">Location / State:</span>
                               <span className="text-slate-800 dark:text-slate-200">
-                                {phoneToolResult.location || [phoneToolResult.phone_location?.city, phoneToolResult.phone_location?.region].filter(Boolean).join(', ') || 'United States'}
+                                {String(phoneToolResult.location || [(phoneToolResult.phone_location as Record<string, unknown> | undefined)?.city, (phoneToolResult.phone_location as Record<string, unknown> | undefined)?.region].filter(Boolean).join(', ') || 'United States')}
                               </span>
                             </div>
                           </div>
@@ -1058,20 +1065,20 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                   {emailToolResult.error ? (
                     <div className="flex items-center gap-2 text-red-500 font-medium text-sm">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>{emailToolResult.error}</span>
+                      <span>{String(emailToolResult.error)}</span>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-semibold text-slate-500">Risk Assessment:</span>
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                          emailToolResult.email_risk?.address_risk_status === 'high' || emailToolResult.deliverability === 'UNDELIVERABLE'
+                          (emailToolResult.email_risk as Record<string, unknown> | undefined)?.address_risk_status === 'high' || emailToolResult.deliverability === 'UNDELIVERABLE'
                             ? 'bg-red-500/15 text-red-500'
                             : 'bg-emerald-500/15 text-emerald-500'
                         }`}>
-                          {emailToolResult.email_risk?.address_risk_status?.toUpperCase() || emailToolResult.deliverability || 'EVALUATED'}
+                          {String((emailToolResult.email_risk as Record<string, unknown> | undefined)?.address_risk_status || emailToolResult.deliverability || 'EVALUATED').toUpperCase()}
                         </span>
-                        {emailToolResult.email_quality?.is_disposable && (
+                        {Boolean((emailToolResult.email_quality as Record<string, unknown> | undefined)?.is_disposable) && (
                           <span className="px-2.5 py-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full text-xs font-bold flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" /> Disposable Inbox
                           </span>
@@ -1081,7 +1088,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <span className="text-slate-500 block">Deliverability:</span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{emailToolResult.deliverability || 'DELIVERABLE'}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{String(emailToolResult.deliverability || 'DELIVERABLE')}</span>
                         </div>
                         <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <span className="text-slate-500 block">SMTP Mailserver:</span>
@@ -1089,7 +1096,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                         </div>
                         <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                           <span className="text-slate-500 block">Disposable / Throwaway:</span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{emailToolResult.email_quality?.is_disposable ? 'Yes' : 'No'}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{(emailToolResult.email_quality as Record<string, unknown> | undefined)?.is_disposable ? 'Yes' : 'No'}</span>
                         </div>
                       </div>
                     </div>
@@ -1134,28 +1141,28 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                   {ipToolResult.error ? (
                     <div className="flex items-center gap-2 text-red-500 font-medium text-sm">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>{ipToolResult.error}</span>
+                      <span>{String(ipToolResult.error)}</span>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">IP Address:</span>
-                        <span className="font-mono font-bold text-slate-900 dark:text-white">{ipToolResult.ip_address || ipToolResult.data?.ip_address || ipToolResult.ip || 'Detected'}</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{String(ipToolResult.ip_address || (ipToolResult.data as Record<string, unknown> | undefined)?.ip_address || ipToolResult.ip || 'Detected')}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Location:</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {[ipToolResult.city, ipToolResult.region, ipToolResult.country].filter(Boolean).join(', ') || 'Global'}
+                          {[ipToolResult.city, ipToolResult.region, ipToolResult.country].filter(Boolean).map(String).join(', ') || 'Global'}
                         </span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">Network / ISP:</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{ipToolResult.connection?.isp_name || ipToolResult.isp || 'Broadband'}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{String((ipToolResult.connection as Record<string, unknown> | undefined)?.isp_name || ipToolResult.isp || 'Broadband')}</span>
                       </div>
                       <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                         <span className="text-slate-500 block">VPN / Tor Flag:</span>
-                        <span className={`font-semibold ${ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
-                          {ipToolResult.security?.is_vpn || ipToolResult.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
+                        <span className={`font-semibold ${(ipToolResult.security as Record<string, unknown> | undefined)?.is_vpn || ipToolResult.is_vpn ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          {(ipToolResult.security as Record<string, unknown> | undefined)?.is_vpn || ipToolResult.is_vpn ? 'VPN Detected' : 'Residential / Clean'}
                         </span>
                       </div>
                     </div>
@@ -1200,25 +1207,25 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
                   {scrapeToolResult.error ? (
                     <div className="flex items-center gap-2 text-red-500 font-medium text-sm">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>{scrapeToolResult.error}</span>
+                      <span>{String(scrapeToolResult.error)}</span>
                     </div>
                   ) : (
                     <div className="space-y-4 text-xs">
                       <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
                         <div className="flex justify-between items-start">
                           <span className="font-bold text-sm text-slate-900 dark:text-white">
-                            {scrapeToolResult.parsed?.title || 'Webpage Inspection Summary'}
+                            {String((scrapeToolResult.parsed as Record<string, unknown> | undefined)?.title || 'Webpage Inspection Summary')}
                           </span>
                           <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-bold uppercase">
-                            {scrapeToolResult.source || 'Scraped Successfully'}
+                            {String(scrapeToolResult.source || 'Scraped Successfully')}
                           </span>
                         </div>
-                        {scrapeToolResult.parsed?.description && (
-                          <p className="text-slate-500">{scrapeToolResult.parsed.description}</p>
+                        {Boolean((scrapeToolResult.parsed as Record<string, unknown> | undefined)?.description) && (
+                          <p className="text-slate-500">{String((scrapeToolResult.parsed as Record<string, unknown> | undefined)?.description)}</p>
                         )}
-                        {scrapeToolResult.parsed?.clean_text && (
+                        {Boolean((scrapeToolResult.parsed as Record<string, unknown> | undefined)?.clean_text) && (
                           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 leading-relaxed max-h-48 overflow-y-auto">
-                            {scrapeToolResult.parsed.clean_text}
+                            {String((scrapeToolResult.parsed as Record<string, unknown> | undefined)?.clean_text)}
                           </div>
                         )}
                       </div>
@@ -1233,7 +1240,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
 
                       {showRawJson && (
                         <pre className="p-4 bg-slate-900 text-slate-200 rounded-xl overflow-x-auto max-h-80 font-mono text-[11px]">
-                          {typeof scrapeToolResult === 'string' ? scrapeToolResult.substring(0, 4000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 4000)}
+                          {typeof scrapeToolResult === 'string' ? (scrapeToolResult as string).substring(0, 4000) : JSON.stringify(scrapeToolResult, null, 2).substring(0, 4000)}
                         </pre>
                       )}
                     </div>
