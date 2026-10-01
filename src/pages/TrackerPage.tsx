@@ -242,7 +242,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   }
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+    <div className="w-full min-h-screen bg-slate-950 flex flex-col relative">
       {isLoading && (
         <div className="absolute inset-0 z-10 bg-slate-950/90 flex flex-col items-center justify-center space-y-3 text-slate-300">
           <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
@@ -255,7 +255,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         src="https://esscan.ai.studio"
         title="ESSCAN Threat Tracker"
         onLoad={() => setIsLoading(false)}
-        className="w-full border-0 block flex-1"
+        className="w-full border-0 block"
         style={{
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
           minHeight: '600px',
