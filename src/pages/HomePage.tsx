@@ -321,6 +321,49 @@ export interface HomePageProps {
 
 export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
+  const [searchIframeHeight, setSearchIframeHeight] = useState<number>(135);
+  const searchIframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+
+      let data = event.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          // data is non-JSON string
+        }
+      }
+
+      if (typeof data === 'object' && data !== null) {
+        const { height, frameHeight, scrollHeight, pageHeight, contentHeight, offsetHeight } = data;
+        const h = height || frameHeight || scrollHeight || pageHeight || contentHeight || offsetHeight;
+
+        if (h !== undefined && h !== null) {
+          const numH = typeof h === 'string' ? parseFloat(h) : Number(h);
+          if (!isNaN(numH) && numH > 80) {
+            setSearchIframeHeight(numH);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    const interval = setInterval(() => {
+      if (searchIframeRef.current && searchIframeRef.current.contentWindow) {
+        searchIframeRef.current.contentWindow.postMessage({ type: 'GET_HEIGHT' }, '*');
+        searchIframeRef.current.contentWindow.postMessage({ type: 'REQUEST_HEIGHT' }, '*');
+      }
+    }, 500);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Phone Tool State
   const [phoneToolInput, setPhoneToolInput] = useState('');
@@ -522,13 +565,15 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-8 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-colors duration-200">
+      <section id="tools" className="py-6 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-all duration-300">
         <div className="max-w-5xl mx-auto px-4">
           <div className="relative w-full overflow-hidden bg-transparent">
             <iframe
+              ref={searchIframeRef}
               src="https://esscan.ai.studio/?page=search"
               title="Community Scam Database Search"
-              className="w-full h-[550px] border-0 bg-transparent block"
+              className="w-full border-0 bg-transparent block transition-all duration-300"
+              style={{ height: `${searchIframeHeight}px` }}
               scrolling="no"
             />
           </div>

@@ -132,7 +132,7 @@ export interface TrackerPageProps {
 
 export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [iframeHeight, setIframeHeight] = useState<number | string>(35000);
+  const [iframeHeight, setIframeHeight] = useState<number | string>(26800);
   const [isLoading, setIsLoading] = useState(true);
   const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
 
@@ -167,7 +167,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         if (h !== undefined && h !== null) {
           const numH = typeof h === 'string' ? parseFloat(h) : Number(h);
           if (!isNaN(numH) && numH > 300) {
-            setIframeHeight(Math.max(numH, 35000));
+            setIframeHeight(numH);
           }
         }
 
@@ -258,7 +258,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         className="w-full border-0 block flex-1"
         style={{
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
-          minHeight: '35000px',
+          minHeight: '600px',
         }}
         scrolling="no"
       />
