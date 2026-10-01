@@ -246,7 +246,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
           minHeight: 'calc(100vh - 80px)',
         }}
-        scrolling="auto"
+        scrolling="no"
       />
     </div>
   );
