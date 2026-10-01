@@ -522,13 +522,14 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-12 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-colors duration-200">
+      <section id="tools" className="py-8 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-colors duration-200">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0b0f19]">
+          <div className="relative w-full overflow-hidden bg-transparent">
             <iframe
               src="https://esscan.ai.studio/?page=search"
               title="Community Scam Database Search"
-              className="w-full h-[650px] border-0"
+              className="w-full h-[550px] border-0 bg-transparent block"
+              scrolling="no"
             />
           </div>
         </div>
