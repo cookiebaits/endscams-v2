@@ -15,19 +15,31 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
 
-      const { type, height, frameHeight } = event.data;
-
-      if (type === 'FRAME_HEIGHT' || type === 'RESIZE' || type === 'SET_HEIGHT') {
-        const h = height || frameHeight;
-        if (h && typeof h === 'number' && h > 300) {
-          setIframeHeight(h);
+      let data = event.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          // data is non-JSON string
         }
       }
 
-      if (type === 'LOCK_SCROLL' || type === 'OPEN_MODAL') {
-        document.body.style.overflow = 'hidden';
-      } else if (type === 'UNLOCK_SCROLL' || type === 'CLOSE_MODAL') {
-        document.body.style.overflow = '';
+      if (typeof data === 'object' && data !== null) {
+        const { type, height, frameHeight, scrollHeight, pageHeight, contentHeight, offsetHeight } = data;
+        const h = height || frameHeight || scrollHeight || pageHeight || contentHeight || offsetHeight;
+
+        if (h !== undefined && h !== null) {
+          const numH = typeof h === 'string' ? parseFloat(h) : Number(h);
+          if (!isNaN(numH) && numH > 300) {
+            setIframeHeight(numH);
+          }
+        }
+
+        if (type === 'LOCK_SCROLL' || type === 'OPEN_MODAL') {
+          document.body.style.overflow = 'hidden';
+        } else if (type === 'UNLOCK_SCROLL' || type === 'CLOSE_MODAL') {
+          document.body.style.overflow = '';
+        }
       }
     };
 
@@ -43,6 +55,8 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = () => {
           },
           '*'
         );
+        iframeRef.current.contentWindow.postMessage({ type: 'GET_HEIGHT' }, '*');
+        iframeRef.current.contentWindow.postMessage({ type: 'REQUEST_HEIGHT' }, '*');
       }
     }, 500);
 
