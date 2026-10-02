@@ -321,7 +321,7 @@ export interface HomePageProps {
 
 export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
-  const [searchIframeHeight, setSearchIframeHeight] = useState<number>(135);
+  const [searchIframeHeight, setSearchIframeHeight] = useState<number>(850);
   const searchIframeRef = React.useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -344,7 +344,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
         if (h !== undefined && h !== null) {
           const numH = typeof h === 'string' ? parseFloat(h) : Number(h);
           if (!isNaN(numH) && numH > 80) {
-            setSearchIframeHeight(numH);
+            setSearchIframeHeight(Math.max(850, numH));
           }
         }
       }
@@ -567,12 +567,12 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       {/* Database Search Section */}
       <section id="tools" className="py-6 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-all duration-300">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="relative w-full overflow-hidden bg-transparent">
+          <div className="relative w-full overflow-hidden bg-transparent min-h-[850px]">
             <iframe
               ref={searchIframeRef}
               src="https://esscan.ai.studio/?page=search"
               title="Community Scam Database Search"
-              className="w-full border-0 bg-transparent block transition-all duration-300"
+              className="w-full border-0 bg-transparent block transition-all duration-300 min-h-[850px]"
               style={{ height: `${searchIframeHeight}px` }}
               scrolling="no"
             />
