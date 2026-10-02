@@ -161,6 +161,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         src="https://esscan.ai.studio"
         title="ESSCAN Threat Tracker"
         onLoad={() => setIsLoading(false)}
+        loading="eager"
         className="w-full border-0 block flex-1"
         style={{
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,

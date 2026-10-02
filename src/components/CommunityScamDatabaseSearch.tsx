@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export interface CommunityScamDatabaseSearchProps {
   onNavigateToTracker?: (searchQuery?: string) => void;
@@ -12,6 +12,7 @@ export default function CommunityScamDatabaseSearch({
   onNavigateToHome,
 }: CommunityScamDatabaseSearchProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -53,11 +54,20 @@ export default function CommunityScamDatabaseSearch({
   }, [onNavigateToTracker, onNavigateToReport, onNavigateToHome]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex flex-col items-center justify-center relative">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex flex-col items-center justify-center relative min-h-[710px]">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 bg-slate-900/80 rounded-xl flex flex-col items-center justify-center space-y-3 text-slate-300 backdrop-blur-sm border border-slate-800">
+          <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-medium tracking-wide">Loading Community Scam Database...</span>
+        </div>
+      )}
+
       <iframe
         ref={iframeRef}
         src="https://esscan.ai.studio/?page=search"
         title="Community Scam Database Search"
+        onLoad={() => setIsLoading(false)}
+        loading="eager"
         className="w-full border-0 block overflow-hidden"
         style={{
           height: '710px',
