@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { 
   Search, Phone, Shield, ExternalLink,
   Loader2, Banknote, Hourglass, ServerCrash, ShieldAlert, Mail, 
@@ -6,6 +7,7 @@ import {
   X, Info
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
 
 // ============================================================================
 // 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
@@ -320,50 +322,25 @@ export interface HomePageProps {
 }
 
 export default function HomePage({ onNavigateToTracker, onNavigateToReport }: HomePageProps) {
+  const navigate = useNavigate();
   const [activeTool, setActiveTool] = useState<'phone' | 'email' | 'ip' | 'scrape' | null>(null);
-  const [searchIframeHeight, setSearchIframeHeight] = useState<number>(480);
-  const searchIframeRef = React.useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (!event.data) return;
+  const handleTrackerNavigation = (searchQuery?: string) => {
+    if (onNavigateToTracker) {
+      onNavigateToTracker(searchQuery);
+    } else {
+      const q = searchQuery ? searchQuery.replace(/\D/g, '') || searchQuery : '';
+      navigate(`/tracker${q ? `?search=${encodeURIComponent(q)}` : ''}`);
+    }
+  };
 
-      let data = event.data;
-      if (typeof data === 'string') {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          // data is non-JSON string
-        }
-      }
-
-      if (typeof data === 'object' && data !== null) {
-        const { height, frameHeight, scrollHeight, pageHeight, contentHeight, offsetHeight } = data;
-        const h = height || frameHeight || scrollHeight || pageHeight || contentHeight || offsetHeight;
-
-        if (h !== undefined && h !== null) {
-          const numH = typeof h === 'string' ? parseFloat(h) : Number(h);
-          if (!isNaN(numH) && numH > 80) {
-            setSearchIframeHeight(Math.max(480, numH));
-          }
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    const interval = setInterval(() => {
-      if (searchIframeRef.current && searchIframeRef.current.contentWindow) {
-        searchIframeRef.current.contentWindow.postMessage({ type: 'GET_HEIGHT' }, '*');
-        searchIframeRef.current.contentWindow.postMessage({ type: 'REQUEST_HEIGHT' }, '*');
-      }
-    }, 500);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      clearInterval(interval);
-    };
-  }, []);
+  const handleReportNavigation = (prefilledPhone?: string) => {
+    if (onNavigateToReport) {
+      onNavigateToReport(prefilledPhone);
+    } else {
+      navigate(`/report${prefilledPhone ? `?phone=${encodeURIComponent(prefilledPhone)}` : ''}`);
+    }
+  };
 
   // Phone Tool State
   const [phoneToolInput, setPhoneToolInput] = useState('');
@@ -565,18 +542,12 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-6 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-all duration-300">
+      <section id="tools" className="py-12 bg-slate-900 dark:bg-slate-950 text-slate-100 border-b border-slate-800 transition-all duration-300">
         <div className="max-w-5xl mx-auto px-4">
-          <div className="relative w-full overflow-hidden bg-transparent min-h-[480px]">
-            <iframe
-              ref={searchIframeRef}
-              src="https://esscan.ai.studio/?page=search"
-              title="Community Scam Database Search"
-              className="w-full border-0 bg-transparent block transition-all duration-300 min-h-[480px]"
-              style={{ height: `${searchIframeHeight}px` }}
-              scrolling="no"
-            />
-          </div>
+          <CommunityScamDatabaseSearch
+            onNavigateToTracker={handleTrackerNavigation}
+            onNavigateToReport={handleReportNavigation}
+          />
         </div>
       </section>
 

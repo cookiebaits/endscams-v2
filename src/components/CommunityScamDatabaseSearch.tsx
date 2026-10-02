@@ -524,7 +524,7 @@ export default function CommunityScamDatabaseSearch({
                   onClick={() => onNavigateToTracker && onNavigateToTracker(input)}
                   className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition cursor-pointer"
                 >
-                  View in Live Scam Tracker <ArrowRight className="w-4 h-4" />
+                  View in Live Threat Tracker <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onNavigateToReport && onNavigateToReport(input)}

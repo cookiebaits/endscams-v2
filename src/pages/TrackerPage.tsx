@@ -241,6 +241,9 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
     );
   }
 
+  const searchParams = typeof window !== 'undefined' ? window.location.search : '';
+  const iframeSrc = `https://esscan.ai.studio${searchParams || ''}`;
+
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col relative">
       {isLoading && (
@@ -252,7 +255,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
 
       <iframe
         ref={iframeRef}
-        src="https://esscan.ai.studio"
+        src={iframeSrc}
         title="ESSCAN Threat Tracker"
         onLoad={() => setIsLoading(false)}
         className="w-full border-0 block"
