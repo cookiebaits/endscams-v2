@@ -478,7 +478,7 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
       </section>
 
       {/* Database Search Section */}
-      <section id="tools" className="py-20 bg-[#070b14] border-b border-slate-900">
+      <section id="tools" className="py-8 sm:py-10 bg-[#070b14] border-b border-slate-900">
         <CommunityScamDatabaseSearch
           onNavigateToTracker={onNavigateToTracker}
           onNavigateToReport={onNavigateToReport}
