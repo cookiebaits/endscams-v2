@@ -760,7 +760,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           <div className="flex items-center justify-between text-slate-300">
             <label className="font-semibold text-xs flex items-center space-x-1.5">
               <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
-              <span>Screenshot / Evidence Image <span className="text-slate-500 font-normal">(Optional)</span></span>
+              <span>Screenshot / Evidence Image — detects Scam type & details <span className="text-slate-500 font-normal">(Optional)</span></span>
             </label>
             <span className="text-[10px] text-amber-400 font-mono flex items-center space-x-1">
               <Sparkles className="w-3 h-3" />
@@ -1003,20 +1003,20 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           <span>This primary phone number operates as a WhatsApp or direct messaging threat line</span>
         </label>
 
-        {/* Describe What Happened */}
+        {/* Describe What Happened / Threat Intel */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="block text-slate-300 font-semibold">
-              Describe What Happened <span className="text-red-400">*</span>
+              Describe What Happened / Scam type <span className="text-red-400">*</span>
             </label>
-            <span className="text-[10px] text-slate-500 font-mono">
-              Translates to Threat Intel & Snippet on Tracker
+            <span className="text-[10px] text-amber-400 font-mono">
+              Threat Intel (Keep it simple and summarize text into 2-3 sentences)
             </span>
           </div>
           <textarea
             required
             rows={4}
-            placeholder="Provide details on the call or message: What did the scammer say? What name did they give? What fees or gift cards did they demand? Any secondary callback numbers..."
+            placeholder="Keep it simple and summarize text into 2-3 sentences. Include Scam type, what the scammer claimed or demanded, and any secondary callback numbers..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs leading-relaxed resize-none"

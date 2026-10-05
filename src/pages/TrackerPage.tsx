@@ -165,7 +165,7 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
         className="w-full border-0 block flex-1"
         style={{
           height: typeof iframeHeight === 'number' ? `${iframeHeight}px` : iframeHeight,
-          minHeight: 'calc(100vh - 80px)',
+          minHeight: 'calc(100vh - 130px)',
         }}
         scrolling="auto"
       />

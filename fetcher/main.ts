@@ -749,6 +749,7 @@ TASK: Search TechScammersUnited (https://techscammersunited.com/latest) and Scam
 RULES:
 - ONLY extract real, genuine phone numbers present in post titles or summaries.
 - DO NOT return toll-free numbers (800, 888, 877, 866, 855, 844, 833).
+- For detailedSummary, keep it simple and summarize threat intel into 2-3 sentences, including Scam type.
 - Return ONLY a valid JSON array of objects with keys: phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, postDate.`;
 
       const geminiResult = await queryGeminiWithRotation(geminiPrompt, geminiApiKey);
