@@ -54,7 +54,7 @@ export default function CommunityScamDatabaseSearch({
   }, [onNavigateToTracker, onNavigateToReport, onNavigateToHome]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex flex-col items-center justify-center relative min-h-[575px]">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex flex-col items-center justify-center relative min-h-[525px]">
       {isLoading && (
         <div className="absolute inset-0 z-10 bg-slate-900/80 rounded-xl flex flex-col items-center justify-center space-y-3 text-slate-300 backdrop-blur-sm border border-slate-800">
           <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
@@ -70,7 +70,7 @@ export default function CommunityScamDatabaseSearch({
         loading="eager"
         className="w-full border-0 block overflow-hidden"
         style={{
-          height: '575px',
+          height: '525px',
           backgroundColor: 'transparent',
         }}
         scrolling="no"
