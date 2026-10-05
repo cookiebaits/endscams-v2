@@ -14,6 +14,10 @@ export default function CommunityScamDatabaseSearch({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Dynamic iframe source with timestamp cache-buster to always fetch fresh numbers from ESSCAN database
+  const [iframeSrc] = useState(() => `https://esscan.ai.studio/?page=search&_t=${Date.now()}`);
+  const [iframeKey] = useState(() => Date.now());
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data) return;
@@ -63,8 +67,9 @@ export default function CommunityScamDatabaseSearch({
       )}
 
       <iframe
+        key={iframeKey}
         ref={iframeRef}
-        src="https://esscan.ai.studio/?page=search"
+        src={iframeSrc}
         title="Community Scam Database Search"
         onLoad={() => setIsLoading(false)}
         loading="eager"
