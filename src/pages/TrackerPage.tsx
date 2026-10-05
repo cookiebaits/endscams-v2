@@ -101,6 +101,19 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const [iframeHeight, setIframeHeight] = useState<number | string>('100vh');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Generate dynamic iframe URL with query params & timestamp cache-buster to prevent caching
+  const [iframeSrc] = useState(() => {
+    const searchParams = window.location.search;
+    const cacheBuster = `_t=${Date.now()}`;
+    if (searchParams) {
+      return `https://esscan.ai.studio${searchParams}&${cacheBuster}`;
+    }
+    return `https://esscan.ai.studio/?${cacheBuster}`;
+  });
+
+  // Unique key generated once per component mount to force fresh iframe load without double-mounting
+  const [iframeKey] = useState(() => Date.now());
+
   useEffect(() => {
     // PostMessage communication with iframe for dynamic height & modal scroll lock
     const handleMessage = (event: MessageEvent) => {
@@ -157,8 +170,9 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
       )}
 
       <iframe
+        key={iframeKey}
         ref={iframeRef}
-        src="https://esscan.ai.studio"
+        src={iframeSrc}
         title="ESSCAN Threat Tracker"
         onLoad={() => setIsLoading(false)}
         loading="eager"
