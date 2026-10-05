@@ -15,8 +15,22 @@ export default function CommunityScamDatabaseSearch({
   const [isLoading, setIsLoading] = useState(true);
 
   // Dynamic iframe source with timestamp cache-buster to always fetch fresh numbers from ESSCAN database
-  const [iframeSrc] = useState(() => `https://esscan.ai.studio/?page=search&_t=${Date.now()}`);
-  const [iframeKey] = useState(() => Date.now());
+  const getIframeSrc = () => `https://esscan.ai.studio/?page=search&_t=${Date.now()}`;
+  const [iframeSrc, setIframeSrc] = useState(getIframeSrc);
+  const [iframeKey, setIframeKey] = useState(() => Date.now());
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIframeSrc(getIframeSrc());
+        setIframeKey(Date.now());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {

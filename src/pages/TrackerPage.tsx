@@ -102,17 +102,38 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Generate dynamic iframe URL with query params & timestamp cache-buster to prevent caching
-  const [iframeSrc] = useState(() => {
+  const getIframeSrc = () => {
     const searchParams = window.location.search;
-    const cacheBuster = `_t=${Date.now()}`;
     if (searchParams) {
-      return `https://esscan.ai.studio${searchParams}&${cacheBuster}`;
+      try {
+        const url = new URL(`https://esscan.ai.studio${searchParams}`);
+        url.searchParams.set('_t', Date.now().toString());
+        return url.toString();
+      } catch {
+        const cacheBuster = `_t=${Date.now()}`;
+        return `https://esscan.ai.studio${searchParams}&${cacheBuster}`;
+      }
     }
-    return `https://esscan.ai.studio/?${cacheBuster}`;
-  });
+    return `https://esscan.ai.studio/?_t=${Date.now()}`;
+  };
 
-  // Unique key generated once per component mount to force fresh iframe load without double-mounting
-  const [iframeKey] = useState(() => Date.now());
+  const [iframeSrc, setIframeSrc] = useState(getIframeSrc);
+  // Unique key generated per mount or reload to force fresh iframe load
+  const [iframeKey, setIframeKey] = useState(() => Date.now());
+
+  // Reload iframe on visibility change (when tab becomes active) or when returning to page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIframeSrc(getIframeSrc());
+        setIframeKey(Date.now());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     // PostMessage communication with iframe for dynamic height & modal scroll lock
