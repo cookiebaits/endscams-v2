@@ -749,6 +749,7 @@ TASK: Search TechScammersUnited (https://techscammersunited.com/latest) and Scam
 RULES:
 - ONLY extract real, genuine phone numbers present in post titles or summaries.
 - DO NOT return toll-free numbers (800, 888, 877, 866, 855, 844, 833).
+- For detailedSummary, keep it simple and summarize text into 2-3 sentences. Include "Scam type: <type>" in the description text.
 - Return ONLY a valid JSON array of objects with keys: phone, cleanPhone, scamType, impersonatedCompany, invoiceNumber, amountCharged, detailedSummary, sourceUrl, postDate.`;
 
       const geminiResult = await queryGeminiWithRotation(geminiPrompt, geminiApiKey);
@@ -761,15 +762,20 @@ RULES:
             const cleanDigits = (parsed.cleanPhone || rawPhone).replace(/\D/g, "");
             if (isValidPhoneNumber(cleanDigits) && !isTollFreeNumber(cleanDigits) && !collected.some(c => c.phone_digits === cleanDigits)) {
               const comp = parsed.impersonatedCompany || inferImpersonatedCompany(`${parsed.detailedSummary || ""} ${parsed.scamType || ""}`);
+              const scamTypeLabel = parsed.scamType || "General Tech Support & Refund Scams";
+              let summaryText = parsed.detailedSummary || "Extracted via Gemini Threat Harvester";
+              if (!summaryText.toLowerCase().includes("scam type")) {
+                summaryText = `Scam type: ${scamTypeLabel}. ${summaryText}`;
+              }
               collected.push({
                 phone_number: formatPhoneDisplay(cleanDigits),
                 phone_digits: cleanDigits,
                 source_name: "Gemini Threat Scanner",
                 source_url: parsed.sourceUrl || "https://techscammersunited.com/latest",
                 report_date: parsed.postDate || todayIso,
-                category: parsed.scamType || "General Tech Support & Refund Scams",
+                category: scamTypeLabel,
                 impersonated_company: comp !== "N/A" ? comp : "Tech Support & Refund Scams",
-                description: parsed.detailedSummary || "Extracted via Gemini Threat Harvester",
+                description: summaryText,
               });
             }
           } catch {}
