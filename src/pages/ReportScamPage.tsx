@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import SEO from '../components/SEO';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -630,6 +631,8 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       onCloseModal();
     } else if (onNavigateToTracker) {
       onNavigateToTracker();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/tracker';
     }
   }, [onCloseModal, onNavigateToTracker]);
 
@@ -1173,18 +1176,31 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     </div>
   );
 
-  return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          handleClose();
-        }
-      }}
-      className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-start justify-center p-3 sm:p-4 md:p-6 overflow-y-auto"
-    >
-      <div className="w-full max-w-4xl relative my-auto py-4 animate-in fade-in zoom-in-95 duration-200">
-        {formCard}
+  if (isModal) {
+    return (
+      <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleClose();
+          }
+        }}
+        className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-start justify-center p-3 sm:p-4 md:p-6 overflow-y-auto"
+      >
+        <div className="w-full max-w-4xl relative my-auto py-4 animate-in fade-in zoom-in-95 duration-200">
+          {formCard}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <SEO
+        title="Report a Scam | Cyberscam Watchdog"
+        description="Report a scam phone number or fraudulent activity to protect others in the community. Submit scammer details, phone numbers, and evidence screenshots."
+        keywords="report a scam, scam phone report, file scam report, scammer lookup, phone threat intelligence, cyberscam watchdog"
+      />
+      {formCard}
     </div>
   );
 };
