@@ -5,10 +5,42 @@ import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSi
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
 
-const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
-const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
+const ALL_IDS = ['ai_deepfake', 'invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
+const SCAM_ORDER = ['ai_deepfake', 'invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 
 const SCAM_TYPES = [
+  {
+    id: 'ai_deepfake',
+    icon: Cpu,
+    color: 'text-purple-500',
+    bg: 'bg-purple-500/10',
+    title: 'AI Scams, Voice Cloning & Deepfakes',
+    summary: 'Smarter AI creates hyper-realistic voice clones, deepfake video calls, and automated scam lures targeting victims.',
+    warningsSigns: [
+      'Urgent distress call or voice message from a "family member" or boss asking for money',
+      'Unusual audio quality, robotic cadence, unnatural background noise, or unnatural pauses',
+      'Demands for instant payment via gift cards, wire transfer, or cryptocurrency',
+      'Deepfake video calls with unnatural eye blinking, facial glitching, or mismatched lip syncing',
+      'AI phishing messages personalized with intimate details scraped from public social media',
+    ],
+    whatToDo: [
+      'Hang up and call your loved one or institution directly using a known, saved phone number',
+      'Establish a secret family emergency safe-word in advance to verify identities',
+      'Never send funds under pressure or panic without third-party confirmation',
+      'Take our free Mini-Course: Detecting & Preventing AI-Driven Scams',
+    ],
+    resource: {
+      label: 'Interactive Course: Detecting & Preventing AI-Driven Scams',
+      url: 'https://share.minicoursegenerator.com/detecting-and-preventing-ai-driven-scams-and-digital-fraud-7b859b',
+    },
+    images: [
+      {
+        src: '/images/ai_scam_awareness.png',
+        caption: 'AI Scam Awareness & Deepfake Training — Learn how scammers use AI voice cloning and automated lures to deceive victims.',
+        objectFit: 'cover' as const,
+      },
+    ],
+  },
   {
     id: 'phone',
     icon: Phone,
