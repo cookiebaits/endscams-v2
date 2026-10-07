@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import SEO from '../components/SEO';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -1129,8 +1130,27 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     );
   }
 
+  const reportJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Report a Scam | Cyberscam Watchdog",
+    "description": "Submit scam phone numbers, fraudulent texts, fake invoices, and phishing attempts to our global threat database.",
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4">
+      <SEO
+        title="Report a Scam & Protect Victims"
+        description="Submit scam phone numbers, fake invoices, and phishing attempts to our global threat database to immediately warn and protect others."
+        keywords="report scam phone number, submit scammer report, report fraud, online scam reporting, anti-phishing registry"
+        canonicalPath="/report"
+        jsonLd={reportJsonLd}
+      />
       {formCard}
     </div>
   );

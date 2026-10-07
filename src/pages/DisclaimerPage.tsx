@@ -1,6 +1,7 @@
 /* eslint-disable no-irregular-whitespace */
 
 import { useNavigate } from "react-router";
+import SEO from '../components/SEO';
 import { Shield, AlertTriangle } from "lucide-react";
 import Banner from '../components/Banner';
 import { TERMS_AND_PRIVACY_TEXT } from '../data/termsAndPrivacy';
@@ -18,8 +19,27 @@ export default function DisclaimerPage() {
     window.location.href = "https://search.brave.com";
   };
 
+  const disclaimerJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Terms of Service & Non-Profit Legal Disclaimer",
+    "description": "Terms of Service, Privacy Policy, and Legal Disclaimer for Cyberscam Watchdog Network (EndScams.org).",
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+      <SEO
+        title="Terms of Service & Legal Disclaimer"
+        description="Official Terms of Service, Privacy Policy, and Legal Disclaimer for Cyberscam Watchdog Network (EndScams.org)."
+        keywords="EndScams terms of service, privacy policy, legal disclaimer"
+        canonicalPath="/disclaimer"
+        jsonLd={disclaimerJsonLd}
+      />
       <Banner
         variant="warning"
         message={<span><strong>Action Required:</strong> Please read and accept our Terms of Service and Privacy Policy to access EndScams.org.</span>}

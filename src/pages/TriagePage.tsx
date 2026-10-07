@@ -1,5 +1,6 @@
 'use strict';
 import { useState } from 'react';
+import SEO from '../components/SEO';
 import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
 import Banner from '../components/Banner';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
@@ -426,8 +427,27 @@ export default function TriagePage() {
     );
   }
 
+  const triageJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Scam Incident Triage & Emergency Response",
+    "description": "Interactive triage tool for evaluating potential scam interactions, financial loss risks, and next steps.",
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Scam Incident Triage & Emergency Victim Response"
+        description="Interactive emergency triage questionnaire to assess scam threats, recover stolen accounts, and take immediate defensive actions."
+        keywords="scam triage, victim recovery, am I being scammed, scam risk assessment, bank fraud response"
+        canonicalPath="/triage"
+        jsonLd={triageJsonLd}
+      />
       <Banner
         variant="warning"
         id="triage_disclaimer"

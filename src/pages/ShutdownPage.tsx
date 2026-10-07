@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SEO from '../components/SEO';
 import {
   ShieldAlert,
   AlertTriangle,
@@ -74,8 +75,27 @@ export default function ShutdownPage() {
 
   const answeredCount = Object.keys(answers).length;
 
+  const shutdownJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Post-Scam Defensive Action Checklist",
+    "description": "Step-by-step checklist to report stolen identities, freeze credit, file police reports, and demand scammer infrastructure shutdowns.",
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Scammer Resource Takedown & Post-Scam Checklist"
+        description="Actionable steps to report stolen identities, freeze credit, file police reports, and demand scammer infrastructure shutdowns."
+        keywords="scammer takedown, credit freeze guide, police report scam, post-scam action plan, fraud recovery checklist"
+        canonicalPath="/shutdown"
+        jsonLd={shutdownJsonLd}
+      />
       <div className="max-w-4xl mx-auto px-4 pt-8">
 
         {/* Header Section */}

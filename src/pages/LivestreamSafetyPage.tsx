@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import SEO from '../components/SEO';
 import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, Radio, XOctagon } from 'lucide-react';
 import Banner from '../components/Banner';
 
@@ -79,8 +80,27 @@ export default function LivestreamSafetyPage() {
     { id: 'notifications', label: 'Desktop push notifications disabled (DND mode)' },
   ];
 
+  const streamJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Streamer Safety & Anti-Doxxing Guidelines",
+    "description": "Essential security guidelines and pre-stream checklists for content creators to prevent doxxing, fake sponsorships, and channel hijacking.",
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    }
+  };
+
   return (
     <>
+      <SEO
+        title="Streamer Safety & Anti-Doxxing Guide"
+        description="Essential security guidelines for content creators and streamers to prevent doxxing, fake sponsorships, and channel hijacking."
+        keywords="streamer safety, anti-doxxing guide, twitch security, youtube channel protection, fake sponsorship scam"
+        canonicalPath="/stream-safety"
+        jsonLd={streamJsonLd}
+      />
       <Banner
         variant="info"
         id="streamer_safety"

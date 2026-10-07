@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import SEO from '../components/SEO';
 
 export interface AltNumberEntry {
   phone: string;
@@ -181,8 +182,34 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
     };
   }, []);
 
+  const trackerJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Live Cyberscam Threat Tracker",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "publisher": {
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "url": "https://endscams.org"
+    },
+    "description": "Real-time threat database and scam phone lookup interface for identifying impersonators, robocalls, and financial fraud numbers."
+  };
+
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      <SEO
+        title="Live Threat Tracker & Scammer Phone Lookup"
+        description="Search active scam phone numbers, track reported impersonators, and view real-time threat intelligence verified by our cyberscam watchdog network."
+        keywords="scam phone tracker, scammer lookup, live threat database, phone number scam check, impersonation scams, report phone scam"
+        canonicalPath="/tracker"
+        jsonLd={trackerJsonLd}
+      />
       {isLoading && (
         <div className="absolute inset-0 z-10 bg-slate-950/90 flex flex-col items-center justify-center space-y-3 text-slate-300">
           <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>

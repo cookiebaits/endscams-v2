@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
+import SEO from '../components/SEO';
 
 // ============================================================================
 // 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
@@ -413,8 +414,40 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     }
   };
 
+  const homeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "NGO",
+      "name": "Cyberscam Watchdog Network",
+      "alternateName": "EndScams.org",
+      "url": "https://endscams.org",
+      "logo": "https://endscams.org/logo.png",
+      "email": "outreach@endscams.org",
+      "description": "501(c)(3) Non-Profit Cyberscam Watchdog Network providing free anti-scam workshops, live phone threat lookup, and community scam reporting.",
+      "sameAs": ["https://endscams.org"]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "EndScams.org",
+      "url": "https://endscams.org",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://endscams.org/tracker?search={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <SEO
+        title="Anti-Scam Workshops & Cyberscam Watchdog"
+        description="EndScams.org is a 501(c)(3) Non-Profit dedicated to ending scams. Access free anti-scam workshops, live scam phone lookup, and advanced scam detection tools."
+        keywords="cyberscam watchdog, scam phone lookup, anti-scam workshops, report a scam, scammer database, phone intelligence, cyberscam protection"
+        canonicalPath="/home"
+        jsonLd={homeJsonLd}
+      />
       {/* Welcome Banner */}
       {!isBannerDismissed && (
         <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 px-4 py-3 text-center relative flex items-center justify-center">

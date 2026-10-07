@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
+import SEO from '../components/SEO';
 import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay, Printer, FileText } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
@@ -253,8 +254,38 @@ export default function EducationPage() {
   const galleryPrev = () => setGallery(i => i === null ? 0 : (i - 1 + GIFT_CARD_GALLERY.length) % GIFT_CARD_GALLERY.length);
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
+  const eduJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How do phone and robocall scams work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Scammers spoof caller IDs to impersonate government agencies, banks, or corporations and demand urgent payment via gift cards or wire transfers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What should I do if I receive a fake tech support or invoice scam?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Never call the phone number on popups or suspicious invoices. Verify charges directly with your bank or official company website."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Cyberscam Prevention Guide & Fraud Awareness"
+        description="Learn how to identify and prevent phone scams, phishing, tech support extortion, lottery fraud, and imposter schemes with FTC stats and expert guides."
+        keywords="scam prevention guide, fraud awareness, identify phishing, tech support scam help, robocall protection"
+        canonicalPath="/education"
+        jsonLd={eduJsonLd}
+      />
       <Banner
         variant="info"
         id="education_tip"

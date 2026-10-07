@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
+import SEO from '../components/SEO';
 import {
   User, Send, CheckCircle, AlertCircle, Loader2,
   ShieldCheck, ArrowLeft, GraduationCap
@@ -147,8 +148,23 @@ export default function WorkshopPage() {
     );
   }
 
+  const workshopJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "EducationalOrganization",
+    "name": "Cyberscam Watchdog Network Workshops",
+    "url": "https://endscams.org/workshop",
+    "description": "Interactive cybersecurity and anti-scam awareness workshops for corporations, senior centers, schools, and community groups."
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <SEO
+        title="Book a Free Anti-Scam Workshop for Your Organization"
+        description="Request interactive cybersecurity & anti-scam workshops for businesses, senior centers, schools, and community groups."
+        keywords="anti-scam workshops, cybersecurity training, senior scam prevention, corporate anti-phishing workshop"
+        canonicalPath="/workshop"
+        jsonLd={workshopJsonLd}
+      />
       <Banner
         variant="info"
         message={<span className="text-[1.15em] font-medium">Request a Security Workshop — We bring cybersecurity education to your organization.</span>}
