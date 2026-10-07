@@ -880,6 +880,161 @@ runPipeline()
 /*  HTTP server                                                      */
 /* ================================================================ */
 
+/* ================================================================ */
+/*  Newsletter & CSV Token Store                                     */
+/* ================================================================ */
+interface NewsletterSubscriber {
+  id?: string;
+  email: string;
+  created_at: string;
+}
+
+interface CsvTokenRecord {
+  token: string;
+  is_used: boolean;
+  created_at: string;
+}
+
+const inMemorySubscribers: NewsletterSubscriber[] = [];
+const inMemoryCsvTokens = new Map<string, CsvTokenRecord>();
+let lastResendAlertDate = "";
+
+function generateHexToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function saveSubscriber(email: string): Promise<NewsletterSubscriber> {
+  const record: NewsletterSubscriber = {
+    id: `sub-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    email,
+    created_at: new Date().toISOString(),
+  };
+
+  if (!inMemorySubscribers.some(s => s.email.toLowerCase() === email.toLowerCase())) {
+    inMemorySubscribers.push(record);
+  }
+
+  try {
+    const { error } = await supabase
+      .from("newsletter_subscribers")
+      .upsert({ email, created_at: record.created_at }, { onConflict: "email" });
+    if (error) {
+      console.warn("saveSubscriber Supabase note:", error.message);
+    }
+  } catch (err) {
+    console.warn("saveSubscriber Supabase exception:", err);
+  }
+
+  return record;
+}
+
+async function getAllSubscribers(): Promise<NewsletterSubscriber[]> {
+  let dbSubscribers: NewsletterSubscriber[] = [];
+  try {
+    const { data } = await supabase
+      .from("newsletter_subscribers")
+      .select("id, email, created_at")
+      .order("created_at", { ascending: true });
+    if (data && data.length > 0) {
+      dbSubscribers = data;
+    }
+  } catch (err) {
+    console.warn("getAllSubscribers Supabase exception:", err);
+  }
+
+  const map = new Map<string, NewsletterSubscriber>();
+  for (const sub of [...dbSubscribers, ...inMemorySubscribers]) {
+    const key = sub.email.toLowerCase();
+    if (!map.has(key)) map.set(key, sub);
+  }
+  return Array.from(map.values());
+}
+
+async function triggerDailyResendAlertIfNeeded(origin: string): Promise<boolean> {
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  if (lastResendAlertDate === todayStr) {
+    return false;
+  }
+
+  try {
+    const { data } = await supabase
+      .from("newsletter_daily_alerts")
+      .select("alert_date")
+      .eq("alert_date", todayStr)
+      .limit(1);
+    if (data && data.length > 0) {
+      lastResendAlertDate = todayStr;
+      return false;
+    }
+  } catch {}
+
+  const hexToken = generateHexToken();
+  const tokenRecord: CsvTokenRecord = {
+    token: hexToken,
+    is_used: false,
+    created_at: new Date().toISOString(),
+  };
+
+  inMemoryCsvTokens.set(hexToken, tokenRecord);
+
+  try {
+    await supabase.from("newsletter_csv_tokens").insert({
+      token: hexToken,
+      is_used: false,
+      created_at: tokenRecord.created_at,
+    });
+  } catch (err) {
+    console.warn("newsletter_csv_tokens insert note:", err);
+  }
+
+  const baseUrl = origin && !origin.includes("localhost") ? origin : "https://endscams.org";
+  const csvDownloadUrl = `${baseUrl.replace(/\/+$/, "")}/api/newsletter/csv/${hexToken}`;
+
+  const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+  if (resendApiKey) {
+    try {
+      const emailHtml = `
+        <h2>New Newsletter Signup Alert</h2>
+        <p>Someone new signed up for the EndScams.org newsletter today!</p>
+        <p>You can download the accumulated subscribers CSV using the secure one-time link below:</p>
+        <p style="padding:12px;background:#f1f5f9;border-radius:8px;font-family:monospace;word-break:break-all;">
+          <a href="${csvDownloadUrl}" target="_blank">${csvDownloadUrl}</a>
+        </p>
+        <p style="color:#ef4444;font-size:12px;"><strong>Security Notice:</strong> This link is hex-encoded and will expire and permanently disable immediately after it is accessed once.</p>
+      `;
+
+      const resendRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "newsletter@endscams.org",
+          to: ["outreach@endscams.org"],
+          subject: `[EndScams] New Newsletter Subscriber Signup Alert (${todayStr})`,
+          html: emailHtml,
+        }),
+      });
+
+      if (resendRes.ok) {
+        lastResendAlertDate = todayStr;
+        try {
+          await supabase.from("newsletter_daily_alerts").upsert({ alert_date: todayStr });
+        } catch {}
+        return true;
+      }
+    } catch (err) {
+      console.warn("Resend daily alert exception:", err);
+    }
+  }
+
+  return false;
+}
+
 const ABSTRACT_PHONE_API_KEY = Deno.env.get("ABSTRACT_PHONE_API_KEY") || "";
 const ABSTRACT_EMAIL_API_KEY = Deno.env.get("ABSTRACT_EMAIL_API_KEY") || "";
 const ABSTRACT_IP_API_KEY = Deno.env.get("ABSTRACT_IP_API_KEY") || "";
@@ -950,6 +1105,94 @@ Deno.serve({ port: PORT }, async (req: Request) => {
     } catch (err) {
       return json({ success: false, error: String(err) }, 500);
     }
+  }
+
+  if (url.pathname === "/api/newsletter/signup") {
+    if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+    if (req.method !== "POST") return cors(json({ error: "POST required" }, 405));
+
+    let body: any = {};
+    try { body = await req.json(); } catch { return cors(json({ error: "Invalid JSON" }, 400)); }
+
+    const rawEmail = (body.email || "").trim().toLowerCase();
+    if (!rawEmail || !rawEmail.includes("@") || !rawEmail.includes(".")) {
+      return cors(json({ error: "Valid email address required." }, 400));
+    }
+
+    const sub = await saveSubscriber(rawEmail);
+    const origin = req.headers.get("origin") || url.origin;
+    triggerDailyResendAlertIfNeeded(origin).catch(e => console.warn("triggerDailyResendAlert err:", e));
+
+    return cors(json({ success: true, message: "Subscribed to newsletter successfully.", subscriber: sub }));
+  }
+
+  if (url.pathname.startsWith("/api/newsletter/csv/")) {
+    if (req.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
+    if (req.method !== "GET") return cors(json({ error: "GET required" }, 405));
+
+    const parts = url.pathname.split("/");
+    const hexToken = parts[parts.length - 1];
+
+    if (!hexToken || hexToken.length < 16) {
+      return cors(json({ error: "Invalid token format." }, 400));
+    }
+
+    let tokenRecord = inMemoryCsvTokens.get(hexToken);
+
+    if (!tokenRecord) {
+      try {
+        const { data } = await supabase
+          .from("newsletter_csv_tokens")
+          .select("token, is_used, created_at")
+          .eq("token", hexToken)
+          .limit(1);
+        if (data && data.length > 0) {
+          tokenRecord = data[0];
+        }
+      } catch (err) {
+        console.warn("csv token lookup error:", err);
+      }
+    }
+
+    if (!tokenRecord || tokenRecord.is_used) {
+      return cors(new Response(JSON.stringify({ error: "Access denied. Link invalid, expired, or already used." }), {
+        status: 403,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }));
+    }
+
+    tokenRecord.is_used = true;
+    inMemoryCsvTokens.set(hexToken, tokenRecord);
+
+    try {
+      await supabase
+        .from("newsletter_csv_tokens")
+        .update({ is_used: true })
+        .eq("token", hexToken);
+    } catch (err) {
+      console.warn("csv token update note:", err);
+    }
+
+    const subscribers = await getAllSubscribers();
+    const csvRows = ['"email","created_at"'];
+    for (const sub of subscribers) {
+      csvRows.push(`"${sub.email.replace(/"/g, '""')}","${sub.created_at}"`);
+    }
+    const csvContent = csvRows.join("\n");
+
+    const headers = new Headers();
+    headers.set("Content-Type", "text/csv; charset=utf-8");
+    headers.set("Content-Disposition", 'attachment; filename="newsletter_subscribers.csv"');
+    headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    headers.set("Access-Control-Allow-Origin", "*");
+
+    return new Response(csvContent, {
+      status: 200,
+      headers,
+    });
   }
 
   if (url.pathname === "/api/tools") {

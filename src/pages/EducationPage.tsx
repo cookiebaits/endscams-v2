@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import SEO from '../components/SEO';
-import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay, Printer, FileText } from 'lucide-react';
+import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay, Printer, FileText, Loader2 } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
 
@@ -238,7 +238,52 @@ export default function EducationPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(ALL_IDS));
   const [lightbox, setLightbox] = useState<{ src: string; caption: string } | null>(null);
   const [gallery, setGallery] = useState<number | null>(null);
+  const [showNewsletterModal, setShowNewsletterModal] = useState(false);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const [newsletterError, setNewsletterError] = useState('');
   const { stats } = useFtcStats();
+
+  const isNewsletterSubscribed = () => {
+    return Boolean(localStorage.getItem('endscams_newsletter_subscribed') || localStorage.getItem('endscams_newsletter_email'));
+  };
+
+  const handleBrochureClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isNewsletterSubscribed()) {
+      window.open('/scam_prevention_brochurev2.html', '_blank');
+    } else {
+      setShowNewsletterModal(true);
+    }
+  };
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = newsletterEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setNewsletterError('Please enter a valid email address.');
+      return;
+    }
+
+    setNewsletterLoading(true);
+    setNewsletterError('');
+
+    try {
+      await fetch('/api/newsletter/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+    } catch (err) {
+      console.warn('Newsletter signup network notice:', err);
+    } finally {
+      localStorage.setItem('endscams_newsletter_subscribed', 'true');
+      localStorage.setItem('endscams_newsletter_email', cleanEmail);
+      setNewsletterLoading(false);
+      setShowNewsletterModal(false);
+      window.open('/scam_prevention_brochurev2.html', '_blank');
+    }
+  };
 
   const toggle = (id: string) => setExpanded(prev => {
     const next = new Set(prev);
@@ -286,6 +331,76 @@ export default function EducationPage() {
         canonicalPath="/education"
         jsonLd={eduJsonLd}
       />
+      {showNewsletterModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative text-slate-900 dark:text-slate-100">
+            <button
+              onClick={() => setShowNewsletterModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-200 rounded-xl transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center text-brand-500 mb-4">
+              <Mail className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">
+              Newsletter Sign-Up Required
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              Sign up for our free anti-fraud newsletter to receive security alerts and immediately access the printable <strong>Scam Prevention Handbook Brochure</strong>.
+            </p>
+
+            <form onSubmit={handleNewsletterSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 text-slate-700 dark:text-slate-300">
+                  Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newsletterEmail}
+                  onChange={(e) => {
+                    setNewsletterEmail(e.target.value);
+                    if (newsletterError) setNewsletterError('');
+                  }}
+                  placeholder="name@example.com"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none text-sm text-slate-900 dark:text-white"
+                />
+                {newsletterError && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {newsletterError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewsletterModal(false)}
+                  className="flex-1 py-3 px-4 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={newsletterLoading || !newsletterEmail.trim()}
+                  className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-brand-600 hover:bg-brand-500 text-white disabled:opacity-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                >
+                  {newsletterLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Subscribe & View'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Banner
         variant="info"
         id="education_tip"
@@ -368,7 +483,8 @@ export default function EducationPage() {
 
         <a
           href="/scam_prevention_brochurev2.html"
-          className="block mb-10 group rounded-2xl border-2 border-brand-500/50 bg-brand-50/50 dark:bg-brand-950/30 p-6 shadow-md hover:shadow-xl hover:border-brand-500 transition-all duration-300 transform hover:-translate-y-0.5"
+          onClick={handleBrochureClick}
+          className="block mb-10 group rounded-2xl border-2 border-brand-500/50 bg-brand-50/50 dark:bg-brand-950/30 p-6 shadow-md hover:shadow-xl hover:border-brand-500 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
         >
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-shrink-0 flex items-center justify-center w-14 h-14 rounded-xl bg-brand-500 text-white shadow-md group-hover:scale-105 transition-transform duration-300">

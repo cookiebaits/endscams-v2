@@ -12,6 +12,12 @@
 
 - **Live Threat Tracker (`/tracker`)**: Real-time database lookup for scam phone numbers, active impersonations (Geek Squad, PayPal, Norton, Amazon, PCH, etc.), alt numbers, and threat snippets.
 - **Scam Reporting Engine (`/report`)**: Instant report submission with AI OCR screenshot extraction, auto-filling incident details, and live synchronization across Supabase PostgreSQL and BroadcastChannels.
+- **Printable Brochure & Newsletter Gateway (`/education`)**:
+  - Modal prompt required on first access to "View Printable Brochure".
+  - Collects and validates subscriber emails, persisting data securely to Supabase (`newsletter_subscribers`).
+  - Caches subscription status locally (`endscams_newsletter_subscribed`) to bypass future prompts.
+  - Generates secure, one-time hex-encoded CSV download links (`/api/newsletter/csv/:hexToken`).
+  - Sends daily rate-limited signup alerts via Resend API (maximum once per day, only when new signups occur).
 - **Advanced Scam Detection Tools (`/home`)**:
   - **Phone Intelligence**: Carrier verification, line type (cellular vs. VoIP/landline), and wholesaler risk scoring.
   - **Email Scanner**: Deliverability checks and disposable/throwaway inbox identification.
@@ -45,6 +51,7 @@
 - **Styling & UI Components**: Tailwind CSS v3, Lucide Icons
 - **Database & Persistence**: Supabase (PostgreSQL), Client-side LocalStorage Sync, BroadcastChannel API
 - **AI & Automation**: Gemini Vision API for OCR Evidence Extraction & Threat Intelligence Harvester
+- **Email & Alerts**: Resend API integration with hex token rate-limiting
 - **Server Environment**: Node.js, Express, Helmet Security Middleware, Vite
 
 ---
@@ -64,6 +71,7 @@
    VITE_SUPABASE_URL=https://your-supabase-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
    GEMINI_API_KEY=your-gemini-api-key
+   RESEND_API_KEY=your-resend-api-key
    ```
 
 3. Launch containers:
@@ -95,6 +103,7 @@
 EndScams.org prioritizes user privacy and system security:
 - Secured with Express `helmet` middleware for HTTP security header protection.
 - Strict IP geographic restrictions enforcing authorized access regions.
+- Hex-encoded CSV links are single-use only and automatically invalidate upon first download.
 - Zero raw storage of sensitive personal data; secret keys are dynamically resolved from environment variables or cryptographic vaults rather than hardcoded in source.
 
 ---
