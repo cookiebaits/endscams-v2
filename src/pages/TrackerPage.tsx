@@ -102,25 +102,32 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
   const [iframeHeight, setIframeHeight] = useState<number | string>('100vh');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Generate dynamic iframe URL with query params & timestamp cache-buster to prevent caching
+  // Generate dynamic iframe URL with query params
   const getIframeSrc = () => {
     const searchParams = window.location.search;
     if (searchParams) {
       try {
         const url = new URL(`https://esscan.ai.studio${searchParams}`);
-        url.searchParams.set('_t', Date.now().toString());
         return url.toString();
       } catch {
-        const cacheBuster = `_t=${Date.now()}`;
-        return `https://esscan.ai.studio${searchParams}&${cacheBuster}`;
+        return `https://esscan.ai.studio${searchParams}`;
       }
     }
-    return `https://esscan.ai.studio/?_t=${Date.now()}`;
+    return 'https://esscan.ai.studio/';
   };
 
   const [iframeSrc, setIframeSrc] = useState(getIframeSrc);
   // Unique key generated per mount or reload to force fresh iframe load
   const [iframeKey, setIframeKey] = useState(() => Date.now());
+
+  // Safety timer to clear loading overlay even if iframe onLoad is delayed or suppressed
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [iframeKey]);
 
   // Reload iframe on visibility change (when tab becomes active) or when returning to page
   useEffect(() => {

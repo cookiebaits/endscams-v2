@@ -19,6 +19,15 @@ export default function CommunityScamDatabaseSearch({
   const [iframeSrc, setIframeSrc] = useState(getIframeSrc);
   const [iframeKey, setIframeKey] = useState(() => Date.now());
 
+  // Safety timer to clear loading overlay even if iframe onLoad is delayed or suppressed
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [iframeKey]);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
