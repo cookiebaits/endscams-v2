@@ -5,6 +5,7 @@ import {
   ShieldCheck, ArrowLeft, GraduationCap
 } from 'lucide-react';
 import Banner from '../components/Banner';
+import SEO from '../components/SEO';
 
 type WorkshopFormData = {
   name: string;
@@ -119,9 +120,28 @@ export default function WorkshopPage() {
     }
   };
 
+  const workshopJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'EducationalOccupationalProgram',
+    'name': 'EndScams Community Cybersecurity Workshops',
+    'description': 'Hands-on cybersecurity workshops covering scam prevention, phishing awareness, senior safety, and digital identity protection.',
+    'provider': {
+      '@type': 'Organization',
+      'name': 'EndScams.org',
+      'url': 'https://endscams.org'
+    }
+  };
+
   if (status === 'success') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center px-4 py-20">
+        <SEO
+          title="Free Community Cybersecurity Workshops"
+          description="Join EndScams.org community cybersecurity workshops. Learn hands-on fraud prevention, phone scam recognition, and digital safety for seniors and families."
+          keywords="cybersecurity workshops, scam prevention class, senior fraud workshop, community cybersecurity training"
+          canonical="/workshop"
+          jsonLd={workshopJsonLd}
+        />
         <div className="max-w-lg w-full bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 md:p-10 text-center">
           <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-emerald-500" />
@@ -149,6 +169,13 @@ export default function WorkshopPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+      <SEO
+        title="Free Community Cybersecurity Workshops"
+        description="Join EndScams.org community cybersecurity workshops. Learn hands-on fraud prevention, phone scam recognition, and digital safety for seniors and families."
+        keywords="cybersecurity workshops, scam prevention class, senior fraud workshop, community cybersecurity training"
+        canonical="/workshop"
+        jsonLd={workshopJsonLd}
+      />
       <Banner
         variant="info"
         message={<span className="text-[1.15em] font-medium">Request a Security Workshop — We bring cybersecurity education to your organization.</span>}

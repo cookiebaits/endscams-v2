@@ -20,7 +20,7 @@ function App() {
         <GlobalBanner />
         <Navigation />
 
-        <div className="flex-1 pb-16">
+        <main id="main-content" className="flex-1 pb-16">
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<HomePage />} />
@@ -34,7 +34,7 @@ function App() {
             <Route path="/workshop" element={<WorkshopPage />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
-        </div>
+        </main>
 
         <Footer />
         <TermsBanner />

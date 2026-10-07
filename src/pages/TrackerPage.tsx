@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import SEO from '../components/SEO';
 
 export interface AltNumberEntry {
   phone: string;
@@ -160,8 +161,28 @@ export const TrackerPage: React.FC<TrackerPageProps> = () => {
     };
   }, []);
 
+  const trackerJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'DataFeed',
+    'name': 'EndScams Live Threat Tracker Feed',
+    'description': 'Real-time database of active scam phone numbers, impersonated brand targets, and phishing calls verified by EndScams Cyberscam Watchdog Network.',
+    'url': 'https://endscams.org/tracker',
+    'provider': {
+      '@type': 'Organization',
+      'name': 'EndScams.org',
+      'url': 'https://endscams.org'
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col relative overflow-hidden">
+      <SEO
+        title="Live Threat Tracker - Active Scam Phone Numbers & Database"
+        description="Real-time database of active scam phone numbers, impersonated brand targets, and phishing calls verified by the EndScams Cyberscam Watchdog Network."
+        keywords="scam tracker, active scam numbers, scam phone database, geek squad scam numbers, paypal scam phone, robocall blacklist, search scam number"
+        canonical="/tracker"
+        jsonLd={trackerJsonLd}
+      />
       {isLoading && (
         <div className="absolute inset-0 z-10 bg-slate-950/90 flex flex-col items-center justify-center space-y-3 text-slate-300">
           <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>

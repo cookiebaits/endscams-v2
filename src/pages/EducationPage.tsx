@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { BookOpen, AlertTriangle, Phone, Mail, ShoppingBag, Heart, Cpu, DollarSign, ChevronDown, ChevronUp, ExternalLink, Shield, Eye, Zap, UserX, Bitcoin, X, ZoomIn, TrendingUp, PhoneCall, Search, MonitorPlay, Printer, FileText } from 'lucide-react';
 import { useFtcStats } from '../hooks/useFtcStats';
 import Banner from '../components/Banner';
+import SEO from '../components/SEO';
 
 const ALL_IDS = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
 const SCAM_ORDER = ['invoice', 'phishing', 'tech', 'lottery', 'phone', 'spiritual', 'shopping', 'romance'];
@@ -253,8 +254,46 @@ export default function EducationPage() {
   const galleryPrev = () => setGallery(i => i === null ? 0 : (i - 1 + GIFT_CARD_GALLERY.length) % GIFT_CARD_GALLERY.length);
   const galleryNext = () => setGallery(i => i === null ? 0 : (i + 1) % GIFT_CARD_GALLERY.length);
 
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    'mainEntity': [
+      {
+        '@type': 'Question',
+        'name': 'How do I recognize a tech support or imposter scam?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'Tech support and imposter scams involve urgent calls, pop-ups, or emails claiming your account was charged or infected. They ask you to call a fake phone number, grant remote access, or pay with gift cards.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'Why do scammers request gift cards or Bitcoin?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'Gift cards and cryptocurrency transactions are instant, untraceable, and irreversible once codes or wallet transfers are completed.'
+        }
+      },
+      {
+        '@type': 'Question',
+        'name': 'What should I do if I get a suspicious invoice email or text?',
+        'acceptedAnswer': {
+          '@type': 'Answer',
+          'text': 'Never call phone numbers listed in unexpected invoices. Log in directly to the official website of the service (PayPal, Amazon, Geek Squad) to check your account status.'
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Scam Education Center - Tactics, Warning Signs & Prevention"
+        description="Comprehensive guide to recognizing tech support, fake invoice, lottery, romance, gift card, and cryptocurrency scams with real examples and prevention advice."
+        keywords="scam education, scam warning signs, tech support scam guide, gift card scam prevention, bitcoin atm scam, phishing warning"
+        canonical="/education"
+        jsonLd={faqJsonLd}
+      />
       <Banner
         variant="info"
         id="education_tip"

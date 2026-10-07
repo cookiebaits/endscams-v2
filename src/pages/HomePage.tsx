@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import CommunityScamDatabaseSearch from '../components/CommunityScamDatabaseSearch';
+import SEO from '../components/SEO';
 
 // ============================================================================
 // 1. UNIFIED PHONE NUMBER MATCHING CODE (isRecordMatch)
@@ -413,8 +414,50 @@ export default function HomePage({ onNavigateToTracker, onNavigateToReport }: Ho
     }
   };
 
+  const homeJsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': 'https://endscams.org/#organization',
+        'name': 'EndScams.org',
+        'url': 'https://endscams.org',
+        'logo': 'https://endscams.org/logo.png',
+        'description': 'Cyberscam Watchdog Network. 501(c)(3) Non-Profit dedicated to exposing scams, protecting victims, and educating the public.',
+        'email': 'outreach@endscams.org',
+        'sameAs': [
+          'https://twitter.com/endscams',
+          'https://reportfraud.ftc.gov'
+        ]
+      },
+      {
+        '@type': 'WebSite',
+        '@id': 'https://endscams.org/#website',
+        'url': 'https://endscams.org',
+        'name': 'EndScams.org',
+        'description': 'Search active scam phone numbers, inspect email & IP threats, and access free cybersecurity workshops.',
+        'publisher': { '@id': 'https://endscams.org/#organization' },
+        'potentialAction': {
+          '@type': 'SearchAction',
+          'target': {
+            '@type': 'EntryPoint',
+            'urlTemplate': 'https://endscams.org/tracker?search={search_term_string}'
+          },
+          'query-input': 'required name=search_term_string'
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <SEO
+        title="Cyberscam Watchdog Network & Free Cybersecurity Workshops"
+        description="EndScams.org is a 501(c)(3) non-profit cyberscam watchdog network. Access free cybersecurity workshops, search active scam phone numbers, and inspect suspicious phone, email, and IP threats."
+        keywords="cyberscam watchdog, free cybersecurity workshops, scam phone lookup, report scam number, phone intelligence, email risk check, IP lookup, tech support scam"
+        canonical="/home"
+        jsonLd={homeJsonLd}
+      />
       {/* Welcome Banner */}
       {!isBannerDismissed && (
         <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 px-4 py-3 text-center relative flex items-center justify-center">

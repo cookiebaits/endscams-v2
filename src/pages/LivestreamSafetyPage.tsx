@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Shield, ChevronDown, ChevronUp, AlertTriangle, MonitorPlay, Video, VideoOff, Key, Radio, XOctagon } from 'lucide-react';
 import Banner from '../components/Banner';
+import SEO from '../components/SEO';
 
 const SCAM_CATALOG = [
   {
@@ -79,8 +80,34 @@ export default function LivestreamSafetyPage() {
     { id: 'notifications', label: 'Desktop push notifications disabled (DND mode)' },
   ];
 
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    'headline': 'Livestreaming Safety & Cybersecurity Field Guide for Content Creators',
+    'description': 'Essential cybersecurity guidelines for content creators to prevent session hijacking, fake sponsorships, doxxing, and live extortion.',
+    'author': {
+      '@type': 'Organization',
+      'name': 'EndScams.org'
+    },
+    'publisher': {
+      '@type': 'Organization',
+      'name': 'EndScams.org',
+      'logo': {
+        '@type': 'ImageObject',
+        'url': 'https://endscams.org/logo.png'
+      }
+    }
+  };
+
   return (
     <>
+      <SEO
+        title="Streamer Safety Field Guide - Protect Channels & Prevent Doxxing"
+        description="Essential cybersecurity field guide for content creators and livestreamers. Prevent session hijacking, fake sponsorships, doxxing, and live extortion."
+        keywords="streamer safety, twitch streamer security, prevent doxxing, avoid fake sponsorships, stream hijacking protection, creator OPSEC"
+        canonical="/stream-safety"
+        jsonLd={articleJsonLd}
+      />
       <Banner
         variant="info"
         id="streamer_safety"

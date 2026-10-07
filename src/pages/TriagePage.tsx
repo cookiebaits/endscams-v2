@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { AlertTriangle, Phone, FileText, CheckCircle, Shield, Zap,  } from 'lucide-react';
 import Banner from '../components/Banner';
+import SEO from '../components/SEO';
 import { requireDisclaimerAcceptance } from '../components/TermsBanner';
 
 type QuestionnaireAnswers = {
@@ -209,9 +210,30 @@ export default function TriagePage() {
 
   const progress = (currentQuestion / 9) * 100;
 
+  const triageJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    'name': 'EndScams Interactive Scam Checker',
+    'operatingSystem': 'All',
+    'applicationCategory': 'SecurityApplication',
+    'offers': {
+      '@type': 'Offer',
+      'price': '0',
+      'priceCurrency': 'USD'
+    },
+    'description': 'Interactive scam risk assessment tool to evaluate suspicious calls, messages, invoices, and payment requests.'
+  };
+
   if (resultType) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+        <SEO
+          title="Interactive Scam Checker & Risk Assessment Questionnaire"
+          description="Use our quick interactive scam detection questionnaire to analyze suspicious phone calls, emails, or payment requests and assess your risk."
+          keywords="scam checker, am I being scammed, scam detection tool, check if scam, scam risk calculator, fraud test"
+          canonical="/triage"
+          jsonLd={triageJsonLd}
+        />
         <div className="max-w-2xl mx-auto px-4 pt-8">
           {resultType === 'very-likely' && (
             <div className="animate-slide-up">
@@ -428,6 +450,13 @@ export default function TriagePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Interactive Scam Checker & Risk Assessment Questionnaire"
+        description="Use our quick interactive scam detection questionnaire to analyze suspicious phone calls, emails, or payment requests and assess your risk."
+        keywords="scam checker, am I being scammed, scam detection tool, check if scam, scam risk calculator, fraud test"
+        canonical="/triage"
+        jsonLd={triageJsonLd}
+      />
       <Banner
         variant="warning"
         id="triage_disclaimer"

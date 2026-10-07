@@ -45,7 +45,8 @@ export default function Navigation() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
+    <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-200">
+      <nav aria-label="Main Navigation" className="w-full">
       <div className="w-full px-2 lg:px-4">
         <div className="flex items-center justify-between h-20">
 
@@ -158,6 +159,7 @@ export default function Navigation() {
           </div>
         </div>
       )}
-    </nav>
+      </nav>
+    </header>
   );
 }

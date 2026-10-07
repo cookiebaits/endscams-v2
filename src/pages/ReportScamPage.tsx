@@ -13,6 +13,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
+import SEO from '../components/SEO';
 
 export interface AltNumberEntry {
   phone: string;
@@ -696,8 +697,41 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     }
   };
 
+  const reportJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    'name': 'How to Report a Scam Phone Number or Fraud Attempt',
+    'description': 'Submit scammer phone numbers, fake invoices, and phishing details to the EndScams public watchdog index.',
+    'step': [
+      {
+        '@type': 'HowToStep',
+        'name': 'Upload Evidence or Screenshot',
+        'text': 'Drag and drop or paste a screenshot of the scam email, text, or invoice for AI OCR auto-filling.'
+      },
+      {
+        '@type': 'HowToStep',
+        'name': 'Enter Scammer Phone Details',
+        'text': 'Provide primary phone number, scammer name, and alternate WhatsApp lines.'
+      },
+      {
+        '@type': 'HowToStep',
+        'name': 'Describe Incident and Publish',
+        'text': 'Summarize what happened and submit to instantly publish the record to the central threat database.'
+      }
+    ]
+  };
+
   const formCard = (
     <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5 text-slate-100 font-sans relative">
+      {!isModal && (
+        <SEO
+          title="Report a Scam Phone Number or Phishing Incident"
+          description="Report scam phone numbers, fake invoices, phishing emails, and online fraud to the EndScams.org public watchdog database to protect potential victims."
+          keywords="report a scam, report scam number, report phone fraud, report paypal scam, report geek squad scam, submit scam evidence"
+          canonical="/report"
+          jsonLd={reportJsonLd}
+        />
+      )}
       {/* Header Strip Matching Image */}
       <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-800/80">
         <div className="flex items-center space-x-3">

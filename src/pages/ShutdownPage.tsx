@@ -11,6 +11,7 @@ import {
   HeartHandshake,
   ShieldCheck
 } from 'lucide-react';
+import SEO from '../components/SEO';
 
 const CHECKLIST_ITEMS = [
   {
@@ -74,8 +75,28 @@ export default function ShutdownPage() {
 
   const answeredCount = Object.keys(answers).length;
 
+  const shutdownJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    'name': 'Scam Shutdown & Recovery Checklist',
+    'description': 'Essential step-by-step checklist to recover from scams, freeze credit, report bank fraud, and secure compromised identity.',
+    'step': CHECKLIST_ITEMS.map((item, idx) => ({
+      '@type': 'HowToStep',
+      'position': idx + 1,
+      'name': item.question,
+      'text': item.noAction
+    }))
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200 pb-16 text-slate-700 dark:text-slate-300">
+      <SEO
+        title="Scam Shutdown Checklist - What To Do If You Were Scammed"
+        description="Step-by-step emergency recovery checklist after being targeted or scammed. File police reports, secure bank accounts, freeze credit, and prevent identity theft."
+        keywords="scam recovery checklist, what to do if scammed, freeze credit after scam, report scam to bank, police report for scam, fraud recovery"
+        canonical="/shutdown"
+        jsonLd={shutdownJsonLd}
+      />
       <div className="max-w-4xl mx-auto px-4 pt-8">
 
         {/* Header Section */}

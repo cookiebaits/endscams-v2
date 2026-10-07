@@ -3,6 +3,7 @@
 import { useNavigate } from "react-router";
 import { Shield, AlertTriangle } from "lucide-react";
 import Banner from '../components/Banner';
+import SEO from '../components/SEO';
 import { TERMS_AND_PRIVACY_TEXT } from '../data/termsAndPrivacy';
 import { acceptDisclaimer } from '../components/TermsBanner';
 
@@ -20,6 +21,12 @@ export default function DisclaimerPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
+      <SEO
+        title="Terms of Use, Privacy Policy & Legal Disclaimer"
+        description="Read EndScams.org terms of use, privacy policies, data disclaimer, and 501(c)(3) legal statements."
+        keywords="endscams terms, privacy policy, legal disclaimer, 501c3 non-profit"
+        canonical="/disclaimer"
+      />
       <Banner
         variant="warning"
         message={<span><strong>Action Required:</strong> Please read and accept our Terms of Service and Privacy Policy to access EndScams.org.</span>}
