@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import SEO from '../components/SEO';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -424,9 +423,10 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
   const [scammerName, setScammerName] = useState('');
   const [altNumber1, setAltNumber1] = useState('');
   const [altNumber2, setAltNumber2] = useState('');
+  const [altNumber3, setAltNumber3] = useState('');
   const [isAlt2Whatsapp, setIsAlt2Whatsapp] = useState(false);
+  const [isAlt3Whatsapp, setIsAlt3Whatsapp] = useState(false);
   const [isPrimaryWhatsapp, setIsPrimaryWhatsapp] = useState(false);
-  const [moneyLost, setMoneyLost] = useState('');
   const [category, setCategory] = useState(STANDARD_SCAM_CATEGORIES[0]);
   const [howContacted, setHowContacted] = useState('Phone Call');
   const [reportDate, setReportDate] = useState(() => getPSTDateStamp());
@@ -448,95 +448,135 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     fetchServerSupabaseConfig();
   }, []);
 
-  // OCR Execution Handler
+  // Fast Client-Side Image Compression & PDF Converter for Instant Upload & AI OCR
+  const compressAndResizeImage = useCallback((file: File, maxDim = 1200, quality = 0.85): Promise<{ base64: string; mimeType: string; isPdf?: boolean }> => {
+    return new Promise((resolve) => {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const reader = new FileReader();
+      reader.onerror = () => resolve({ base64: '', mimeType: isPdf ? 'application/pdf' : file.type || 'image/png', isPdf });
+      reader.onload = () => {
+        const resultStr = reader.result as string;
+
+        // If PDF file, bypass canvas image downscaling and pass application/pdf Base64 directly
+        if (isPdf || file.type === 'application/pdf') {
+          resolve({ base64: resultStr, mimeType: 'application/pdf', isPdf: true });
+          return;
+        }
+
+        if (!file.type.startsWith('image/') && !resultStr.startsWith('data:image')) {
+          resolve({ base64: resultStr, mimeType: file.type || 'image/png', isPdf: false });
+          return;
+        }
+
+        const img = new Image();
+        img.onerror = () => resolve({ base64: resultStr, mimeType: file.type || 'image/png', isPdf: false });
+        img.onload = () => {
+          let { width, height } = img;
+          if (width <= maxDim && height <= maxDim) {
+            resolve({ base64: resultStr, mimeType: file.type || 'image/png', isPdf: false });
+            return;
+          }
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve({ base64: resultStr, mimeType: file.type || 'image/png', isPdf: false });
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const mime = 'image/jpeg';
+          const resizedBase64 = canvas.toDataURL(mime, quality);
+          resolve({ base64: resizedBase64, mimeType: mime, isPdf: false });
+        };
+        img.src = resultStr;
+      };
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  // OCR Execution Handler (Supports Images & PDF documents)
   const processImageWithOcr = useCallback(async (file: File) => {
     setFeedback(null);
-    setOcrStatus('Scanning screenshot with AI OCR engine...');
+    setOcrStatus(file.name.toLowerCase().endsWith('.pdf') ? 'Scanning PDF document with AI OCR engine...' : 'Scanning screenshot with AI OCR engine...');
     setIsOcrProcessing(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64Data = reader.result as string;
-        setScreenshotPreview(base64Data);
+      const { base64: compressedBase64, mimeType, isPdf } = await compressAndResizeImage(file);
+      setScreenshotPreview(compressedBase64 || URL.createObjectURL(file));
 
-        try {
-          const res = await fetch('/api/ocr-scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              imageBase64: base64Data,
-              mimeType: file.type || 'image/png',
-            }),
-          });
+      if (!compressedBase64) {
+        setIsOcrProcessing(false);
+        setOcrStatus('Evidence file attached.');
+        return;
+      }
 
-          let parsed: any = null;
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.data) {
-              parsed = data.data;
-            }
-          }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s safety timeout
 
-          // Fallback parsing if backend OCR response is minimal
-          if (!parsed || (!parsed.primaryPhoneNumber && !parsed.scammerName)) {
-            const fileName = file.name || '';
-            const phoneMatch = fileName.match(/(?:\+?\d{1,3}[\s\-.]*)?\(?\d{3}\)?[\s\-.]*\d{3}[\s\-.]*\d{4}/);
-            const moneyMatch = fileName.match(/\$?(\d+(?:\.\d{2})?)/);
+      const res = await fetch('/api/ocr-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: compressedBase64,
+          mimeType: isPdf ? 'application/pdf' : mimeType,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
 
-            parsed = {
-              primaryPhoneNumber: phoneMatch ? phoneMatch[0] : (parsed?.primaryPhoneNumber || ''),
-              scammerName: fileName.toLowerCase().includes('paypal') ? 'PayPal' :
-                           fileName.toLowerCase().includes('geek') ? 'Geek Squad' :
-                           fileName.toLowerCase().includes('mcafee') ? 'McAfee' :
-                           fileName.toLowerCase().includes('norton') ? 'Norton' :
-                           fileName.toLowerCase().includes('pch') ? 'PCH' : (parsed?.scammerName || ''),
-              financialLoss: moneyMatch ? moneyMatch[1] : (parsed?.financialLoss || ''),
-              description: parsed?.description || `Evidence screenshot attached (${file.name}). Threat intelligence extracted via OCR.`,
-            };
-          }
+      const data = await res.json();
+      if (data.success && data.data) {
+        const parsed = data.data;
 
-          if (parsed.primaryPhoneNumber) setPhoneNumber(parsed.primaryPhoneNumber);
-          if (parsed.scammerName) setScammerName(parsed.scammerName);
-          if (parsed.altPhoneNumber1) setAltNumber1(parsed.altPhoneNumber1);
-          if (parsed.altPhoneNumber2) setAltNumber2(parsed.altPhoneNumber2);
-          if (typeof parsed.isWhatsapp === 'boolean') setIsPrimaryWhatsapp(parsed.isWhatsapp);
-          if (typeof parsed.isAlt2Whatsapp === 'boolean') setIsAlt2Whatsapp(parsed.isAlt2Whatsapp);
-          if (parsed.financialLoss) setMoneyLost(String(parsed.financialLoss));
-          if (parsed.howContacted) setHowContacted(parsed.howContacted);
-          if (parsed.category || parsed.description || parsed.scammerName) {
-            const normCat = mapToStandardCategory(
-              parsed.category || '',
-              `${parsed.description || ''} ${parsed.scammerName || ''}`,
-              (parsed.primaryPhoneNumber || '').replace(/\D/g, '')
-            );
-            setCategory(normCat);
-          }
-          if (parsed.incidentDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.incidentDate)) {
-            setReportDate(parsed.incidentDate);
-          } else {
-            setReportDate(getPSTDateStamp());
-          }
-          if (parsed.description) {
-            setDescription(parsed.description);
-          }
+        // Populate ALL detected form fields instantly
+        if (parsed.primaryPhoneNumber) setPhoneNumber(parsed.primaryPhoneNumber);
+        if (parsed.scammerName) setScammerName(parsed.scammerName);
+        if (parsed.altPhoneNumber1) setAltNumber1(parsed.altPhoneNumber1);
+        if (parsed.altPhoneNumber2) setAltNumber2(parsed.altPhoneNumber2);
+        if (parsed.altPhoneNumber3) setAltNumber3(parsed.altPhoneNumber3);
+        if (typeof parsed.isWhatsapp === 'boolean') setIsPrimaryWhatsapp(parsed.isWhatsapp);
+        if (typeof parsed.isAlt2Whatsapp === 'boolean') setIsAlt2Whatsapp(parsed.isAlt2Whatsapp);
+        if (parsed.howContacted) setHowContacted(parsed.howContacted);
 
-          setOcrStatus('✨ Screenshot analyzed with AI OCR! All detected fields auto-populated.');
-          setTimeout(() => setOcrStatus(null), 8000);
-        } catch (err: any) {
-          console.warn('OCR fetch failed:', err);
-          setOcrStatus('Screenshot attached.');
-        } finally {
-          setIsOcrProcessing(false);
+        if (parsed.category) {
+          const normCat = mapToStandardCategory(
+            parsed.category,
+            `${parsed.description || ''} ${parsed.scammerName || ''}`,
+            (parsed.primaryPhoneNumber || '').replace(/\D/g, '')
+          );
+          setCategory(normCat);
         }
-      };
-      reader.readAsDataURL(file);
+
+        if (parsed.incidentDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.incidentDate)) {
+          setReportDate(parsed.incidentDate);
+        } else {
+          setReportDate(getPSTDateStamp());
+        }
+
+        if (parsed.description) {
+          setDescription(parsed.description);
+        }
+
+        setOcrStatus(isPdf ? '✨ PDF Document analyzed with AI OCR! All detected fields auto-populated.' : '✨ Screenshot analyzed with AI OCR! All detected fields auto-populated.');
+        setTimeout(() => setOcrStatus(null), 8000);
+      } else {
+        setOcrStatus('Evidence file attached.');
+      }
     } catch (err: any) {
+      console.warn('OCR fetch notice:', err);
+      setOcrStatus('Evidence file attached.');
+    } finally {
       setIsOcrProcessing(false);
-      setOcrStatus(null);
-      setFeedback({ type: 'error', message: `Could not process image: ${err.message}` });
     }
-  }, []);
+  }, [compressAndResizeImage]);
 
   // Global Paste Handler for Instant OCR (Ctrl+V / Cmd+V)
   useEffect(() => {
@@ -546,7 +586,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (item.type.indexOf('image') !== -1) {
+        if (item.type.indexOf('image') !== -1 || item.type.indexOf('pdf') !== -1) {
           const file = item.getAsFile();
           if (file) {
             e.preventDefault();
@@ -570,7 +610,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       e.preventDefault();
       if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
         const file = e.dataTransfer.files[0];
-        if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(file.name)) {
+        if (file.type.startsWith('image/') || file.type.includes('pdf') || /\.(png|jpe?g|webp|gif|bmp|heic|pdf)$/i.test(file.name)) {
           processImageWithOcr(file);
         }
       }
@@ -584,14 +624,32 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     };
   }, [processImageWithOcr]);
 
-  // Local Dropzone handlers
+  // Close modal or return to tracker helper
+  const handleClose = useCallback(() => {
+    if (onCloseModal) {
+      onCloseModal();
+    } else if (onNavigateToTracker) {
+      onNavigateToTracker();
+    }
+  }, [onCloseModal, onNavigateToTracker]);
+
+  // Global ESC key listener to close box
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleClose]);
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|heic)$/i.test(file.name)) {
+      if (file.type.startsWith('image/') || file.type.includes('pdf') || /\.(png|jpe?g|webp|gif|bmp|heic|pdf)$/i.test(file.name)) {
         processImageWithOcr(file);
       }
     }
@@ -625,6 +683,13 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
         is_whatsapp: isAlt2Whatsapp,
       });
     }
+    if (altNumber3.trim()) {
+      altNumbersList.push({
+        phone: altNumber3.trim(),
+        digits: altNumber3.replace(/\D/g, ''),
+        is_whatsapp: isAlt3Whatsapp,
+      });
+    }
 
     const newRecord: ThreatRecord = {
       id: `report-${Date.now()}-${cleanDigits.slice(-4)}`,
@@ -636,8 +701,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       impersonated_company: scammerName.trim() || 'N/A',
       scammer_name: scammerName.trim() || 'N/A',
       how_contacted: howContacted,
-      amount_charged: moneyLost ? `$${moneyLost}` : 'N/A',
-      money_lost: moneyLost ? parseFloat(moneyLost) : undefined,
+      amount_charged: 'N/A',
       source_name: 'EndScams Report',
       source_url: 'https://endscams.org',
       report_date: reportDate,
@@ -645,6 +709,21 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       image_url: screenshotPreview || undefined,
       is_down: false,
     };
+
+    // Save immediately to local storage so it renders instantly at top of Tracker Page
+    try {
+      const existingRaw = localStorage.getItem('esscan_threat_records_v3');
+      const existingList = existingRaw ? JSON.parse(existingRaw) : [];
+      const updatedList = [
+        newRecord,
+        ...(Array.isArray(existingList) ? existingList.filter((r: any) => r.phone_digits !== newRecord.phone_digits) : []),
+      ];
+      localStorage.setItem('esscan_threat_records_v3', JSON.stringify(updatedList));
+
+      const userReports = localStorage.getItem('user_reported_scams');
+      const userList = userReports ? JSON.parse(userReports) : [];
+      localStorage.setItem('user_reported_scams', JSON.stringify([newRecord, ...(Array.isArray(userList) ? userList : [])]));
+    } catch {}
 
     // 1. Direct 100% Supabase Database Persistence
     try {
@@ -678,53 +757,15 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
       } catch {}
     }
 
-    // 3. Broadcast cross-tab & simulate report dispatch to https://esscan.ai.studio/?page=tracker
+    // 3. Broadcast cross-tab
     try {
       const bc = new BroadcastChannel('end_scam_scan_sync_channel');
       bc.postMessage({
         type: 'ADD_RECORD',
-        targetUrl: 'https://esscan.ai.studio/?page=tracker',
         record: newRecord,
       });
       bc.close();
     } catch {}
-
-    // Dispatch message to any active window/iframe referencing esscan.ai.studio
-    if (typeof window !== 'undefined') {
-      try {
-        window.postMessage(
-          {
-            type: 'ADD_RECORD',
-            target: 'https://esscan.ai.studio/?page=tracker',
-            record: newRecord,
-          },
-          '*'
-        );
-        const iframes = document.querySelectorAll('iframe');
-        iframes.forEach((f) => {
-          if (f.contentWindow) {
-            f.contentWindow.postMessage(
-              {
-                type: 'ADD_RECORD',
-                target: 'https://esscan.ai.studio/?page=tracker',
-                record: newRecord,
-              },
-              '*'
-            );
-          }
-        });
-      } catch {}
-
-      // Fire simulation HTTP request to https://esscan.ai.studio/?page=tracker
-      try {
-        fetch('https://esscan.ai.studio/?page=tracker', {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newRecord),
-        }).catch(() => {});
-      } catch {}
-    }
 
     if (onRecordCreated) {
       onRecordCreated(newRecord);
@@ -732,7 +773,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
 
     setFeedback({
       type: 'success',
-      message: `Report successfully published! Threat line ${newRecord.phone_number} is now live in database and dispatched to https://esscan.ai.studio/?page=tracker`,
+      message: `✓ Report successfully submitted! Syncing with Live Tracker (https://esscan.ai.studio/?page=tracker)...`,
     });
 
     // Reset fields
@@ -740,19 +781,24 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     setScammerName('');
     setAltNumber1('');
     setAltNumber2('');
+    setAltNumber3('');
     setIsAlt2Whatsapp(false);
+    setIsAlt3Whatsapp(false);
     setIsPrimaryWhatsapp(false);
-    setMoneyLost('');
     setDescription('');
     setScreenshotPreview(null);
     setIsSubmitting(false);
 
-    // If navigation callback provided, navigate back to tracker so user sees the newly created entry
-    if (onNavigateToTracker) {
-      setTimeout(() => {
+    // Redirect to tracker page (https://esscan.ai.studio/?page=tracker) after short delay
+    setTimeout(() => {
+      if (onNavigateToTracker) {
         onNavigateToTracker();
-      }, 1200);
-    }
+      } else if (typeof window !== 'undefined') {
+        const targetUrl = new URL(window.location.href);
+        targetUrl.searchParams.set('page', 'tracker');
+        window.location.href = targetUrl.toString();
+      }
+    }, 1000);
   };
 
   const formCard = (
@@ -779,15 +825,28 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           </div>
         </div>
 
-        <a
-          href="https://endscams.org"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition"
-        >
-          <span>endscams.org</span>
-          <ExternalLink className="w-3 h-3 text-slate-400" />
-        </a>
+        <div className="flex items-center space-x-2">
+          <a
+            href="https://endscams.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-950/80 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition"
+          >
+            <span>endscams.org</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
+
+          {(onCloseModal || onNavigateToTracker) && (
+            <button
+              type="button"
+              onClick={handleClose}
+              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition border border-slate-800 cursor-pointer flex items-center justify-center"
+              title="Close Report Scam box"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Feedback Alert */}
@@ -879,10 +938,10 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
                 </div>
                 <div className="text-center">
                   <span className="text-xs font-bold text-slate-200 block">
-                    Click to upload or drag and drop scam screenshot
+                    Click to upload or drag and drop scam screenshot or PDF evidence
                   </span>
                   <p className="text-[10px] text-slate-500 mt-0.5">
-                    PNG, JPG, WEBP up to 10MB • Or paste screenshot anywhere (Ctrl+V)
+                    PNG, JPG, WEBP, PDF up to 15MB • Or paste screenshot anywhere (Ctrl+V)
                   </p>
                 </div>
               </>
@@ -891,14 +950,14 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
             {isOcrProcessing && (
               <div className="absolute inset-0 bg-slate-950/90 rounded-2xl flex items-center justify-center space-x-2 text-amber-400 text-xs font-bold backdrop-blur-xs">
                 <Sparkles className="w-4 h-4 animate-spin" />
-                <span>Analyzing screenshot with OCR & auto-populating fields...</span>
+                <span>Analyzing document / screenshot with OCR & auto-populating fields...</span>
               </div>
             )}
 
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf,.pdf"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -939,7 +998,7 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           </div>
         </div>
 
-        {/* Row 2: Alt Phone Number #1 & Alt Phone Number #2 / WhatsApp */}
+        {/* Row 2: Alt Phone Number #1 & Alt Phone Number #2 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div className="space-y-1">
             <label className="block text-slate-300 font-semibold">
@@ -956,45 +1015,45 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
 
           <div className="space-y-1">
             <label className="block text-slate-300 font-semibold">
-              Alt Phone Number #2 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
+              Alt Phone Number #2 <span className="text-slate-500 font-normal">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. +234 810 552 9412"
+              value={altNumber2}
+              onChange={(e) => setAltNumber2(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Row 3: Alt Phone Number #3 / WhatsApp & Scam Category */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="space-y-1">
+            <label className="block text-slate-300 font-semibold">
+              Alt Phone Number #3 / WhatsApp <span className="text-slate-500 font-normal">(Optional)</span>
             </label>
             <div className="relative flex items-center">
               <input
                 type="text"
                 placeholder="e.g. +234 810 552 9412"
-                value={altNumber2}
-                onChange={(e) => setAltNumber2(e.target.value)}
+                value={altNumber3}
+                onChange={(e) => setAltNumber3(e.target.value)}
                 className="w-full pl-3.5 pr-28 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
               />
               <button
                 type="button"
-                onClick={() => setIsAlt2Whatsapp(!isAlt2Whatsapp)}
+                onClick={() => setIsAlt3Whatsapp(!isAlt3Whatsapp)}
                 className={`absolute right-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center space-x-1 cursor-pointer border ${
-                  isAlt2Whatsapp
+                  isAlt3Whatsapp
                     ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${isAlt2Whatsapp ? 'bg-slate-950' : 'bg-slate-500'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${isAlt3Whatsapp ? 'bg-slate-950' : 'bg-slate-500'}`} />
                 <span>WhatsApp</span>
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Row 3: Amount Scamming & Scam Category */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div className="space-y-1">
-            <label className="block text-slate-300 font-semibold">
-              Amount Scamming ($) <span className="text-slate-500 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. 250.00"
-              value={moneyLost}
-              onChange={(e) => setMoneyLost(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-xs"
-            />
           </div>
 
           <div className="space-y-1">
@@ -1090,10 +1149,10 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
           </div>
 
           <div className="flex items-center space-x-2.5">
-            {onNavigateToTracker && (
+            {(onNavigateToTracker || onCloseModal) && (
               <button
                 type="button"
-                onClick={onNavigateToTracker}
+                onClick={handleClose}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
                 Cancel
@@ -1114,44 +1173,18 @@ export const ReportScamPage: React.FC<ReportScamPageProps> = ({
     </div>
   );
 
-  if (isModal) {
-    return (
-      <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-        <div className="w-full max-w-4xl relative my-6">
-          <button
-            onClick={onCloseModal}
-            className="absolute top-4 right-4 z-10 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-slate-100 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          {formCard}
-        </div>
-      </div>
-    );
-  }
-
-  const reportJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "Report a Scam | Cyberscam Watchdog",
-    "description": "Submit scam phone numbers, fraudulent texts, fake invoices, and phishing attempts to our global threat database.",
-    "publisher": {
-      "@type": "NGO",
-      "name": "Cyberscam Watchdog Network",
-      "url": "https://endscams.org"
-    }
-  };
-
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 py-4">
-      <SEO
-        title="Report a Scam & Protect Victims"
-        description="Submit scam phone numbers, fake invoices, and phishing attempts to our global threat database to immediately warn and protect others."
-        keywords="report scam phone number, submit scammer report, report fraud, online scam reporting, anti-phishing registry"
-        canonicalPath="/report"
-        jsonLd={reportJsonLd}
-      />
-      {formCard}
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose();
+        }
+      }}
+      className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-start justify-center p-3 sm:p-4 md:p-6 overflow-y-auto"
+    >
+      <div className="w-full max-w-4xl relative my-auto py-4 animate-in fade-in zoom-in-95 duration-200">
+        {formCard}
+      </div>
     </div>
   );
 };
